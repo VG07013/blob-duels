@@ -1,0 +1,498 @@
+[gd_scene load_steps=17 format=3]
+
+[ext_resource type="Script" path="res://scripts/pause_menu.gd" id="1_pause"]
+[ext_resource type="Script" path="res://scripts/crosshair.gd" id="2_crosshair"]
+
+[sub_resource type="SystemFont" id="UIFont"]
+font_names = PackedStringArray("SF Pro Display", "Avenir Next", "Helvetica Neue", "Arial")
+
+[sub_resource type="StyleBoxFlat" id="PanelStyle"]
+bg_color = Color(0.035, 0.043, 0.061, 0.985)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.42, 0.49, 0.6, 0.32)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+shadow_color = Color(0, 0, 0, 0.58)
+shadow_size = 32
+shadow_offset = Vector2(0, 14)
+content_margin_left = 28.0
+content_margin_top = 24.0
+content_margin_right = 28.0
+content_margin_bottom = 22.0
+
+[sub_resource type="StyleBoxFlat" id="PageStyle"]
+bg_color = Color(0.055, 0.066, 0.09, 0.94)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.35, 0.42, 0.52, 0.28)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+content_margin_left = 22.0
+content_margin_top = 20.0
+content_margin_right = 22.0
+content_margin_bottom = 20.0
+
+[sub_resource type="StyleBoxFlat" id="PreviewStyle"]
+bg_color = Color(0.027, 0.034, 0.05, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.22, 0.84, 0.92, 0.38)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+content_margin_left = 18.0
+content_margin_top = 16.0
+content_margin_right = 18.0
+content_margin_bottom = 16.0
+
+[sub_resource type="StyleBoxFlat" id="TabNormal"]
+bg_color = Color(0.055, 0.066, 0.09, 0.72)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.3, 0.36, 0.44, 0.34)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="TabHover"]
+bg_color = Color(0.09, 0.112, 0.15, 0.98)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.45, 0.76, 0.92, 0.72)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="TabPressed"]
+bg_color = Color(0.1, 0.27, 0.33, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.3, 0.9, 0.96, 0.95)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="ActionNormal"]
+bg_color = Color(0.075, 0.09, 0.12, 0.98)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.33, 0.39, 0.48, 0.58)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="ActionHover"]
+bg_color = Color(0.115, 0.14, 0.18, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.48, 0.75, 0.9, 0.9)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="ActionPressed"]
+bg_color = Color(0.045, 0.055, 0.075, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.28, 0.68, 0.88, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="ResumeNormal"]
+bg_color = Color(0.31, 0.91, 0.78, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.65, 1, 0.92, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="DangerNormal"]
+bg_color = Color(0.18, 0.07, 0.09, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.67, 0.25, 0.31, 0.72)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="StatePill"]
+bg_color = Color(0.11, 0.19, 0.22, 0.92)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.3, 0.86, 0.89, 0.5)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+content_margin_left = 14.0
+content_margin_top = 7.0
+content_margin_right = 14.0
+content_margin_bottom = 7.0
+
+[sub_resource type="ButtonGroup" id="TabsGroup"]
+allow_unpress = false
+
+[node name="PauseMenu" type="CanvasLayer"]
+layer = 20
+process_mode = 3
+script = ExtResource("1_pause")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+color = Color(0.008, 0.012, 0.02, 0.82)
+
+[node name="PausePanel" type="PanelContainer" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -540.0
+offset_top = -340.0
+offset_right = 540.0
+offset_bottom = 340.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("PanelStyle")
+
+[node name="Content" type="VBoxContainer" parent="PausePanel"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Header" type="HBoxContainer" parent="PausePanel/Content"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="BrandBlock" type="VBoxContainer" parent="PausePanel/Content/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 1
+
+[node name="Brand" type="Label" parent="PausePanel/Content/Header/BrandBlock"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.34, 0.9, 0.91, 1)
+theme_override_fonts/font = SubResource("UIFont")
+theme_override_font_sizes/font_size = 13
+text = "BLOB DUELS"
+
+[node name="Title" type="Label" parent="PausePanel/Content/Header/BrandBlock"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.96, 0.98, 1, 1)
+theme_override_fonts/font = SubResource("UIFont")
+theme_override_font_sizes/font_size = 26
+text = "Game paused"
+
+[node name="StatePill" type="PanelContainer" parent="PausePanel/Content/Header"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_styles/panel = SubResource("StatePill")
+
+[node name="State" type="Label" parent="PausePanel/Content/Header/StatePill"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.98, 0.96, 1)
+theme_override_fonts/font = SubResource("UIFont")
+theme_override_font_sizes/font_size = 13
+text = "MATCH PAUSED"
+
+[node name="Tabs" type="HBoxContainer" parent="PausePanel/Content"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="MatchTab" type="Button" parent="PausePanel/Content/Tabs"]
+custom_minimum_size = Vector2(160, 44)
+layout_mode = 2
+toggle_mode = true
+button_pressed = true
+button_group = SubResource("TabsGroup")
+theme_override_colors/font_color = Color(0.78, 0.84, 0.91, 1)
+theme_override_colors/font_pressed_color = Color(0.9, 1, 0.98, 1)
+theme_override_fonts/font = SubResource("UIFont")
+theme_override_font_sizes/font_size = 15
+theme_override_styles/normal = SubResource("TabNormal")
+theme_override_styles/hover = SubResource("TabHover")
+theme_override_styles/pressed = SubResource("TabPressed")
+text = "MATCH"
+
+[node name="SettingsTab" type="Button" parent="PausePanel/Content/Tabs"]
+custom_minimum_size = Vector2(160, 44)
+layout_mode = 2
+toggle_mode = true
+button_group = SubResource("TabsGroup")
+theme_override_colors/font_color = Color(0.78, 0.84, 0.91, 1)
+theme_override_colors/font_pressed_color = Color(0.9, 1, 0.98, 1)
+theme_override_fonts/font = SubResource("UIFont")
+theme_override_font_sizes/font_size = 15
+theme_override_styles/normal = SubResource("TabNormal")
+theme_override_styles/hover = SubResource("TabHover")
+theme_override_styles/pressed = SubResource("TabPressed")
+text = "SETTINGS"
+
+[node name="CrosshairTab" type="Button" parent="PausePanel/Content/Tabs"]
+custom_minimum_size = Vector2(160, 44)
+layout_mode = 2
+toggle_mode = true
+button_group = SubResource("TabsGroup")
+theme_override_colors/font_color = Color(0.78, 0.84, 0.91, 1)
+theme_override_colors/font_pressed_color = Color(0.9, 1, 0.98, 1)
+theme_override_fonts/font = SubResource("UIFont")
+theme_override_font_sizes/font_size = 15
+theme_override_styles/normal = SubResource("TabNormal")
+theme_override_styles/hover = SubResource("TabHover")
+theme_override_styles/pressed = SubResource("TabPressed")
+text = "CROSSHAIR"
+
+[node name="Divider" type="ColorRect" parent="PausePanel/Content"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+color = Color(0.35, 0.42, 0.5, 0.42)
+
+[node name="Pages" type="Control" parent="PausePanel/Content"]
+custom_minimum_size = Vector2(0, 360)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="MatchPage" type="PanelContainer" parent="PausePanel/Content/Pages"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("PageStyle")
+
+[node name="Stack" type="VBoxContainer" parent="PausePanel/Content/Pages/MatchPage"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 14
+
+[node name="Kicker" type="Label" parent="PausePanel/Content/Pages/MatchPage/Stack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.37, 0.86, 0.9, 1)
+theme_override_fonts/font = SubResource("UIFont")
+theme_override_font_sizes/font_size = 13
+text = "CURRENT SESSION"
+horizontal_alignment = 1
+
+[node name="Title" type="Label" parent="PausePanel/Content/Pages/MatchPage/Stack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.96, 0.98, 1, 1)
+theme_override_fonts/font = SubResource("UIFont")
+theme_override_font_sizes/font_size = 34
+text = "Take a breather"
+horizontal_alignment = 1
+
+[node name="MatchRule" type="Label" parent="PausePanel/Content/Pages/MatchPage/Stack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.77, 0.83, 0.9, 1)
+theme_override_fonts/font = SubResource("UIFont")
+theme_override_font_sizes/font_size = 17
+text = "RED VS BLUE  |  FIRST TO 5"
+horizontal_alignment = 1
+
+[node name="RuleDivider" type="ColorRect" parent="PausePanel/Content/Pages/MatchPage/Stack"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+color = Color(0.34, 0.4, 0.49, 0.32)
+
+[node name="RespawnRule" type="Label" parent="PausePanel/Content/Pages/MatchPage/Stack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.98, 0.64, 0.65, 1)
+theme_override_fonts/font = SubResource("UIFont")
+theme_override_font_sizes/font_size = 15
+text = "Respawning during a duel awards the opposing team a point."
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="SettingsPage" type="PanelContainer" parent="PausePanel/Content/Pages"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("PageStyle")
+
+[node name="Scroll" type="ScrollContainer" parent="PausePanel/Content/Pages/SettingsPage"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="Rows" type="VBoxContainer" parent="PausePanel/Content/Pages/SettingsPage/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="CrosshairPage" type="PanelContainer" parent="PausePanel/Content/Pages"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("PageStyle")
+
+[node name="Layout" type="GridContainer" parent="PausePanel/Content/Pages/CrosshairPage"]
+layout_mode = 2
+columns = 2
+theme_override_constants/h_separation = 22
+theme_override_constants/v_separation = 14
+
+[node name="Preview" type="PanelContainer" parent="PausePanel/Content/Pages/CrosshairPage/Layout"]
+custom_minimum_size = Vector2(310, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("PreviewStyle")
+
+[node name="PreviewStack" type="VBoxContainer" parent="PausePanel/Content/Pages/CrosshairPage/Layout/Preview"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 4
+
+[node name="Label" type="Label" parent="PausePanel/Content/Pages/CrosshairPage/Layout/Preview/PreviewStack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.65, 0.75, 1)
+theme_override_fonts/font = SubResource("UIFont")
+theme_override_font_sizes/font_size = 13
+text = "LIVE PREVIEW"
+horizontal_alignment = 1
+
+[node name="Crosshair" type="Control" parent="PausePanel/Content/Pages/CrosshairPage/Layout/Preview/PreviewStack"]
+custom_minimum_size = Vector2(270, 270)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("2_crosshair")
+
+[node name="Editor" type="VBoxContainer" parent="PausePanel/Content/Pages/CrosshairPage/Layout"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="Slots" type="HBoxContainer" parent="PausePanel/Content/Pages/CrosshairPage/Layout/Editor"]
+layout_mode = 2
+theme_override_constants/separation = 7
+
+[node name="Slot1" type="Button" parent="PausePanel/Content/Pages/CrosshairPage/Layout/Editor/Slots"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_fonts/font = SubResource("UIFont")
+theme_override_styles/normal = SubResource("TabNormal")
+theme_override_styles/hover = SubResource("TabHover")
+theme_override_styles/pressed = SubResource("TabPressed")
+text = "SLOT 1"
+
+[node name="Slot2" type="Button" parent="PausePanel/Content/Pages/CrosshairPage/Layout/Editor/Slots"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_fonts/font = SubResource("UIFont")
+theme_override_styles/normal = SubResource("TabNormal")
+theme_override_styles/hover = SubResource("TabHover")
+theme_override_styles/pressed = SubResource("TabPressed")
+text = "SLOT 2"
+
+[node name="Slot3" type="Button" parent="PausePanel/Content/Pages/CrosshairPage/Layout/Editor/Slots"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_fonts/font = SubResource("UIFont")
+theme_override_styles/normal = SubResource("TabNormal")
+theme_override_styles/hover = SubResource("TabHover")
+theme_override_styles/pressed = SubResource("TabPressed")
+text = "SLOT 3"
+
+[node name="RowsScroll" type="ScrollContainer" parent="PausePanel/Content/Pages/CrosshairPage/Layout/Editor"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Rows" type="VBoxContainer" parent="PausePanel/Content/Pages/CrosshairPage/Layout/Editor/RowsScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 7
+
+[node name="Actions" type="HBoxContainer" parent="PausePanel/Content"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="LobbyButton" type="Button" parent="PausePanel/Content/Actions"]
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 0.76, 0.78, 1)
+theme_override_fonts/font = SubResource("UIFont")
+theme_override_font_sizes/font_size = 17
+theme_override_styles/normal = SubResource("DangerNormal")
+theme_override_styles/hover = SubResource("ActionHover")
+theme_override_styles/pressed = SubResource("ActionPressed")
+text = "LOBBY"
+
+[node name="RespawnButton" type="Button" parent="PausePanel/Content/Actions"]
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.94, 0.97, 1, 1)
+theme_override_fonts/font = SubResource("UIFont")
+theme_override_font_sizes/font_size = 17
+theme_override_styles/normal = SubResource("ActionNormal")
+theme_override_styles/hover = SubResource("ActionHover")
+theme_override_styles/pressed = SubResource("ActionPressed")
+text = "RESPAWN"
+
+[node name="ResumeButton" type="Button" parent="PausePanel/Content/Actions"]
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.025, 0.075, 0.07, 1)
+theme_override_fonts/font = SubResource("UIFont")
+theme_override_font_sizes/font_size = 17
+theme_override_styles/normal = SubResource("ResumeNormal")
+theme_override_styles/hover = SubResource("ActionHover")
+theme_override_styles/pressed = SubResource("ActionPressed")
+text = "RESUME"

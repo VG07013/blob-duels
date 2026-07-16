@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="512" viewBox="0 0 1024 512">
+  <rect width="1024" height="512" fill="#101927"/>
+  <rect x="28" y="28" width="968" height="456" rx="24" fill="#19283b" stroke="#54e2f2" stroke-width="8"/>
+  <circle cx="178" cy="256" r="105" fill="#25c9ed"/><circle cx="846" cy="256" r="105" fill="#f24f68"/>
+  <circle cx="211" cy="225" r="17" fill="#ffffff"/><circle cx="813" cy="225" r="17" fill="#ffffff"/>
+  <path d="M295 256 H729" stroke="#ffc552" stroke-width="18" stroke-linecap="round"/>
+  <text x="512" y="225" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="86" font-weight="700">BLOB</text>
+  <text x="512" y="327" text-anchor="middle" fill="#ffc552" font-family="Arial, Helvetica, sans-serif" font-size="76" font-weight="700">LEAGUE</text>
+</svg>

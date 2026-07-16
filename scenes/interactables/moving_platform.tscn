@@ -1,0 +1,42 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/interactables/moving_platform.gd" id="1"]
+
+[sub_resource type="BoxShape3D" id="PlatformShape"]
+resource_local_to_scene = true
+size = Vector3(14, 1.4, 10)
+
+[sub_resource type="BoxMesh" id="DeckMesh"]
+resource_local_to_scene = true
+size = Vector3(14, 1.4, 10)
+
+[sub_resource type="BoxMesh" id="TopTrimMesh"]
+resource_local_to_scene = true
+size = Vector3(14.8, 0.28, 10.8)
+
+[sub_resource type="BoxMesh" id="BottomTrimMesh"]
+resource_local_to_scene = true
+size = Vector3(14.8, 0.28, 10.8)
+
+[node name="MovingPlatform" type="AnimatableBody3D" groups=["map_interactable"]]
+collision_layer = 1
+collision_mask = 2
+sync_to_physics = true
+script = ExtResource("1")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+shape = SubResource("PlatformShape")
+
+[node name="VisualRoot" type="Node3D" parent="."]
+
+[node name="Deck" type="MeshInstance3D" parent="VisualRoot"]
+mesh = SubResource("DeckMesh")
+
+[node name="TrimTop" type="MeshInstance3D" parent="VisualRoot"]
+position = Vector3(0, 0.86, 0)
+mesh = SubResource("TopTrimMesh")
+
+[node name="TrimBottom" type="MeshInstance3D" parent="VisualRoot"]
+position = Vector3(0, -0.86, 0)
+mesh = SubResource("BottomTrimMesh")
+

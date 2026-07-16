@@ -1,0 +1,15 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/lobby_room.gd" id="1_lobby"]
+
+[node name="Lobby" type="Node3D"]
+script = ExtResource("1_lobby")
+
+[node name="Room" type="StaticBody3D" parent="."]
+collision_layer = 1
+collision_mask = 0
+
+[node name="JoinPad" type="Area3D" parent="."]
+collision_layer = 0
+collision_mask = 2
+monitoring = true

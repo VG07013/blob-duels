@@ -1,0 +1,174 @@
+[gd_scene load_steps=17 format=3]
+
+[ext_resource type="Script" path="res://scripts/dummy_blob.gd" id="1_dummy"]
+[ext_resource type="Script" path="res://scripts/blob_visual.gd" id="2_visual"]
+[ext_resource type="Script" path="res://scripts/blob_face.gd" id="3_face"]
+
+[sub_resource type="SystemFont" id="WorldFont"]
+font_names = PackedStringArray("SF Pro Display", "Avenir Next", "Helvetica Neue", "Arial")
+
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_dummy"]
+friction = 0.12
+bounce = 0.94
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_dummy"]
+albedo_color = Color(1, 0.38, 0.18, 1)
+roughness = 0.42
+
+[sub_resource type="SphereMesh" id="SphereMesh_dummy"]
+material = SubResource("StandardMaterial3D_dummy")
+radius = 2.8875
+height = 5.775
+radial_segments = 48
+rings = 24
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_dummy"]
+radius = 2.8875
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_ground_cast"]
+radius = 2.45
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_hurtbox"]
+radius = 4.55
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_contact"]
+radius = 3.4125
+
+[sub_resource type="StandardMaterial3D" id="FaceMaterial"]
+albedo_color = Color(0.025, 0.035, 0.055, 1)
+roughness = 0.48
+
+[sub_resource type="StandardMaterial3D" id="EyeWhiteMaterial"]
+albedo_color = Color(1, 0.985, 0.95, 1)
+roughness = 0.3
+
+[sub_resource type="StandardMaterial3D" id="EyeHighlightMaterial"]
+shading_mode = 0
+albedo_color = Color(1, 1, 1, 1)
+emission_enabled = true
+emission = Color(1, 1, 1, 1)
+emission_energy_multiplier = 0.45
+
+[sub_resource type="SphereMesh" id="FaceMesh"]
+material = SubResource("FaceMaterial")
+radius = 0.3
+height = 0.6
+radial_segments = 20
+rings = 10
+
+[sub_resource type="CapsuleMesh" id="SmileMesh"]
+material = SubResource("FaceMaterial")
+radius = 0.12
+height = 0.58
+radial_segments = 16
+rings = 6
+
+[node name="DummyBlob" type="RigidBody3D"]
+collision_layer = 2
+collision_mask = 1
+mass = 3.2
+physics_material_override = SubResource("PhysicsMaterial_dummy")
+linear_damp = 0.55
+angular_damp = 0.26
+continuous_cd = true
+script = ExtResource("1_dummy")
+
+[node name="VisualRoot" type="Node3D" parent="."]
+top_level = true
+script = ExtResource("2_visual")
+
+[node name="Mesh" type="MeshInstance3D" parent="VisualRoot"]
+mesh = SubResource("SphereMesh_dummy")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape3D_dummy")
+
+[node name="GroundCast" type="ShapeCast3D" parent="."]
+target_position = Vector3(0, -3.35, 0)
+margin = 0.2
+collision_mask = 1
+exclude_parent = true
+enabled = true
+shape = SubResource("SphereShape3D_ground_cast")
+
+[node name="Hurtbox" type="Area3D" parent="." groups=["blob_hurtbox"]]
+collision_layer = 8
+collision_mask = 0
+monitoring = false
+
+[node name="Collision" type="CollisionShape3D" parent="Hurtbox"]
+shape = SubResource("SphereShape3D_hurtbox")
+
+[node name="ContactArea" type="Area3D" parent="."]
+collision_layer = 16
+collision_mask = 16
+monitoring = true
+monitorable = true
+
+[node name="Collision" type="CollisionShape3D" parent="ContactArea"]
+shape = SubResource("SphereShape3D_contact")
+
+[node name="FaceRoot" type="Node3D" parent="."]
+top_level = true
+script = ExtResource("3_face")
+
+[node name="LeftEyeWhite" type="MeshInstance3D" parent="FaceRoot"]
+position = Vector3(-0.82, 0.64, -2.75)
+scale = Vector3(1.12, 1.38, 0.46)
+material_override = SubResource("EyeWhiteMaterial")
+mesh = SubResource("FaceMesh")
+
+[node name="RightEyeWhite" type="MeshInstance3D" parent="FaceRoot"]
+position = Vector3(0.82, 0.64, -2.75)
+scale = Vector3(1.12, 1.38, 0.46)
+material_override = SubResource("EyeWhiteMaterial")
+mesh = SubResource("FaceMesh")
+
+[node name="LeftPupil" type="MeshInstance3D" parent="FaceRoot"]
+position = Vector3(-0.82, 0.6, -2.9)
+scale = Vector3(0.46, 0.58, 0.3)
+mesh = SubResource("FaceMesh")
+
+[node name="RightPupil" type="MeshInstance3D" parent="FaceRoot"]
+position = Vector3(0.82, 0.6, -2.9)
+scale = Vector3(0.46, 0.58, 0.3)
+mesh = SubResource("FaceMesh")
+
+[node name="LeftHighlight" type="MeshInstance3D" parent="FaceRoot"]
+position = Vector3(-0.91, 0.72, -2.985)
+scale = Vector3(0.14, 0.16, 0.12)
+material_override = SubResource("EyeHighlightMaterial")
+mesh = SubResource("FaceMesh")
+
+[node name="RightHighlight" type="MeshInstance3D" parent="FaceRoot"]
+position = Vector3(0.73, 0.72, -2.985)
+scale = Vector3(0.14, 0.16, 0.12)
+material_override = SubResource("EyeHighlightMaterial")
+mesh = SubResource("FaceMesh")
+
+[node name="SmileLeft" type="MeshInstance3D" parent="FaceRoot"]
+position = Vector3(-0.29, -0.67, -2.91)
+rotation = Vector3(0, 0, 0.58)
+scale = Vector3(0.78, 0.82, 0.62)
+mesh = SubResource("SmileMesh")
+
+[node name="SmileBase" type="MeshInstance3D" parent="FaceRoot"]
+position = Vector3(0, -0.84, -2.91)
+rotation = Vector3(0, 0, 1.5708)
+scale = Vector3(0.7, 0.62, 0.62)
+mesh = SubResource("SmileMesh")
+
+[node name="SmileRight" type="MeshInstance3D" parent="FaceRoot"]
+position = Vector3(0.29, -0.67, -2.91)
+rotation = Vector3(0, 0, -0.58)
+scale = Vector3(0.78, 0.82, 0.62)
+mesh = SubResource("SmileMesh")
+
+[node name="HealthBillboard" type="Label3D" parent="."]
+position = Vector3(0, 5.1, 0)
+billboard = 1
+font = SubResource("WorldFont")
+text = "150 / 150"
+font_size = 42
+outline_size = 10
+modulate = Color(1, 0.86, 0.72, 1)

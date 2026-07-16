@@ -1,0 +1,46 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/interactables/wind_zone.gd" id="1"]
+
+[sub_resource type="BoxShape3D" id="ZoneShape"]
+resource_local_to_scene = true
+size = Vector3(12, 12, 28)
+
+[sub_resource type="BoxMesh" id="VolumeMesh"]
+resource_local_to_scene = true
+size = Vector3(12, 12, 28)
+
+[sub_resource type="BoxMesh" id="StripeMesh"]
+size = Vector3(1, 0.12, 3.8)
+
+[node name="WindZone" type="Area3D" groups=["map_interactable"]]
+script = ExtResource("1")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+shape = SubResource("ZoneShape")
+
+[node name="VisualRoot" type="Node3D" parent="."]
+
+[node name="Volume" type="MeshInstance3D" parent="VisualRoot"]
+mesh = SubResource("VolumeMesh")
+
+[node name="AirStripes" type="Node3D" parent="VisualRoot"]
+
+[node name="Stripe0" type="MeshInstance3D" parent="VisualRoot/AirStripes"]
+mesh = SubResource("StripeMesh")
+
+[node name="Stripe1" type="MeshInstance3D" parent="VisualRoot/AirStripes"]
+mesh = SubResource("StripeMesh")
+
+[node name="Stripe2" type="MeshInstance3D" parent="VisualRoot/AirStripes"]
+mesh = SubResource("StripeMesh")
+
+[node name="Stripe3" type="MeshInstance3D" parent="VisualRoot/AirStripes"]
+mesh = SubResource("StripeMesh")
+
+[node name="Stripe4" type="MeshInstance3D" parent="VisualRoot/AirStripes"]
+mesh = SubResource("StripeMesh")
+
+[node name="Stripe5" type="MeshInstance3D" parent="VisualRoot/AirStripes"]
+mesh = SubResource("StripeMesh")
+

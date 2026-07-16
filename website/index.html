@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#091326">
+    <meta name="description" content="Blob Duels is a physics-first 1v1 arena game. Bounce, fling, shoot, and outplay your rival across five wild arenas.">
+    <meta property="og:title" content="Blob Duels — Bounce. Fling. Outplay.">
+    <meta property="og:description" content="Fast physics-first duels, ridiculous movement, and one blob left standing.">
+    <meta property="og:url" content="https://vg07013.github.io/blob-duels/">
+    <meta property="og:image" content="https://vg07013.github.io/blob-duels/assets/screenshots/current-hero.png">
+    <title>Blob Duels — Bounce. Fling. Outplay.</title>
+    <link rel="icon" href="assets/blob-duels-game-icon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Blob Duels home">
+        <img src="assets/blob-duels-game-icon.svg" width="38" height="38" alt="Blob Duels cyan and red blob icon">
+        <span>Blob Duels</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="#gameplay">Gameplay</a>
+        <a href="#arenas">Arenas</a>
+        <a class="nav-github" href="https://github.com/vg07013/blob-duels" target="_blank" rel="noopener noreferrer">
+          GitHub <span aria-hidden="true">↗</span>
+        </a>
+      </nav>
+    </header>
+
+    <main id="main-content">
+      <section class="hero" id="top" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow"><span></span> Public alpha · macOS</p>
+          <h1 id="hero-title"><span>Blob Duels.</span> Bounce. Fling. Outplay.</h1>
+          <p class="hero-lede">Physics-first 1v1 combat where every ricochet, bounce, and perfectly timed fling can turn the whole match around.</p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="https://github.com/vg07013/blob-duels/releases/latest/download/Blob-Duels-macOS.zip">
+              Download for macOS
+            </a>
+            <a class="button button-secondary" href="#gameplay">See it in action <span aria-hidden="true">↓</span></a>
+          </div>
+          <p class="availability"><span aria-hidden="true">●</span> Public alpha available now · Universal build for Apple Silicon and Intel Macs.</p>
+        </div>
+
+        <div class="hero-art">
+          <div class="orbit orbit-one"></div>
+          <div class="orbit orbit-two"></div>
+          <img src="assets/screenshots/current-hero.png" width="1280" height="720" alt="Fresh current-build capture of a cyan blob colliding with a pink rival in Fling City">
+          <span class="build-stamp">Captured from the current build</span>
+          <span class="callout callout-red">1 rival</span>
+          <span class="callout callout-blue">zero chill</span>
+        </div>
+      </section>
+
+      <div class="ticker" aria-hidden="true">
+        <div>BOUNCE <span>✦</span> FLING <span>✦</span> RICOCHET <span>✦</span> OUTPLAY <span>✦</span> BOUNCE <span>✦</span> FLING <span>✦</span> RICOCHET <span>✦</span> OUTPLAY</div>
+      </div>
+
+      <section class="fling-lab section-shell" aria-labelledby="fling-lab-title">
+        <div class="fling-lab-heading">
+          <div>
+            <p class="eyebrow eyebrow-cyan">Fling lab · live</p>
+            <h2 id="fling-lab-title">Cause a little chaos.</h2>
+          </div>
+          <p>Move your pointer to stir up the arena. Click or tap anywhere to launch the nearest blob.</p>
+        </div>
+        <div class="playground-shell">
+          <canvas id="blob-playground" role="button" tabindex="0" aria-label="Interactive blob arena. Move the pointer to stir the blobs, or press Enter or Space to fling one.">Your browser does not support the interactive blob arena.</canvas>
+          <div class="playground-hud" aria-hidden="true">
+            <span><i></i> Arena online</span>
+            <strong>Tap to fling</strong>
+          </div>
+          <div class="playground-score" aria-hidden="true"><span>BLUE</span><strong>VS</strong><span>RED</span></div>
+        </div>
+      </section>
+
+      <section class="gameplay section-shell" id="gameplay" aria-labelledby="gameplay-title">
+        <div class="section-heading">
+          <p class="eyebrow eyebrow-cyan">Built for the rematch</p>
+          <h2 id="gameplay-title">Easy to start.<br>Hard to stop.</h2>
+          <p>Move like a pinball, aim like a sharpshooter, and make the arena part of your strategy.</p>
+        </div>
+
+        <figure class="gameplay-frame">
+          <img src="assets/screenshots/current-gameplay.png" width="1280" height="720" alt="Fresh current-build gameplay capture with the player aiming through the updated industrial arena">
+          <figcaption>
+            <span><strong>03:00</strong> match clock</span>
+            <span><strong>150</strong> starting health</span>
+            <span><strong>First to 5</strong> takes it</span>
+          </figcaption>
+        </figure>
+
+        <div class="feature-grid">
+          <article class="feature feature-blue">
+            <span class="feature-number">01</span>
+            <div class="feature-icon" aria-hidden="true">↗</div>
+            <h3>Master the fling</h3>
+            <p>Charge your launch, bend your path, and turn momentum into your sharpest weapon.</p>
+          </article>
+          <article class="feature feature-red">
+            <span class="feature-number">02</span>
+            <div class="feature-icon" aria-hidden="true">◎</div>
+            <h3>Bank the perfect shot</h3>
+            <p>Use walls, angles, and arena geometry to land the hit your rival never saw coming.</p>
+          </article>
+          <article class="feature feature-gold">
+            <span class="feature-number">03</span>
+            <div class="feature-icon" aria-hidden="true">⚡</div>
+            <h3>Break the matchup</h3>
+            <p>Equip abilities like Blink, Dash, Rail Shot, Gravity Pulse, or a devious Bounce Mine.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="arenas" id="arenas" aria-labelledby="arenas-title">
+        <div class="section-shell">
+          <div class="arena-heading">
+            <div>
+              <p class="eyebrow eyebrow-red">Five arenas. No safe corners.</p>
+              <h2 id="arenas-title">Every room fights back.</h2>
+            </div>
+            <p>Boost pads, bumpers, laser gates, moving platforms, wind zones, and wide-open drops make every stage its own duel.</p>
+          </div>
+
+          <div class="gallery">
+            <figure class="gallery-card gallery-card-wide">
+              <img class="gallery-image" src="assets/screenshots/current-neon-arcade.png" width="1280" height="720" loading="lazy" alt="Fresh current-build view of the updated glowing Neon Arcade arena">
+              <figcaption><span>01</span><strong>Neon Arcade</strong><em>Fast lanes · loud hazards</em></figcaption>
+            </figure>
+            <figure class="gallery-card">
+              <img class="gallery-image" src="assets/screenshots/current-toybox.png" width="1280" height="720" loading="lazy" alt="Fresh current-build view of the colorful updated Toybox arena">
+              <figcaption><span>02</span><strong>Toybox</strong><em>Big toys · bigger launches</em></figcaption>
+            </figure>
+            <figure class="gallery-card">
+              <img class="gallery-image" src="assets/screenshots/current-backyard.png" width="1280" height="720" loading="lazy" alt="Fresh current-build view of the updated Backyard arena and its windmill ramps">
+              <figcaption><span>03</span><strong>Backyard</strong><em>Home turf · hostile angles</em></figcaption>
+            </figure>
+            <figure class="gallery-card gallery-card-wide">
+              <img class="gallery-image" src="assets/screenshots/current-arena.png" width="1280" height="720" loading="lazy" alt="Fresh current-build view of the blue and orange competitive Arena map">
+              <figcaption><span>04</span><strong>The Arena</strong><em>Clean lanes · zero excuses</em></figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="modes section-shell" aria-labelledby="modes-title">
+        <div class="modes-copy">
+          <p class="eyebrow eyebrow-cyan">Your blob. Your rules.</p>
+          <h2 id="modes-title">Bring a rival.<br>Or train alone.</h2>
+          <p>Host a direct 1v1, join a friend, or jump into offline practice. Then spend your wins on new skins, faces, trails, and effects.</p>
+          <ul>
+            <li><span>01</span> Direct online duels</li>
+            <li><span>02</span> Offline practice mode</li>
+            <li><span>03</span> Unlockable blob style</li>
+          </ul>
+        </div>
+        <div class="modes-visual">
+          <img src="assets/screenshots/current-lobby.png" width="1280" height="720" loading="lazy" alt="Fresh current-build lobby with Shop, Quests, Host Game, Join Game, and Practice Offline options">
+          <div class="status-pill"><span></span> Pick a color. Pick a fight.</div>
+        </div>
+      </section>
+
+      <section class="final-cta section-shell" aria-labelledby="cta-title">
+        <img class="cta-blob cta-blob-blue" src="assets/blob-duels-game-icon.svg" width="180" height="180" loading="lazy" alt="Cyan and red Blob Duels game icon">
+        <p class="eyebrow">The arena is warming up</p>
+        <h2 id="cta-title">Ready to get<br><span>launched?</span></h2>
+        <p>Download the current macOS alpha, challenge a friend, and help shape the next round.</p>
+        <a class="button button-primary button-large" href="https://github.com/vg07013/blob-duels/releases/latest/download/Blob-Duels-macOS.zip">Download for macOS <span aria-hidden="true">↓</span></a>
+        <span class="coming-soon">v0.1.0 public alpha · Apple Silicon + Intel</span>
+      </section>
+    </main>
+
+    <footer>
+      <a class="brand" href="#top" aria-label="Back to the top of Blob Duels">
+        <img src="assets/blob-duels-game-icon.svg" width="34" height="34" alt="Blob Duels game icon">
+        <span>Blob Duels</span>
+      </a>
+      <p>Made for friendly rivalries and immediate rematches.</p>
+      <a href="https://github.com/vg07013/blob-duels" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+    </footer>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
