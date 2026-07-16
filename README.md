@@ -27,6 +27,8 @@ Blob Duels is a physics-first 1v1 arena game where movement is a weapon. Charge 
 
 The current public alpha is a Universal macOS build for Apple Silicon and Intel Macs. This early build is ad-hoc signed but not Developer ID signed or notarized: after unzipping it, right-click `Blob Duels.app`, choose **Open**, and confirm the first launch. You can verify the archive against the `SHA256SUMS.txt` file attached to the latest release before opening it. In the game, choose **Practice Offline**, **Host Game**, or **Join Game**.
 
+Current macOS ZIP SHA-256: `865eadadf5455bd67d83ae1bcd6083b8bea47546ed1626a56d21f9651309542f`
+
 ### Controls
 
 | Action | Control |
