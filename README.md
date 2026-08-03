@@ -34,6 +34,7 @@ Current macOS ZIP SHA-256: `865eadadf5455bd67d83ae1bcd6083b8bea47546ed1626a56d21
 | Action | Control |
 | --- | --- |
 | Move | `W` `A` `S` `D` |
+| Brake | Hold `Left Shift` |
 | Aim / shoot | Mouse / left click |
 | Charge fling | Right click |
 | Bounce | Space |
