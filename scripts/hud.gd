@@ -88,6 +88,8 @@ var _announcement_time := 0.0
 var _announcement_tween: Tween
 var _announcement_queue: Array[Dictionary] = []
 var _last_observed_health := -1
+var _fps_label: Label = null
+var _fps_accumulator := 0.0
 var _duel_mode := false
 var _practice_mode_active := false
 var _lobby_mode_active := false
@@ -273,6 +275,50 @@ func _fit_lobby_layout() -> void:
 
 func apply_ui_settings(settings: Dictionary) -> void:
 	_reduced_motion = bool(settings.get("reduced_motion", false))
+	set_fps_counter_visible(bool(settings.get("show_fps", false)))
+
+
+## Refreshed a few times a second rather than every frame: a Label text change
+## forces a re-layout, and doing that 60+ times a second to display the frame
+## rate would itself cost frames.
+func _update_fps_counter(delta: float) -> void:
+	if _fps_label == null or not _fps_label.visible:
+		return
+	_fps_accumulator += delta
+	if _fps_accumulator < 0.25:
+		return
+	_fps_accumulator = 0.0
+	var frames_per_second := Engine.get_frames_per_second()
+	_fps_label.text = "%d FPS" % frames_per_second
+	var readout_color := Color(0.62, 0.98, 0.76)
+	if frames_per_second < 30:
+		readout_color = Color(1.0, 0.42, 0.42)
+	elif frames_per_second < 55:
+		readout_color = Color(1.0, 0.82, 0.36)
+	_fps_label.add_theme_color_override("font_color", readout_color)
+
+
+## BUG-029: FPS readout, toggled from Settings. Built in code so it sits above
+## every HUD page without having to be wired into each one, and left hidden (and
+## not processing) until asked for.
+func set_fps_counter_visible(enabled: bool) -> void:
+	if enabled and _fps_label == null:
+		_fps_label = Label.new()
+		_fps_label.name = "FpsCounter"
+		_fps_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		_fps_label.position = Vector2(-104.0, 8.0)
+		_fps_label.custom_minimum_size = Vector2(96.0, 0.0)
+		_fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		_fps_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_fps_label.add_theme_font_size_override("font_size", 15)
+		_fps_label.add_theme_color_override("font_color", Color(0.62, 0.98, 0.76))
+		_fps_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.85))
+		_fps_label.add_theme_constant_override("outline_size", 5)
+		_fps_label.z_index = 128
+		add_child(_fps_label)
+	if _fps_label != null:
+		_fps_label.visible = enabled
+		_fps_accumulator = 0.0
 
 
 func open_play_menu() -> void:
@@ -1984,6 +2030,7 @@ func _emit_identity() -> void:
 
 
 func _process(delta: float) -> void:
+	_update_fps_counter(delta)
 	_quest_reset_accumulator += delta
 	if _quest_reset_accumulator >= 1.0:
 		_quest_reset_accumulator = 0.0

@@ -113,6 +113,10 @@ func _update_health_billboard() -> void:
 	if health_fill != null:
 		var health_ratio := clampf(float(health) / maxf(float(max_health), 1.0), 0.0, 1.0)
 		health_fill.scale = Vector3(health_ratio, 1.0, 1.0)
+		# Keep the left edge fixed so damage reads as a conventional depleting
+		# bar instead of shrinking toward its centre. 1.8 is half the fill
+		# quad's 3.6 width.
+		health_fill.position.x = -1.8 * (1.0 - health_ratio)
 
 
 func _update_nameplate_transform() -> void:

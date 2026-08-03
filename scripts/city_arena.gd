@@ -450,6 +450,12 @@ func _add_box(prefix: String, position: Vector3, size: Vector3, material: Materi
 	instance.material_override = material
 	instance.position = position
 	instance.rotation = rotation
+	# BUG-028: non-collidable boxes here are pure decoration - window bands,
+	# trim, signage backing. They were still rendered into the directional
+	# shadow map, which at a 700m shadow distance meant hundreds of extra
+	# shadow-pass draws for geometry that casts nothing a player can see.
+	if not collision:
+		instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_visuals.add_child(instance)
 	if collision:
 		var shape_resource := BoxShape3D.new()

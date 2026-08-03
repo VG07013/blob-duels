@@ -3,6 +3,13 @@ extends RigidBody3D
 
 const COSMETIC_LIBRARY := preload("res://scripts/cosmetic_library.gd")
 const ABILITY_TUNING := preload("res://scripts/ability_tuning.gd")
+## Skins whose emission pulses every frame. Kept as a shared lookup so the
+## per-frame animation never allocates just to test membership.
+const PULSING_SKIN_EFFECTS := {
+	"lava": true, "plasma": true, "aurora": true, "galaxy": true, "neon": true,
+	"black_hole": true, "dark_matter": true, "celestial": true, "crystal": true,
+	"cyber": true, "gold": true,
+}
 
 signal health_changed(current_health: int, max_health: int)
 signal fling_charge_started
@@ -59,6 +66,9 @@ signal network_collision_requested(target_peer_id: int, impulse: Vector3, damage
 @export var fling_control_multiplier := 0.28
 @export var maximum_fling_charge_drag := 0.55
 @export var fling_cooldown_duration := 3.0
+## Grace period after a launch during which the anti-chaining drag stays off, so
+## the impulse actually reads before momentum starts bleeding away.
+@export var post_fling_carry_time := 0.35
 
 @export_category("Nameplate")
 @export var nameplate_near_distance := 8.0
@@ -102,6 +112,7 @@ var _post_fling_control_timer := 0.0
 var _recent_fling_timer := 0.0
 var _recent_fling_charge := 0.0
 var _fling_cooldown_timer := 0.0
+var _fling_carry_timer := 0.0
 var _upward_cap_exempt_timer := 0.0
 var _collision_ready_at: Dictionary = {}
 var _bounce_count_ready_at: Dictionary = {}
@@ -156,8 +167,10 @@ func _physics_process(delta: float) -> void:
 	_update_face()
 	_update_adrenaline()
 	if not local_controlled:
+		# BUG-028: _update_nameplate_transform() already ran at the top of this
+		# function; calling it again here was pure duplicated work for every
+		# remote blob, every physics frame.
 		_update_remote_transform(delta)
-		_update_nameplate_transform()
 		return
 
 	_tick_timers(delta)
@@ -486,15 +499,23 @@ func _update_cosmetic_animation(delta: float) -> void:
 	if _skin_material == null:
 		return
 	var effect := str(_skin_profile.get("effect", "jelly"))
-	var secondary := _skin_profile.get("secondary", blob_color) as Color
+	# BUG-028: this used to build the pulsing-effect Array inline, allocating a
+	# fresh 11-element Array per blob per physics frame purely to answer a
+	# membership test. Most skins animate nothing, so bail before touching the
+	# material at all.
+	var is_rainbow := effect == "rainbow"
+	var is_pulsing: bool = PULSING_SKIN_EFFECTS.has(effect)
+	var lit := _cosmetic_light != null and _cosmetic_light.visible
+	if not is_rainbow and not is_pulsing and not lit:
+		return
 	var pulse := 0.55 + sin(_cosmetic_time * 2.2) * 0.2
-	if effect == "rainbow":
+	if is_rainbow:
 		_skin_material.albedo_color = Color.from_hsv(fposmod(_cosmetic_time * 0.14, 1.0), 0.72, 1.0)
 		_skin_material.emission = Color.from_hsv(fposmod(_cosmetic_time * 0.14 + 0.18, 1.0), 0.58, 1.0)
-	elif effect in ["lava", "plasma", "aurora", "galaxy", "neon", "black_hole", "dark_matter", "celestial", "crystal", "cyber", "gold"]:
-		_skin_material.emission = secondary
+	elif is_pulsing:
+		_skin_material.emission = _skin_profile.get("secondary", blob_color) as Color
 		_skin_material.emission_energy_multiplier = pulse
-	if _cosmetic_light != null and _cosmetic_light.visible:
+	if lit:
 		_cosmetic_light.light_energy = 0.28 + pulse * 0.2
 
 
@@ -567,6 +588,7 @@ func respawn(spawn_position: Vector3) -> void:
 	_post_fling_control_timer = 0.0
 	_recent_fling_timer = 0.0
 	_fling_cooldown_timer = 0.0
+	_fling_carry_timer = 0.0
 	fling_cooldown_updated.emit(0.0, fling_cooldown_duration)
 	_upward_cap_exempt_timer = 0.0
 	_movement_build_up = 0.0
@@ -648,6 +670,7 @@ func _tick_timers(delta: float) -> void:
 	_shot_cooldown_timer = maxf(_shot_cooldown_timer - delta, 0.0)
 	_post_fling_control_timer = maxf(_post_fling_control_timer - delta, 0.0)
 	_recent_fling_timer = maxf(_recent_fling_timer - delta, 0.0)
+	_fling_carry_timer = maxf(_fling_carry_timer - delta, 0.0)
 	var previous_fling_cooldown := _fling_cooldown_timer
 	_fling_cooldown_timer = maxf(_fling_cooldown_timer - delta, 0.0)
 	if previous_fling_cooldown > 0.0:
@@ -812,7 +835,11 @@ func _update_fling_charge(delta: float) -> void:
 
 
 func _release_fling(charge_ratio: float) -> void:
-	if not can_fling():
+	# The press was already gated by can_fling(), and the only thing that sets
+	# the cooldown is this function - so re-checking is_fling_ready() here could
+	# only ever swallow a charge the player legitimately built, with no
+	# feedback. Void the charge on a real loss of control, nothing else.
+	if not input_enabled or not local_controlled:
 		cancel_active_charge()
 		return
 	var direction := aim_direction.normalized()
@@ -826,6 +853,7 @@ func _release_fling(charge_ratio: float) -> void:
 	_post_fling_control_timer = fling_control_reduction_time * charge_ratio
 	_recent_fling_timer = 0.65
 	_fling_cooldown_timer = fling_cooldown_duration
+	_fling_carry_timer = post_fling_carry_time
 	fling_cooldown_updated.emit(_fling_cooldown_timer, fling_cooldown_duration)
 	_upward_cap_exempt_timer = 0.42
 	_recent_fling_charge = charge_ratio
@@ -968,8 +996,15 @@ func _apply_momentum_decay(delta: float) -> void:
 	var drag := 0.0
 	if not _grounded:
 		drag += air_momentum_decay
-	if _fling_cooldown_timer > 0.0:
-		drag += post_fling_drag * get_fling_cooldown_ratio()
+	# BUG-026: this used to read `post_fling_drag * get_fling_cooldown_ratio()`,
+	# which is 1.0 on the launch frame - maximum drag applied at the exact
+	# moment the impulse lands, decaying as the cooldown burned down. The fling
+	# was fighting itself hardest when it should have carried. Invert it: no
+	# drag during the carry window, then ramp up as the cooldown expires, so
+	# speed has bled off by the time another fling is available. Same total
+	# damping over the cooldown, non-chaining preserved, launch now reads.
+	if _fling_cooldown_timer > 0.0 and _fling_carry_timer <= 0.0:
+		drag += post_fling_drag * (1.0 - get_fling_cooldown_ratio())
 	if speed > high_speed_drag_threshold:
 		var excess_ratio := clampf((speed - high_speed_drag_threshold) / maxf(maximum_movement_speed - high_speed_drag_threshold, 0.001), 0.0, 1.0)
 		drag += high_speed_drag * excess_ratio
@@ -992,12 +1027,31 @@ func _update_remote_transform(delta: float) -> void:
 	)
 
 
+## True when `body` is a surface the blob is currently resting on, as opposed to
+## something it ran into. Uses the ground cast so a wall taken while grounded is
+## still scored as a real impact.
+func _is_floor_contact(body: Node) -> bool:
+	if not _grounded or ground_cast == null:
+		return false
+	for index in range(ground_cast.get_collision_count()):
+		if ground_cast.get_collider(index) == body:
+			return true
+	return false
+
+
 func _on_body_entered(body: Node) -> void:
 	if not local_controlled:
 		return
 	var impact_strength := linear_velocity.length()
-	if impact_strength >= 7.0:
-		impact_event.emit(global_position, impact_strength)
+	# BUG-030: rolling along the floor re-fires body_entered constantly, and
+	# total speed is the wrong severity measure - a blob cruising the ground at
+	# 30 m/s is not impacting anything, but it used to emit an impact every
+	# contact and shake the camera. Score a floor contact by how fast the blob
+	# is driving *into* it (vertical closing speed) and everything else - walls,
+	# props, airborne hits - by full speed.
+	var impact_severity := absf(linear_velocity.y) if _is_floor_contact(body) else impact_strength
+	if impact_severity >= 7.0:
+		impact_event.emit(global_position, impact_severity)
 	if impact_strength < surface_bounce_min_speed:
 		return
 	var now := Time.get_ticks_msec()
@@ -1080,7 +1134,12 @@ func _update_speed_trail() -> void:
 	if speed_trail != null:
 		var speed_ratio := clampf((linear_velocity.length() - 18.0) / 58.0, 0.0, 1.0)
 		speed_trail.emitting = speed_ratio > 0.06 or _recent_fling_timer > 0.0
-		speed_trail.amount = maxi(1, int(round(float(_trail_base_amount) * lerpf(0.55, 1.0, speed_ratio))))
+		# BUG-028: assigning GPUParticles3D.amount reallocates the particle
+		# buffer and restarts the system, so writing it every frame was both a
+		# per-frame allocation and a visible trail hitch. Only write on change.
+		var next_amount := maxi(1, int(round(float(_trail_base_amount) * lerpf(0.55, 1.0, speed_ratio))))
+		if speed_trail.amount != next_amount:
+			speed_trail.amount = next_amount
 		speed_trail.lifetime = _trail_base_lifetime * lerpf(0.55, 1.0, speed_ratio)
 
 

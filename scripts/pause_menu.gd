@@ -236,6 +236,7 @@ func _build_general_settings() -> void:
 	_add_option_row(settings_rows, "Render scale", "render_scale_index", ["75%", "100%", "125%"])
 	_add_toggle_row(settings_rows, "Fullscreen", "fullscreen")
 	_add_toggle_row(settings_rows, "Vertical sync", "vsync")
+	_add_toggle_row(settings_rows, "Show FPS counter", "show_fps")
 	_add_section_header(settings_rows, "ACCESSIBILITY", "Reduce visual movement without changing gameplay.")
 	_add_slider_row(settings_rows, "Camera shake", "camera_shake", 0.0, 1.0, 0.05, 100.0)
 	_add_toggle_row(settings_rows, "Reduced motion", "reduced_motion")
@@ -591,6 +592,7 @@ func _default_settings() -> Dictionary:
 		"render_scale": 1.0,
 		"fullscreen": false,
 		"vsync": true,
+		"show_fps": false,
 		"shadow_quality": 2,
 		"camera_shake": 0.72,
 		"reduced_motion": false,
