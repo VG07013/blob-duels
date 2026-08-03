@@ -5,7 +5,7 @@ const MAP_SCENES := {
 	"Neon Arcade": preload("res://scenes/world/maps/neon_arcade.tscn"),
 	"Backyard": preload("res://scenes/world/maps/backyard.tscn"),
 	"Arena": preload("res://scenes/world/maps/arena.tscn"),
-	"Sky Temple": preload("res://scenes/world/maps/sky_temple.tscn"),
+	"Aether Citadel": preload("res://scenes/world/maps/sky_temple.tscn"),
 	"Toybox": preload("res://scenes/world/maps/toybox.tscn"),
 }
 
@@ -45,12 +45,18 @@ func _run() -> void:
 		root.add_child(arena)
 		await process_frame
 		var model_roots := _model_roots(arena)
-		if map_name in ["Neon Arcade", "Arena"]:
+		if map_name in ["Neon Arcade", "Backyard", "Arena", "Aether Citadel", "Toybox"]:
 			_check(model_roots.is_empty(), "%s should not add generic decorative models over its literal blueprint" % map_name)
 			if map_name == "Neon Arcade":
 				_check((arena.call("get_neon_arcade_blueprint") as Dictionary).get("footprint_gu", Vector2.ZERO) == Vector2(18, 18), "Neon Arcade blueprint metadata is missing")
-			else:
+			elif map_name == "Backyard":
+				_check(((arena.call("get_map_audit") as Dictionary).get("blueprint", {}) as Dictionary).get("footprint_gu", Vector2.ZERO) == Vector2(84, 64), "Backyard blueprint metadata is missing")
+			elif map_name == "Arena":
 				_check(((arena.call("get_map_audit") as Dictionary).get("blueprint", {}) as Dictionary).get("footprint_d", Vector2.ZERO) == Vector2(34, 24), "Arena blueprint metadata is missing")
+			elif map_name == "Toybox":
+				_check(((arena.call("get_map_audit") as Dictionary).get("blueprint", {}) as Dictionary).get("footprint_gu", Vector2.ZERO) == Vector2(64, 128), "Toybox blueprint metadata is missing")
+			else:
+				_check(((arena.call("get_map_audit") as Dictionary).get("blueprint", {}) as Dictionary).get("footprint_gu", Vector2.ZERO) == Vector2(48, 72), "Aether Citadel blueprint metadata is missing")
 			arena.free()
 			continue
 		var unique_sources: Dictionary = {}

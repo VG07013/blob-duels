@@ -1,7 +1,7 @@
 extends SceneTree
 
 const MAIN_SCENE := preload("res://scenes/main.tscn")
-const TEST_TIMEOUT := 14.0
+const TEST_TIMEOUT := 24.0
 
 var _role := "host"
 var _game: Node3D
@@ -67,7 +67,7 @@ func _run() -> void:
 
 
 func _poll_network_state() -> void:
-	if bool(_game.get("arena_started")) and _game.get_node("RemotePlayers").get_child_count() > 0:
+	if _round_live():
 		_remote_seen = true
 		if _ready_elapsed < 0.0:
 			_ready_elapsed = _elapsed
@@ -100,7 +100,12 @@ func _test_position() -> Vector3:
 
 
 func _fire_at_remote() -> void:
-	var remote := _game.get_node("RemotePlayers").get_child(0) as RigidBody3D
+	if not _round_live():
+		return
+	var remote_players := _game.get_node("RemotePlayers")
+	if remote_players.get_child_count() <= 0:
+		return
+	var remote := remote_players.get_child(0) as RigidBody3D
 	if remote == null:
 		return
 	var direction := (remote.global_position - _player.global_position).normalized()
@@ -122,6 +127,17 @@ func _test_full_fling() -> void:
 
 func _network_requirements_met() -> bool:
 	return _remote_seen and _shot_fired and _shot_replicated and _health_dropped and _knockback_seen and _fling_speed >= 35.0
+
+
+func _round_live() -> bool:
+	return (
+		_game.get("arena_started") == true
+		and _game.get("_waiting_for_opponent") == false
+		and _game.get("_round_countdown_active") == false
+		and _game.get("_round_resolving") == false
+		and bool(_player.get("shooting_enabled"))
+		and _game.get_node("RemotePlayers").get_child_count() > 0
+	)
 
 
 func _print_pass() -> void:

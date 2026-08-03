@@ -21,7 +21,7 @@ func _run() -> void:
 	_check(is_equal_approx(float(blueprint.get("floor_thickness_gu", 0.0)), 0.25), "Neon Arcade floor must be 0.25 GU")
 	_check(_count(arena, "center_bumper") == 1, "Neon Arcade needs exactly one center bumper")
 	_check(_count(arena, "bounce_block") == 0, "The literal blueprint has no invented bounce-block props")
-	_check(_count(arena, "low_cover") == 18, "Neon Arcade needs the eighteen image-positioned purple low-cover segments")
+	_check(_count(arena, "low_cover") == 10, "Neon Arcade needs ten separated purple cover segments without ramp-lane overlap")
 	_check(_count(arena, "boost_pad") == 4, "Neon Arcade needs exactly four boost pads")
 	_check(_count(arena, "laser_gate") == 4, "Neon Arcade needs exactly four laser gates")
 	_check(_count(arena, "corner_ramp") == 4, "Neon Arcade needs exactly four corner ramps")

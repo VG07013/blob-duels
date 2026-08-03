@@ -20,9 +20,15 @@ func _run() -> void:
 	_expect(audio_manager.call("get_music_context") == &"lobby", "lobby opens with lobby music")
 	_expect(audio_manager.call("get_music_variant_count", &"lobby") >= 3, "lobby music has a richer rotating playlist")
 	_expect(audio_manager.call("get_music_variant_count", &"match") >= 5, "match music rotates through every map theme")
+	var map_track_paths: Array[String] = []
 	for theme in [&"neon_arcade", &"backyard", &"arena", &"sky_temple", &"toybox"]:
 		_expect(audio_manager.call("set_map_music_theme", theme, 0.0, false), "%s map music theme is selectable" % theme)
 		_expect(audio_manager.call("get_map_music_theme") == theme, "%s map music theme is retained" % theme)
+		audio_manager.call("set_music_context", &"match", 0.0, true)
+		var track_path := String(audio_manager.call("get_active_music_stream_path"))
+		_expect(not track_path.is_empty() and track_path.contains(String(theme)), "%s uses its own named soundtrack asset" % theme)
+		map_track_paths.append(track_path)
+	_expect(_unique_strings(map_track_paths).size() == map_track_paths.size(), "every competitive map uses a distinct soundtrack resource")
 	_expect(audio_manager.call("set_map_music_theme", &"arena_factory", 0.0, false), "arena factory alias selects map music")
 	_expect(audio_manager.call("get_map_music_theme") == &"arena", "arena factory alias resolves to the arena map id")
 	_expect(not audio_manager.call("set_map_music_theme", &"unknown_map", 0.0, false), "unknown map music themes are rejected")
@@ -46,6 +52,9 @@ func _run() -> void:
 	game.call("_start_arena_for_peer", 1)
 	await process_frame
 	_expect(audio_manager.call("get_music_context") == &"practice", "practice mode selects practice music")
+	var practice_track := String(audio_manager.call("get_active_music_stream_path"))
+	_expect(practice_track.ends_with("music_practice.wav"), "practice arena uses its dedicated soundtrack")
+	_expect(not map_track_paths.has(practice_track), "practice soundtrack is distinct from every competitive map")
 	player.linear_velocity = Vector3(72.0, 4.0, 0.0)
 	game.call("_update_player_audio")
 	await process_frame
@@ -70,3 +79,10 @@ func _run() -> void:
 func _expect(condition: bool, message: String) -> void:
 	if not condition:
 		_failures.append(message)
+
+
+func _unique_strings(values: Array[String]) -> Dictionary:
+	var unique := {}
+	for value in values:
+		unique[value] = true
+	return unique

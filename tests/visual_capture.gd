@@ -14,8 +14,8 @@ const DETAIL_MODEL_IDS := {
 	"neon_arcade": "arcade_claw",
 	"backyard": "suburban_house_f",
 	"arena": "factory_robot_a",
-	"sky_temple": "temple_gate",
-	"toybox": "toy_monster_truck",
+	"sky_temple": "",
+	"toybox": "",
 }
 
 var _capture_failures := 0

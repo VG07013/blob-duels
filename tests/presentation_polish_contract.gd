@@ -4,7 +4,7 @@ const MAPS := {
 	"Neon Arcade": preload("res://scenes/world/maps/neon_arcade.tscn"),
 	"Backyard": preload("res://scenes/world/maps/backyard.tscn"),
 	"Arena": preload("res://scenes/world/maps/arena.tscn"),
-	"Sky Temple": preload("res://scenes/world/maps/sky_temple.tscn"),
+	"Aether Citadel": preload("res://scenes/world/maps/sky_temple.tscn"),
 	"Toybox": preload("res://scenes/world/maps/toybox.tscn"),
 }
 const MAIN_SCENE := preload("res://scenes/main.tscn")
@@ -22,7 +22,7 @@ func _run() -> void:
 		root.add_child(arena)
 		await process_frame
 		var presentation := arena.get_node_or_null("Presentation")
-		if map_name in ["Neon Arcade", "Arena"]:
+		if map_name in ["Neon Arcade", "Backyard", "Arena", "Aether Citadel", "Toybox"]:
 			_check(presentation == null, "%s should reserve every arena object for its literal movement blueprint" % map_name)
 			arena.queue_free()
 			await process_frame

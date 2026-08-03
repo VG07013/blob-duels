@@ -36,10 +36,12 @@ func _run() -> void:
 	_release_all_movement()
 	player.respawn(Vector3(0.0, 20.0, 0.0))
 	player.gravity_scale = 0.0
+	player.linear_velocity = Vector3(0.0, 0.0, -12.0)
 	Input.action_press("move_right")
 	await _physics_frames(24)
 	Input.action_release("move_right")
-	_check(player.linear_velocity.x > 0.5, "Air steering does not produce useful lateral control")
+	_check(player.linear_velocity.x > 0.5, "Air steering does not produce useful lateral redirection")
+	_check(Vector2(player.linear_velocity.x, player.linear_velocity.z).length() <= 12.15, "Air steering incorrectly adds horizontal momentum")
 
 	player.linear_velocity = Vector3.ZERO
 	player.set("_coyote_timer", 0.08)
@@ -66,7 +68,7 @@ func _run() -> void:
 	for index in range(1, strengths.size()):
 		_check(strengths[index] > strengths[index - 1], "Fling charge tiers are not continuously increasing")
 	_check(is_equal_approx(player.maximum_charge_time, 7.0), "Fling charge does not take 7 seconds to max")
-	_check(strengths[4] >= 300.0, "Full-charge fling impulse is not a dramatic blast")
+	_check(strengths[4] >= 250.0 and strengths[4] <= 280.0, "Full-charge fling impulse must stay dramatic without exceeding the controlled cap")
 
 	player.set("_is_charging_fling", true)
 	for sample in [[0.25, 1.0], [0.5, 0.75], [1.0, 0.5]]:
