@@ -1,3 +1,4 @@
+class_name BlobPlayer
 extends RigidBody3D
 
 const COSMETIC_LIBRARY := preload("res://scripts/cosmetic_library.gd")

@@ -50,10 +50,10 @@ const REMOTE_COLORS := [
 @export_range(0.0, 1.0, 0.05) var camera_shake_scale := 0.72
 @export var match_duration := 180.0
 
-@onready var player = $Player
+@onready var player: BlobPlayer = $Player
 @onready var camera_rig: Node3D = $CameraRig
 @onready var camera: Camera3D = $CameraRig/Camera3D
-@onready var hud = $HUD
+@onready var hud: DuelHud = $HUD
 @onready var lobby: Node3D = $Lobby
 @onready var practice_arena: Node3D = $CityArena
 @onready var competitive_map_root: Node3D = $CompetitiveMapRoot
@@ -63,7 +63,7 @@ const REMOTE_COLORS := [
 @onready var remote_players: Node3D = $RemotePlayers
 @onready var projectiles: Node3D = $Projectiles
 @onready var network_session: Node = get_node("/root/NetworkSession")
-@onready var pause_menu = $PauseMenu
+@onready var pause_menu: PauseMenu = $PauseMenu
 @onready var sun: DirectionalLight3D = $Sun
 @onready var world_environment: WorldEnvironment = $WorldEnvironment
 @onready var audio_manager: Node = get_node("/root/AudioManager")
@@ -402,8 +402,7 @@ func _receive_match_setup(map_id: String, spawn_slots: Dictionary, red_score: in
 	_blue_score = clampi(blue_score, 0, SCORE_TO_WIN)
 	local_peer_id = multiplayer.get_unique_id()
 	_practice_mode = false
-	if hud.has_method("set_practice_mode"):
-		hud.call("set_practice_mode", false)
+	hud.set_practice_mode(false)
 	_activate_competitive_map(_selected_map_id)
 	if not arena_started:
 		_start_arena_for_peer(local_peer_id)
@@ -429,8 +428,7 @@ func _start_arena_for_peer(peer_id: int) -> void:
 	lobby_room.set_deferred("collision_layer", 0)
 	lobby.visible = false
 	hud.set_lobby_mode(false)
-	if hud.has_method("set_practice_mode"):
-		hud.call("set_practice_mode", _practice_mode)
+	hud.set_practice_mode(_practice_mode)
 	hud.set_duel_mode(false)
 	hud.set_round_number(_round_number)
 	hud.set_duel_score(_red_score, _blue_score)
@@ -470,11 +468,7 @@ func _set_match_clock_visible(visible: bool) -> void:
 
 
 func _update_fling_cooldown_hud() -> void:
-	if not hud.has_method("set_fling_cooldown") or not player.has_method("get_fling_cooldown_remaining"):
-		return
-	var remaining := float(player.call("get_fling_cooldown_remaining"))
-	var duration := float(player.call("get_fling_cooldown_duration"))
-	hud.call("set_fling_cooldown", remaining, duration)
+	hud.set_fling_cooldown(player.get_fling_cooldown_remaining(), player.get_fling_cooldown_duration())
 
 
 func _enter_waiting_for_opponent() -> void:
@@ -1025,12 +1019,11 @@ func _process_ability_state() -> void:
 		if network_session.is_online() and multiplayer.is_server():
 			_replicate_phase_bubble.rpc(local_peer_id, false)
 		_ability_ready_at = now + ABILITY_TUNING.PHASE_BUBBLE_COOLDOWN_MSEC
-	if hud.has_method("set_ability_state"):
-		var ability := str(progression.call("get_equipped", "abilities"))
-		var active: bool = _dash_end_at > now or _scanner_end_at > now or _overcharge_end_at > now or _gravity_pulse_end_at > now or _rail_charge_end_at > now or _phase_bubble_end_at > now or (ability == "adrenaline" and bool(player.is_adrenaline_active()))
-		var active_remaining := maxi(maxi(maxi(_scanner_end_at - now, _overcharge_end_at - now), _dash_end_at - now), maxi(maxi(_gravity_pulse_end_at - now, _rail_charge_end_at - now), _phase_bubble_end_at - now))
-		var deployed := is_instance_valid(_active_bounce_mine)
-		hud.call("set_ability_state", ability, maxi(_ability_ready_at - now, 0), _ricochet_loaded, active, active_remaining, deployed)
+	var ability := str(progression.call("get_equipped", "abilities"))
+	var active: bool = _dash_end_at > now or _scanner_end_at > now or _overcharge_end_at > now or _gravity_pulse_end_at > now or _rail_charge_end_at > now or _phase_bubble_end_at > now or (ability == "adrenaline" and bool(player.is_adrenaline_active()))
+	var active_remaining := maxi(maxi(maxi(_scanner_end_at - now, _overcharge_end_at - now), _dash_end_at - now), maxi(maxi(_gravity_pulse_end_at - now, _rail_charge_end_at - now), _phase_bubble_end_at - now))
+	var deployed := is_instance_valid(_active_bounce_mine)
+	hud.set_ability_state(ability, maxi(_ability_ready_at - now, 0), _ricochet_loaded, active, active_remaining, deployed)
 
 
 func _consume_ricochet_shot() -> bool:
@@ -1448,8 +1441,7 @@ func _open_pause() -> void:
 	if _lobby_hud_suppressed_for_pause:
 		hud.set_lobby_ui_suppressed(true)
 	var ability_id: String = str(player.get_equipped_ability())
-	if pause_menu.has_method("set_host_room_code"):
-		pause_menu.call("set_host_room_code", _room_code_for_pause())
+	pause_menu.set_host_room_code(_room_code_for_pause())
 	pause_menu.set_context(
 		arena_started and not _practice_mode,
 		arena_started and _practice_mode,
@@ -1902,8 +1894,7 @@ func _return_to_lobby() -> void:
 	_apply_camera_mode()
 	hud.set_lobby_mode(true)
 	hud.set_duel_mode(false)
-	if hud.has_method("set_practice_mode"):
-		hud.call("set_practice_mode", false)
+	hud.set_practice_mode(false)
 	hud.set_join_status("Choose Host, Join, or Practice", false)
 	audio_manager.stop_all_loops(0.18, true)
 	audio_manager.call("set_map_music_theme", &"", 0.0, false)

@@ -1,3 +1,4 @@
+class_name DuelHud
 extends CanvasLayer
 
 const BLOB_AVATAR_SCRIPT := preload("res://scripts/blob_avatar.gd")

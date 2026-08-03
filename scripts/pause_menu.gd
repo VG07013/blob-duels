@@ -1,3 +1,4 @@
+class_name PauseMenu
 extends CanvasLayer
 
 signal resume_requested
