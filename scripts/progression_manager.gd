@@ -9,6 +9,11 @@ signal quest_claimed(quest: Dictionary, reward: int)
 signal inventory_changed
 
 const SAVE_PATH := "user://blob_duels_progression.cfg"
+# Stat recording runs on gameplay hot paths (every bounce, every damage tick),
+# so those writes are coalesced instead of hitting the disk per event.
+# Deliberate player actions - purchases, equips, quest claims - still save
+# immediately via save_now().
+const SAVE_DEBOUNCE_SECONDS := 2.0
 const DAILY_REWARD := 75
 const DAILY_SET_BONUS := 50
 const BASE_MATCH_REWARD := 25
@@ -49,11 +54,32 @@ var _daily_key := ""
 var _weekly_key := ""
 var persistence_enabled := true
 
+var _dirty := false
+var _dirty_seconds := 0.0
+
 
 func _ready() -> void:
 	_load()
 	_ensure_starter_loadout()
 	_refresh_quests_if_needed()
+
+
+func _process(delta: float) -> void:
+	if not _dirty:
+		return
+	_dirty_seconds += delta
+	if _dirty_seconds >= SAVE_DEBOUNCE_SECONDS:
+		save_now()
+
+
+func _notification(what: int) -> void:
+	# Never let a debounced write outlive the process.
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED:
+		save_now()
+
+
+func _exit_tree() -> void:
+	save_now()
 
 
 func get_balance() -> int:
@@ -80,7 +106,8 @@ func purchase(category: String, item_id: String) -> bool:
 	owned[item_id] = true
 	equipped[category] = item_id
 	_update_quests({"spent": int(item.get("price", 0))})
-	_save()
+	_queue_save()
+	save_now()
 	balance_changed.emit(coins, -int(item.get("price", 0)))
 	inventory_changed.emit()
 	return true
@@ -90,7 +117,8 @@ func equip(category: String, item_id: String) -> bool:
 	if not is_owned(item_id) or _find_item(category, item_id).is_empty():
 		return false
 	equipped[category] = item_id
-	_save()
+	_queue_save()
+	save_now()
 	inventory_changed.emit()
 	return true
 
@@ -108,21 +136,15 @@ func _ensure_starter_loadout() -> void:
 			equipped[category] = item_id
 			changed = true
 	if changed:
-		_save()
+		_queue_save()
 
 
+## Advances quest progress. Completing a quest does not pay out on its own -
+## the player claims it from the HUD - so this never touches the balance.
 func record_stat(stat: String, amount := 1) -> void:
 	if amount <= 0:
 		return
-	var rewards := _update_quests({stat: amount})
-	var total := 0
-	for reward in rewards:
-		total += int((reward as Dictionary).get("amount", 0))
-	if total > 0:
-		coins += total
-		_save()
-		balance_changed.emit(coins, total)
-		reward_earned.emit(rewards, total)
+	_update_quests({stat: amount})
 
 
 func claim_quest(group: String, quest_id: String) -> bool:
@@ -138,7 +160,8 @@ func claim_quest(group: String, quest_id: String) -> bool:
 		var reward := int(quest.get("reward", 0))
 		var bonus := _claim_daily_set_bonus_if_ready() if group == "daily" else 0
 		coins += reward + bonus
-		_save()
+		_queue_save()
+		save_now()
 		balance_changed.emit(coins, reward + bonus)
 		quest_claimed.emit(quest.duplicate(true), reward + bonus)
 		return true
@@ -161,28 +184,29 @@ func award_match(stats: Dictionary) -> Dictionary:
 		breakdown.append({"label": "Survival Bonus", "amount": 15})
 	if bool(stats.get("mvp", false)):
 		breakdown.append({"label": "MVP Bonus", "amount": 20})
-	var quest_rewards := _update_quests({
+	# Quest progress advances here, but quest coins are paid on claim, so they
+	# are deliberately absent from this breakdown.
+	_update_quests({
 		"matches": 1,
 		"wins": 1 if placement == 1 else 0,
 		"eliminations": eliminations,
 		"trick_shots": tricks,
 		"damage": maxi(0, int(stats.get("damage", 0))),
 	})
-	for reward in quest_rewards:
-		breakdown.append(reward)
 	var total := 0
 	for reward in breakdown:
 		total += int((reward as Dictionary).get("amount", 0))
 	coins += total
-	_save()
+	_queue_save()
+	save_now()
 	balance_changed.emit(coins, total)
 	reward_earned.emit(breakdown, total)
 	return {"breakdown": breakdown, "total": total, "balance": coins}
 
 
-func _update_quests(stats: Dictionary) -> Array:
+func _update_quests(stats: Dictionary) -> void:
 	_refresh_quests_if_needed()
-	var rewarded: Array = []
+	var advanced := false
 	for quest_group in [daily_quests, weekly_quests]:
 		for index in quest_group.size():
 			var quest := quest_group[index] as Dictionary
@@ -195,11 +219,11 @@ func _update_quests(stats: Dictionary) -> Array:
 			quest["progress"] = mini(int(quest.get("target", 1)), int(quest.get("progress", 0)) + amount)
 			if int(quest.get("progress", 0)) >= int(quest.get("target", 1)):
 				quest["completed"] = true
-				var reward := int(quest.get("reward", 0))
-				quest_completed.emit(quest.duplicate(true), reward)
+				quest_completed.emit(quest.duplicate(true), int(quest.get("reward", 0)))
 			quest_group[index] = quest
-	_save()
-	return rewarded
+			advanced = true
+	if advanced:
+		_queue_save()
 
 
 func _claim_daily_set_bonus_if_ready() -> int:
@@ -214,14 +238,18 @@ func _refresh_quests_if_needed() -> void:
 	var now := Time.get_datetime_dict_from_system()
 	var daily_key := "%04d-%02d-%02d" % [int(now.get("year", 1970)), int(now.get("month", 1)), int(now.get("day", 1))]
 	var weekly_key := "week-%d" % int(floor(Time.get_unix_time_from_system() / 604800.0))
+	var rotated := false
 	if _daily_key != daily_key:
 		_daily_key = daily_key
 		daily_quests = _make_quests(DAILY_POOL, 3, DAILY_REWARD, daily_key)
 		set_meta("daily_set_claimed", false)
+		rotated = true
 	if _weekly_key != weekly_key:
 		_weekly_key = weekly_key
 		weekly_quests = _make_quests(WEEKLY_POOL, 5, -1, weekly_key)
-	_save()
+		rotated = true
+	if rotated:
+		_queue_save()
 
 
 func _make_quests(pool: Array, count: int, default_reward: int, key: String) -> Array:
@@ -262,15 +290,37 @@ func _load() -> void:
 	var config := ConfigFile.new()
 	if config.load(SAVE_PATH) != OK:
 		return
+	# A hand-edited or truncated save can hold the wrong type for any of these,
+	# and `as Dictionary` would silently yield null and crash on first use.
+	# Fall back to an empty collection instead, so a corrupt save costs progress
+	# rather than the ability to launch.
 	coins = maxi(0, int(config.get_value("progress", "coins", 0)))
-	owned = config.get_value("progress", "owned", {}) as Dictionary
-	equipped = config.get_value("progress", "equipped", {}) as Dictionary
-	daily_quests = config.get_value("quests", "daily", []) as Array
-	weekly_quests = config.get_value("quests", "weekly", []) as Array
+	owned = _dictionary_or_empty(config.get_value("progress", "owned", {}))
+	equipped = _dictionary_or_empty(config.get_value("progress", "equipped", {}))
+	daily_quests = _quest_array_or_empty(config.get_value("quests", "daily", []))
+	weekly_quests = _quest_array_or_empty(config.get_value("quests", "weekly", []))
 	_daily_key = str(config.get_value("quests", "daily_key", ""))
 	_weekly_key = str(config.get_value("quests", "weekly_key", ""))
 	set_meta("daily_set_claimed", bool(config.get_value("quests", "daily_set_claimed", false)))
 	_migrate_launch_cosmetics()
+
+
+func _dictionary_or_empty(value: Variant) -> Dictionary:
+	if value is Dictionary:
+		return value as Dictionary
+	return {}
+
+
+## Quest entries are read back as Dictionaries all through this file, so drop
+## any element that is not one rather than failing later on a cast.
+func _quest_array_or_empty(value: Variant) -> Array:
+	if not (value is Array):
+		return []
+	var quests: Array = []
+	for entry in value as Array:
+		if entry is Dictionary:
+			quests.append(entry)
+	return quests
 
 
 func _migrate_launch_cosmetics() -> void:
@@ -293,9 +343,27 @@ func _migrate_launch_cosmetics() -> void:
 		equipped.erase("abilities")
 
 
-func _save() -> void:
-	if not persistence_enabled:
+## Queues a write instead of performing one. Safe to call on hot paths.
+func _queue_save() -> void:
+	_dirty = true
+
+
+## Writes immediately if anything is pending. Use for player-visible
+## transactions where losing the last few seconds would be a real loss.
+func save_now() -> void:
+	if not _dirty:
 		return
+	_dirty = false
+	_dirty_seconds = 0.0
+	if persistence_enabled:
+		_write_save_file()
+
+
+func has_unsaved_progress() -> bool:
+	return _dirty
+
+
+func _write_save_file() -> void:
 	var config := ConfigFile.new()
 	config.set_value("progress", "coins", coins)
 	config.set_value("progress", "owned", owned)
