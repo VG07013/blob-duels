@@ -20,7 +20,11 @@ signal fling_cooldown_updated(remaining_seconds: float, duration_seconds: float)
 signal shoot_requested(origin: Vector3, direction: Vector3)
 signal bounce_triggered(strength: float)
 signal bounce_counted(strength: float)
-signal impact_event(world_position: Vector3, strength: float)
+## `strength` is the raw contact speed and drives presentation - impact bursts
+## and hit audio - so it fires on every real contact including rolling.
+## `severity` is how fast the blob is driving *into* the surface, and is what
+## camera shake keys off, so gentle rolling stays visually quiet (BUG-030).
+signal impact_event(world_position: Vector3, strength: float, severity: float)
 signal damaged(amount: int)
 signal respawned(world_position: Vector3)
 signal knocked_out(peer_id: int)
@@ -58,7 +62,12 @@ signal network_collision_requested(target_peer_id: int, impulse: Vector3, damage
 
 @export_category("Fling")
 @export var maximum_charge_time := 7.0
-@export var minimum_fling_impulse := 14.0
+## BUG-026: the floor used to be 14, which over a 3.2kg blob is a 4.4 m/s nudge -
+## invisible next to a ~38 m/s roll, so a quick tap read as "fling does nothing".
+## maximum_charge_time stays pinned at 7.0s by contract, so the fix is the floor,
+## not the window: a tap is now a usable 25 m/s dart while a full 7s charge still
+## delivers the full 87 m/s launch.
+@export var minimum_fling_impulse := 80.0
 @export var maximum_fling_impulse := 280.0
 @export var charge_exponent := 1.35
 @export var fling_upward_assist := 0.12
@@ -616,7 +625,7 @@ func apply_external_impulse(impulse: Vector3) -> void:
 	apply_central_impulse(impulse)
 	_upward_cap_exempt_timer = 0.28
 	_hit_visual(clampf(impulse.length() * 0.008, 0.08, 0.3))
-	impact_event.emit(global_position, impulse.length())
+	impact_event.emit(global_position, impulse.length(), impulse.length())
 
 
 func receive_collision_impact(amount: int, impulse: Vector3) -> void:
@@ -627,7 +636,7 @@ func receive_collision_impact(amount: int, impulse: Vector3) -> void:
 	apply_central_impulse((impulse + lift) * 1.2)
 	_upward_cap_exempt_timer = 0.32
 	_hit_visual(clampf(impulse.length() * 0.007, 0.08, 0.32))
-	impact_event.emit(global_position, impulse.length())
+	impact_event.emit(global_position, impulse.length(), impulse.length())
 	if amount <= 0 or health <= 0:
 		return
 	health = maxi(health - amount, 0)
@@ -1050,8 +1059,11 @@ func _on_body_entered(body: Node) -> void:
 	# is driving *into* it (vertical closing speed) and everything else - walls,
 	# props, airborne hits - by full speed.
 	var impact_severity := absf(linear_velocity.y) if _is_floor_contact(body) else impact_strength
-	if impact_severity >= 7.0:
-		impact_event.emit(global_position, impact_severity)
+	# BUG-030 follow-up: gate presentation on the original total-speed threshold
+	# so particles and hit audio keep firing on every real contact, rolling
+	# included. Only the shake consumes `impact_severity`.
+	if impact_strength >= 7.0:
+		impact_event.emit(global_position, impact_strength, impact_severity)
 	if impact_strength < surface_bounce_min_speed:
 		return
 	var now := Time.get_ticks_msec()

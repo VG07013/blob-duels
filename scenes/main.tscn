@@ -57,7 +57,7 @@ position = Vector3(0, 0, 620)
 
 [node name="SpawnManager" type="Node3D" parent="."]
 script = ExtResource("5_spawn_manager")
-arena_half_extent = 245.0
+arena_half_extent = 157.0
 fall_limit = -80.0
 lobby_center = Vector3(0, 0, 620)
 lobby_radius = 39.5
@@ -65,19 +65,19 @@ lobby_radius = 39.5
 [node name="ArenaSpawns" type="Node3D" parent="SpawnManager"]
 
 [node name="HostSpawn" type="Marker3D" parent="SpawnManager/ArenaSpawns"]
-position = Vector3(-180, 5, 0)
+position = Vector3(-115, 5, 0)
 rotation = Vector3(0, -1.5708, 0)
 
 [node name="ClientSpawn" type="Marker3D" parent="SpawnManager/ArenaSpawns"]
-position = Vector3(180, 5, 0)
+position = Vector3(115, 5, 0)
 rotation = Vector3(0, 1.5708, 0)
 
 [node name="NorthReserve" type="Marker3D" parent="SpawnManager/ArenaSpawns"]
-position = Vector3(0, 5, -180)
+position = Vector3(0, 5, -115)
 rotation = Vector3(0, 3.14159, 0)
 
 [node name="SouthReserve" type="Marker3D" parent="SpawnManager/ArenaSpawns"]
-position = Vector3(0, 5, 180)
+position = Vector3(0, 5, 115)
 
 [node name="FallbackSpawn" type="Marker3D" parent="SpawnManager"]
 position = Vector3(0, 6, 0)

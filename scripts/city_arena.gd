@@ -88,24 +88,35 @@ func _build_ground_and_roads() -> void:
 
 
 func _build_city_blocks() -> void:
-	var coordinates: Array[float] = [-390.0, -310.0, -165.0, 165.0, 310.0, 390.0]
+	# BUG-027: the old grid put 28 towers between 165 and 390 units out - roughly
+	# 310 MeshInstance3D of backdrop, the single biggest draw-call source in the
+	# arena. Eight towers on a ring read as the same skyline for a fraction of
+	# the cost, and their window bands are issued as one MultiMesh rather than
+	# two nodes per band per building.
+	const RING_RADIUS := 350.0
+	# Corners and the +/-X midpoints only: the +/-Z midpoints would sit on top of
+	# the sky bridge at z=-310 and the overpass at z=245.
+	var ring_slots := [
+		Vector2(-1, -1), Vector2(1, -1),
+		Vector2(-1, 1), Vector2(1, 1),
+		Vector2(-1, 0), Vector2(1, 0),
+	]
 	var building_materials: Array[String] = ["blue", "teal", "coral", "violet"]
-	var building_index := 0
-	for x in coordinates:
-		for z in coordinates:
-			if x < -220.0 and z > 220.0:
-				continue
-			if abs(x) < 200.0 and abs(z) < 200.0:
-				continue
-
-			var seed_value: int = absi(int(x * 3.0 + z * 5.0))
-			var width: float = 52.0 + float(seed_value % 3) * 9.0
-			var depth: float = 50.0 + float(int(seed_value / 3) % 3) * 10.0
-			var edge_bonus: float = 55.0 if absf(x) > 300.0 or absf(z) > 300.0 else 0.0
-			var height: float = 48.0 + float(seed_value % 5) * 16.0 + edge_bonus
-			var material_key: String = building_materials[building_index % building_materials.size()]
-			_add_building("Tower_%02d" % building_index, Vector3(x, 0, z), Vector3(width, height, depth), _materials[material_key], building_index)
-			building_index += 1
+	var window_transforms: Array[Transform3D] = []
+	for building_index in range(ring_slots.size()):
+		var slot: Vector2 = ring_slots[building_index]
+		var width: float = 56.0 + float(building_index % 3) * 9.0
+		var depth: float = 54.0 + float((building_index + 1) % 3) * 10.0
+		var height: float = 96.0 + float(building_index % 5) * 16.0
+		var material_key: String = building_materials[building_index % building_materials.size()]
+		_add_building(
+			"Tower_%02d" % building_index,
+			Vector3(slot.x * RING_RADIUS, 0, slot.y * RING_RADIUS),
+			Vector3(width, height, depth),
+			_materials[material_key],
+			building_index,
+			window_transforms
+		)
 
 	# Medium structures tighten sightlines without blocking the primary streets.
 	var cover_positions := [
@@ -117,22 +128,26 @@ func _build_city_blocks() -> void:
 	for index in range(cover_positions.size()):
 		var position: Vector3 = cover_positions[index]
 		var size := Vector3(58, 30 + (index % 3) * 8, 48)
-		_add_building("MidBlock_%02d" % index, position, size, _materials[["teal", "coral", "blue"][index % 3]], 100 + index)
+		_add_building("MidBlock_%02d" % index, position, size, _materials[["teal", "coral", "blue"][index % 3]], 100 + index, window_transforms)
+	# Emitted once the whole skyline has contributed its bands.
+	_add_window_multimesh(window_transforms)
 
 
-func _add_building(prefix: String, ground_position: Vector3, size: Vector3, material: Material, style_index: int) -> void:
+func _add_building(prefix: String, ground_position: Vector3, size: Vector3, material: Material, style_index: int, window_transforms: Array[Transform3D]) -> void:
 	_add_box(prefix + "_Sidewalk", ground_position + Vector3(0, 0.3, 0), Vector3(size.x + 14, 0.6, size.z + 14), _materials.concrete_light, true)
 	var center := ground_position + Vector3(0, 0.6 + size.y * 0.5, 0)
 	_add_box(prefix, center, size, material, true)
 	_add_box(prefix + "_Roof", ground_position + Vector3(0, size.y + 1.0, 0), Vector3(size.x + 3, 1.0, size.z + 3), _materials.metal, true)
 
-	var window_material: Material = _materials.window_warm if style_index % 2 == 0 else _materials.window_cool
+	# Collected rather than instanced: one MultiMesh draw covers every band on
+	# every tower (BUG-027 / BUG-028).
 	for band_index in range(4):
 		var band_y := 8.0 + float(band_index) * maxf(7.0, (size.y - 14.0) / 4.0)
 		if band_y >= size.y - 3.0:
 			continue
-		_add_box(prefix + "_WindowsFront", ground_position + Vector3(0, band_y, size.z * 0.5 + 0.12), Vector3(size.x * 0.72, 2.4, 0.24), window_material, false)
-		_add_box(prefix + "_WindowsBack", ground_position + Vector3(0, band_y, -size.z * 0.5 - 0.12), Vector3(size.x * 0.72, 2.4, 0.24), window_material, false)
+		var band_basis := Basis.IDENTITY.scaled(Vector3(size.x * 0.72, 2.4, 0.24))
+		for depth_offset in [size.z * 0.5 + 0.12, -size.z * 0.5 - 0.12]:
+			window_transforms.append(Transform3D(band_basis, ground_position + Vector3(0, band_y, depth_offset)))
 
 	if size.y > 90.0:
 		var sign_material: Material = _materials.billboard_fling if style_index % 2 == 0 else _materials.billboard_blob
@@ -236,13 +251,21 @@ func _build_park() -> void:
 
 
 func _build_street_details() -> void:
-	for coordinate in range(-420, 421, 70):
+	# BUG-028: this used to place 40 lamps out to +/-420 - 120 MeshInstance3D,
+	# most of them behind the skyline. Halved, and the arm and lamp globe (no
+	# collision) are issued as two MultiMesh draws instead of 80 nodes.
+	var arm_transforms: Array[Transform3D] = []
+	var glow_transforms: Array[Transform3D] = []
+	for coordinate in range(-350, 351, 140):
 		if abs(coordinate) < 90:
 			continue
-		_add_street_light(Vector3(-36, 0, coordinate))
-		_add_street_light(Vector3(36, 0, coordinate))
-		_add_street_light(Vector3(coordinate, 0, -36))
-		_add_street_light(Vector3(coordinate, 0, 36))
+		for position in [
+			Vector3(-36, 0, coordinate), Vector3(36, 0, coordinate),
+			Vector3(coordinate, 0, -36), Vector3(coordinate, 0, 36),
+		]:
+			_add_street_light(position, arm_transforms, glow_transforms)
+	_add_multimesh("StreetLightArms", _shared_arm_mesh(), _materials.metal, arm_transforms)
+	_add_multimesh("StreetLightGlows", _shared_glow_mesh(), _materials.window_warm, glow_transforms)
 
 	_add_bus_stop("WestBusStop", Vector3(-250, 0, -72), 0.0)
 	_add_bus_stop("EastBusStop", Vector3(250, 0, 72), PI)
@@ -260,10 +283,10 @@ func _build_street_details() -> void:
 		_add_cylinder("PlazaVent", vent_position, 3.2, 5.0, _materials.metal, true)
 
 
-func _add_street_light(position: Vector3) -> void:
+func _add_street_light(position: Vector3, arm_transforms: Array[Transform3D], glow_transforms: Array[Transform3D]) -> void:
 	_add_cylinder("StreetLightPole", position + Vector3(0, 7, 0), 0.65, 14.0, _materials.metal, true)
-	_add_box("StreetLightArm", position + Vector3(2.8, 13.5, 0), Vector3(5.6, 0.7, 0.7), _materials.metal, false)
-	_add_sphere("StreetLightGlow", position + Vector3(5.2, 12.8, 0), 1.4, _materials.window_warm)
+	arm_transforms.append(Transform3D(Basis.IDENTITY, position + Vector3(2.8, 13.5, 0)))
+	glow_transforms.append(Transform3D(Basis.IDENTITY, position + Vector3(5.2, 12.8, 0)))
 
 
 func _add_bus_stop(prefix: String, position: Vector3, yaw: float) -> void:
@@ -611,3 +634,46 @@ func _add_collision_shape(prefix: String, position: Vector3, rotation: Vector3, 
 func _unique_name(prefix: String) -> String:
 	_name_counter += 1
 	return "%s_%03d" % [prefix, _name_counter]
+
+
+## Issues `transforms` copies of `mesh` as a single draw call. Used for the
+## repeated decorative geometry that dominated the arena's draw-call count.
+func _add_multimesh(prefix: String, mesh: Mesh, material: Material, transforms: Array[Transform3D]) -> MultiMeshInstance3D:
+	if transforms.is_empty():
+		return null
+	var multimesh := MultiMesh.new()
+	multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	multimesh.mesh = mesh
+	multimesh.instance_count = transforms.size()
+	for index in range(transforms.size()):
+		multimesh.set_instance_transform(index, transforms[index])
+	var instance := MultiMeshInstance3D.new()
+	instance.name = _unique_name(prefix)
+	instance.multimesh = multimesh
+	instance.material_override = material
+	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_visuals.add_child(instance)
+	return instance
+
+
+## The band mesh is a unit box; per-instance size lives in the transform basis,
+## so every window band in the skyline shares one mesh and one draw call.
+func _add_window_multimesh(transforms: Array[Transform3D]) -> void:
+	var unit := BoxMesh.new()
+	unit.size = Vector3.ONE
+	_add_multimesh("TowerWindows", unit, _materials.window_cool, transforms)
+
+
+func _shared_arm_mesh() -> Mesh:
+	var arm := BoxMesh.new()
+	arm.size = Vector3(5.6, 0.7, 0.7)
+	return arm
+
+
+func _shared_glow_mesh() -> Mesh:
+	var glow := SphereMesh.new()
+	glow.radius = 1.4
+	glow.height = 2.8
+	glow.radial_segments = 12
+	glow.rings = 6
+	return glow

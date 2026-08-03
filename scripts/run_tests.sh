@@ -19,6 +19,8 @@ TIMEOUT_SECONDS="${TEST_TIMEOUT_SECONDS:-180}"
 # Diagnostic scripts, not contracts: the capture scripts write PNGs and need a
 # real rendering device, and the movement probe only prints telemetry.
 EXCLUDED_SUFFIX="visual_capture"
+# Anything ending in _probe prints telemetry rather than asserting.
+EXCLUDED_SUFFIX_ALT="_probe"
 EXCLUDED_NAMES=("debug_movement_probe")
 
 fail_fast=0
@@ -49,17 +51,30 @@ find_godot() {
 	done
 	for candidate in \
 		"/Applications/Godot.app/Contents/MacOS/Godot" \
-		"$HOME/Applications/Godot.app/Contents/MacOS/Godot"; do
+		"$HOME/Applications/Godot.app/Contents/MacOS/Godot" \
+		"$HOME/Downloads/Godot.app/Contents/MacOS/Godot" \
+		"$HOME/Desktop/Godot.app/Contents/MacOS/Godot"; do
 		if [[ -x "$candidate" ]]; then
 			echo "$candidate"
 			return
 		fi
 	done
+	# Last resort: ask Spotlight. Costs a second but beats telling someone their
+	# engine is missing when it is sitting in an unusual folder.
+	if command -v mdfind >/dev/null 2>&1; then
+		local found
+		found="$(mdfind -name 'Godot.app' 2>/dev/null | head -1)"
+		if [[ -n "$found" && -x "$found/Contents/MacOS/Godot" ]]; then
+			echo "$found/Contents/MacOS/Godot"
+			return
+		fi
+	fi
 }
 
 is_excluded() {
 	local name="$1" excluded
 	[[ "$name" == *"$EXCLUDED_SUFFIX" ]] && return 0
+	[[ "$name" == *"$EXCLUDED_SUFFIX_ALT" ]] && return 0
 	for excluded in "${EXCLUDED_NAMES[@]}"; do
 		[[ "$name" == "$excluded" ]] && return 0
 	done

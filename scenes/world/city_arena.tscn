@@ -3,5 +3,5 @@
 [ext_resource type="Script" path="res://scripts/city_arena.gd" id="1_city"]
 
 [node name="CityArena" type="Node3D"]
-scale = Vector3(0.5, 0.5, 0.5)
+scale = Vector3(0.32, 0.32, 0.32)
 script = ExtResource("1_city")

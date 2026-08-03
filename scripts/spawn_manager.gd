@@ -1,7 +1,10 @@
 class_name SpawnManager
 extends Node3D
 
-@export var arena_half_extent := 58.0
+# BUG-027: the practice arena is authored at 1000 local units and scaled to
+# 0.32 by its scene, giving a world half-extent of ~158. This bound tracks that
+# so the wall and the out-of-bounds line stay in the same place.
+@export var arena_half_extent := 157.0
 @export var fall_limit := -22.0
 @export var lobby_center := Vector3(0.0, 0.0, 72.0)
 @export var lobby_radius := 15.0
@@ -9,10 +12,10 @@ extends Node3D
 @onready var fallback_spawn: Marker3D = $FallbackSpawn
 
 var _active_spawns: Array[Marker3D] = []
-var _practice_half_extent := 58.0
+var _practice_half_extent := 157.0
 var _practice_fall_limit := -22.0
-var _arena_half_width := 58.0
-var _arena_half_length := 58.0
+var _arena_half_width := 157.0
+var _arena_half_length := 157.0
 var _using_authored_competitive_spawns := false
 
 
