@@ -10,6 +10,7 @@ const IMPACT_BURST_SCENE: PackedScene = preload("res://scenes/effects/impact_bur
 const COSMETIC_LIBRARY := preload("res://scripts/cosmetic_library.gd")
 const ABILITY_TUNING := preload("res://scripts/ability_tuning.gd")
 const ABILITY_HUD_SCRIPT := preload("res://scripts/ui/ability_hud.gd")
+const SERVER_PEER_REGISTRY := preload("res://scripts/net/server_peer_registry.gd")
 const COMPETITIVE_MAP_SCENES := {
 	"neon_arcade": preload("res://scenes/world/maps/neon_arcade.tscn"),
 	"backyard": preload("res://scenes/world/maps/backyard.tscn"),
@@ -98,19 +99,11 @@ var _player_stats: Dictionary = {}
 var _victory_sequence_active := false
 var _victory_camera_target := Vector3(0.0, 3.2, 0.0)
 var _victory_camera_position := Vector3(22.0, 8.0, 28.0)
-var _peer_shot_ready_at: Dictionary = {}
-var _server_peer_ability_ready_at: Dictionary = {}
-var _server_peer_equipped_ability: Dictionary = {}
-var _server_peer_ricochet_loaded: Dictionary = {}
-var _server_peer_rail_charge_end_at: Dictionary = {}
-var _server_peer_overcharge_end_at: Dictionary = {}
-var _server_peer_phase_end_at: Dictionary = {}
-var _server_peer_gravity_end_at: Dictionary = {}
-var _server_peer_bounce_mines: Dictionary = {}
+## Host-side authority over every connected peer: health, cooldowns, ability
+## timers, and the last accepted position. Only populated when this instance is
+## the server.
+var _server_peers := SERVER_PEER_REGISTRY.new()
 var _visual_bounce_mines: Dictionary = {}
-var _server_peer_health: Dictionary = {}
-var _peer_last_state_position: Dictionary = {}
-var _peer_last_state_msec: Dictionary = {}
 var _active_lighting_profile: Dictionary = {}
 var _graphics_quality := 1
 var _effects_quality := 1
@@ -136,6 +129,9 @@ func _ready() -> void:
 	_ensure_input_actions()
 	_connect_session_signals()
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	# On-demand peer entries start at full health, matching the defaults the
+	# per-peer dictionaries used to supply at every read site.
+	_server_peers.default_health = player.max_health
 	player.configure_local(1)
 	player.set_shooting_enabled(false)
 	player.fling_released.connect(_on_player_fling_released)
@@ -352,9 +348,9 @@ func _on_network_peer_joined(peer_id: int) -> void:
 	if multiplayer.is_server():
 		_assign_spawn_slot(peer_id)
 		_ensure_player_stats(peer_id)
-		_server_peer_health[peer_id] = player.max_health
-		_peer_last_state_position[peer_id] = spawn_manager.get_spawn_for_slot(_spawn_slot_for_peer(peer_id))
-		_peer_last_state_msec[peer_id] = Time.get_ticks_msec()
+		var joined_state := _server_peers.state_for(peer_id)
+		joined_state.health = player.max_health
+		joined_state.note_position(spawn_manager.get_spawn_for_slot(_spawn_slot_for_peer(peer_id)), Time.get_ticks_msec())
 		_receive_match_setup.rpc(_selected_map_id, _peer_spawn_slots, _red_score, _blue_score)
 		call_deferred("_begin_synchronized_round_countdown")
 	if arena_started:
@@ -363,21 +359,8 @@ func _on_network_peer_joined(peer_id: int) -> void:
 
 func _on_network_peer_left(peer_id: int) -> void:
 	_peer_spawn_slots.erase(peer_id)
-	_server_peer_health.erase(peer_id)
-	_peer_last_state_position.erase(peer_id)
-	_peer_last_state_msec.erase(peer_id)
-	_peer_shot_ready_at.erase(peer_id)
-	_server_peer_ability_ready_at.erase(peer_id)
-	_server_peer_equipped_ability.erase(peer_id)
-	_server_peer_ricochet_loaded.erase(peer_id)
-	_server_peer_rail_charge_end_at.erase(peer_id)
-	_server_peer_overcharge_end_at.erase(peer_id)
-	_server_peer_phase_end_at.erase(peer_id)
-	_server_peer_gravity_end_at.erase(peer_id)
-	var peer_mine := _server_peer_bounce_mines.get(peer_id) as Node
-	if is_instance_valid(peer_mine):
-		peer_mine.queue_free()
-	_server_peer_bounce_mines.erase(peer_id)
+	# remove() frees the peer's authoritative mine along with its state.
+	_server_peers.remove(peer_id)
 	var visual_mine := _visual_bounce_mines.get(peer_id) as Node
 	if is_instance_valid(visual_mine):
 		visual_mine.queue_free()
@@ -403,10 +386,12 @@ func _request_match_setup(equipped_ability: String = "") -> void:
 
 
 func _register_server_peer_loadout(peer_id: int, equipped_ability: String) -> void:
-	if _server_peer_equipped_ability.has(peer_id):
+	var state := _server_peers.state_for(peer_id)
+	if state.loadout_registered:
 		return
 	var supported := ["ricochet_shot", "rail_shot", "overcharge", "phase_bubble", "gravity_pulse", "bounce_mine"]
-	_server_peer_equipped_ability[peer_id] = equipped_ability if supported.has(equipped_ability) else ""
+	state.equipped_ability = equipped_ability if supported.has(equipped_ability) else ""
+	state.loadout_registered = true
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -576,8 +561,7 @@ func _position_all_players_at_assigned_spawns() -> void:
 		var peer_id := int(peer_key)
 		var spawn_position: Vector3 = spawn_manager.get_spawn_for_slot(_spawn_slot_for_peer(peer_id))
 		if multiplayer.is_server():
-			_peer_last_state_position[peer_id] = spawn_position
-			_peer_last_state_msec[peer_id] = Time.get_ticks_msec()
+			_server_peers.state_for(peer_id).note_position(spawn_position, Time.get_ticks_msec())
 		if peer_id == local_peer_id:
 			continue
 		var remote := _ensure_remote_player(peer_id) as RigidBody3D
@@ -639,12 +623,13 @@ func _submit_player_state(network_position: Vector3, body_rotation: Vector3, _ve
 	if not multiplayer.get_peers().has(peer_id):
 		return
 	var now := Time.get_ticks_msec()
-	var previous_position: Vector3 = _peer_last_state_position.get(peer_id, spawn_manager.get_spawn_for_slot(_spawn_slot_for_peer(peer_id)))
-	var previous_msec := int(_peer_last_state_msec.get(peer_id, now))
+	var state := _server_peers.state_for(peer_id)
+	var previous_position: Vector3 = state.position_or(spawn_manager.get_spawn_for_slot(_spawn_slot_for_peer(peer_id)))
+	var previous_msec := state.last_state_msec if state.has_reported_position else now
 	var safe_position := _sanitize_remote_position(peer_id, network_position, now)
 	var safe_rotation := body_rotation if body_rotation.is_finite() else Vector3.ZERO
 	var safe_velocity := _derive_remote_velocity(previous_position, safe_position, previous_msec, now)
-	var safe_health := int(_server_peer_health.get(peer_id, player.max_health))
+	var safe_health := state.health
 	var safe_name := display_name.strip_edges().left(24)
 	if safe_name.is_empty():
 		safe_name = "Player %d" % peer_id
@@ -657,18 +642,18 @@ func _submit_player_state(network_position: Vector3, body_rotation: Vector3, _ve
 
 
 func _sanitize_remote_position(peer_id: int, claimed_position: Vector3, now_msec: int) -> Vector3:
-	var fallback: Vector3 = _peer_last_state_position.get(peer_id, spawn_manager.get_spawn_for_slot(_spawn_slot_for_peer(peer_id)))
+	var state := _server_peers.state_for(peer_id)
+	var fallback: Vector3 = state.position_or(spawn_manager.get_spawn_for_slot(_spawn_slot_for_peer(peer_id)))
 	if not claimed_position.is_finite():
 		return fallback
-	var last_msec := int(_peer_last_state_msec.get(peer_id, now_msec))
+	var last_msec := state.last_state_msec if state.has_reported_position else now_msec
 	if now_msec - last_msec < MIN_REMOTE_STATE_INTERVAL_MSEC:
 		return fallback
 	var elapsed := clampf(float(now_msec - last_msec) / 1000.0, 0.0, 0.5)
 	var maximum_step := minf(MAX_REMOTE_STATE_STEP, MAX_REMOTE_STATE_SPEED * elapsed + REMOTE_STATE_LEEWAY)
 	var delta := claimed_position - fallback
 	var safe_position := fallback + delta.limit_length(maximum_step)
-	_peer_last_state_position[peer_id] = safe_position
-	_peer_last_state_msec[peer_id] = now_msec
+	state.note_position(safe_position, now_msec)
 	return safe_position
 
 
@@ -739,15 +724,15 @@ func _request_network_shot(origin: Vector3, direction: Vector3, _requested_ricoc
 	if origin.distance_to(shooter.global_position) > 8.0:
 		return
 	var now := Time.get_ticks_msec()
-	var rail_charge_end := int(_server_peer_rail_charge_end_at.get(shooter_peer_id, 0))
-	if rail_charge_end > now:
+	var state := _server_peers.state_for(shooter_peer_id)
+	if state.rail_charge_end_at > now:
 		return
-	if now < int(_peer_shot_ready_at.get(shooter_peer_id, 0)):
+	if now < state.shot_ready_at:
 		return
 	var shot_interval := NETWORK_SHOT_COOLDOWN_MSEC
-	if now < int(_server_peer_overcharge_end_at.get(shooter_peer_id, 0)):
+	if now < state.overcharge_end_at:
 		shot_interval = int(round(float(NETWORK_SHOT_COOLDOWN_MSEC) / ABILITY_TUNING.OVERCHARGE_FIRE_RATE_MULTIPLIER))
-	_peer_shot_ready_at[shooter_peer_id] = now + shot_interval
+	state.shot_ready_at = now + shot_interval
 	var safe_direction := direction.normalized()
 	var authoritative_origin: Vector3 = shooter.global_position + safe_direction * 3.75 + Vector3.UP * 0.25
 	var shot_flags := _consume_server_shot_flags(shooter_peer_id, now)
@@ -764,58 +749,60 @@ func _request_network_ability(ability_id: String) -> void:
 	var now := Time.get_ticks_msec()
 	if not _is_server_ability_request_allowed(peer_id, ability_id, now):
 		return
+	var state := _server_peers.state_for(peer_id)
 	match ability_id:
 		"ricochet_shot":
-			_server_peer_ricochet_loaded[peer_id] = true
+			state.ricochet_loaded = true
 		"rail_shot":
-			_server_peer_rail_charge_end_at[peer_id] = now + ABILITY_TUNING.RAIL_SHOT_CHARGE_MSEC
+			state.rail_charge_end_at = now + ABILITY_TUNING.RAIL_SHOT_CHARGE_MSEC
 		"overcharge":
 			var overcharge_end := now + ABILITY_TUNING.OVERCHARGE_DURATION_MSEC
-			_server_peer_overcharge_end_at[peer_id] = overcharge_end
-			_server_peer_ability_ready_at[peer_id] = overcharge_end + ABILITY_TUNING.OVERCHARGE_COOLDOWN_MSEC
+			state.overcharge_end_at = overcharge_end
+			state.ability_ready_at = overcharge_end + ABILITY_TUNING.OVERCHARGE_COOLDOWN_MSEC
 		"phase_bubble":
 			var phase_end := now + ABILITY_TUNING.PHASE_BUBBLE_DURATION_MSEC
-			_server_peer_phase_end_at[peer_id] = phase_end
-			_server_peer_ability_ready_at[peer_id] = phase_end + ABILITY_TUNING.PHASE_BUBBLE_COOLDOWN_MSEC
+			state.phase_end_at = phase_end
+			state.ability_ready_at = phase_end + ABILITY_TUNING.PHASE_BUBBLE_COOLDOWN_MSEC
 			var phase_player := remote_players.get_node_or_null(_remote_player_name(peer_id))
 			if phase_player != null:
 				phase_player.call("set_phase_bubble", true)
 			_replicate_phase_bubble.rpc(peer_id, true)
 		"gravity_pulse":
 			var gravity_end := now + ABILITY_TUNING.GRAVITY_PULSE_DURATION_MSEC
-			_server_peer_gravity_end_at[peer_id] = gravity_end
-			_server_peer_ability_ready_at[peer_id] = gravity_end + ABILITY_TUNING.GRAVITY_PULSE_COOLDOWN_MSEC
+			state.gravity_end_at = gravity_end
+			state.ability_ready_at = gravity_end + ABILITY_TUNING.GRAVITY_PULSE_COOLDOWN_MSEC
 		"bounce_mine":
-			_server_peer_ability_ready_at[peer_id] = now + ABILITY_TUNING.BOUNCE_MINE_COOLDOWN_MSEC
+			state.ability_ready_at = now + ABILITY_TUNING.BOUNCE_MINE_COOLDOWN_MSEC
 			_server_spawn_bounce_mine(peer_id)
 		_:
 			return
 
 
 func _is_server_ability_request_allowed(peer_id: int, ability_id: String, now: int) -> bool:
-	if str(_server_peer_equipped_ability.get(peer_id, "")) != ability_id:
+	var state := _server_peers.state_for(peer_id)
+	if state.equipped_ability != ability_id:
 		return false
-	if now < int(_server_peer_ability_ready_at.get(peer_id, 0)):
+	if now < state.ability_ready_at:
 		return false
-	if ability_id == "ricochet_shot" and bool(_server_peer_ricochet_loaded.get(peer_id, false)):
+	if ability_id == "ricochet_shot" and state.ricochet_loaded:
 		return false
-	if ability_id == "rail_shot" and int(_server_peer_rail_charge_end_at.get(peer_id, 0)) > 0:
+	if ability_id == "rail_shot" and state.rail_charge_end_at > 0:
 		return false
 	return true
 
 
 func _consume_server_shot_flags(peer_id: int, now: int) -> Dictionary:
 	var flags := {"ricochet": false, "rail": false}
-	var rail_ready_at := int(_server_peer_rail_charge_end_at.get(peer_id, 0))
-	if rail_ready_at > 0 and now >= rail_ready_at:
+	var state := _server_peers.state_for(peer_id)
+	if state.rail_charge_end_at > 0 and now >= state.rail_charge_end_at:
 		flags["rail"] = true
-		_server_peer_rail_charge_end_at.erase(peer_id)
-		_server_peer_ability_ready_at[peer_id] = now + ABILITY_TUNING.RAIL_SHOT_COOLDOWN_MSEC
+		state.rail_charge_end_at = 0
+		state.ability_ready_at = now + ABILITY_TUNING.RAIL_SHOT_COOLDOWN_MSEC
 		return flags
-	if bool(_server_peer_ricochet_loaded.get(peer_id, false)):
+	if state.ricochet_loaded:
 		flags["ricochet"] = true
-		_server_peer_ricochet_loaded.erase(peer_id)
-		_server_peer_ability_ready_at[peer_id] = now + ABILITY_TUNING.RICOCHET_COOLDOWN_MSEC
+		state.ricochet_loaded = false
+		state.ability_ready_at = now + ABILITY_TUNING.RICOCHET_COOLDOWN_MSEC
 	return flags
 
 
@@ -895,9 +882,10 @@ func _apply_server_peer_impact(peer_id: int, damage: int, impulse: Vector3, proj
 	var safe_damage := clampi(damage, 0, 60)
 	var impulse_limit := 150.0 if projectile_hit else 230.0
 	var safe_impulse := impulse.limit_length(impulse_limit)
-	var current_health := int(_server_peer_health.get(peer_id, player.max_health))
+	var state := _server_peers.state_for(peer_id)
+	var current_health := state.health
 	var next_health := maxi(current_health - safe_damage, 0)
-	_server_peer_health[peer_id] = next_health
+	state.health = next_health
 	var remote = remote_players.get_node_or_null(_remote_player_name(peer_id))
 	if remote != null:
 		remote.apply_network_state(remote.global_position, remote.rotation, remote.linear_velocity, next_health, remote.aim_direction)
@@ -980,7 +968,7 @@ func _use_equipped_ability() -> void:
 			if network_session.is_online() and not multiplayer.is_server():
 				_request_network_ability.rpc_id(1, ability)
 			elif network_session.is_online():
-				_server_peer_ability_ready_at[local_peer_id] = now + ABILITY_TUNING.BOUNCE_MINE_COOLDOWN_MSEC
+				_server_peers.state_for(local_peer_id).ability_ready_at = now + ABILITY_TUNING.BOUNCE_MINE_COOLDOWN_MSEC
 				_server_spawn_bounce_mine(local_peer_id)
 			else:
 				_spawn_bounce_mine()
@@ -1128,8 +1116,8 @@ func _apply_gravity_pulse(delta: float) -> void:
 	if _gravity_pulse_end_at > now:
 		_deflect_projectiles_around(player, delta)
 	if multiplayer.is_server():
-		for peer_id_value in _server_peer_gravity_end_at.keys():
-			if int(_server_peer_gravity_end_at.get(peer_id_value, 0)) <= now:
+		for peer_id_value in _server_peers.peer_ids():
+			if _server_peers.state_for(int(peer_id_value)).gravity_end_at <= now:
 				continue
 			var remote := remote_players.get_node_or_null(_remote_player_name(int(peer_id_value))) as Node3D
 			if remote != null:
@@ -1165,21 +1153,22 @@ func _replicate_phase_bubble(peer_id: int, active: bool) -> void:
 
 
 func _expire_server_peer_abilities(now: int) -> void:
-	for peer_id_value in _server_peer_phase_end_at.keys():
-		if int(_server_peer_phase_end_at.get(peer_id_value, 0)) > now:
-			continue
+	for peer_id_value in _server_peers.peer_ids():
 		var peer_id := int(peer_id_value)
-		var remote := remote_players.get_node_or_null(_remote_player_name(peer_id))
-		if remote != null:
-			remote.call("set_phase_bubble", false)
-		_replicate_phase_bubble.rpc(peer_id, false)
-		_server_peer_phase_end_at.erase(peer_id)
-	for peer_id_value in _server_peer_overcharge_end_at.keys():
-		if int(_server_peer_overcharge_end_at.get(peer_id_value, 0)) <= now:
-			_server_peer_overcharge_end_at.erase(peer_id_value)
-	for peer_id_value in _server_peer_gravity_end_at.keys():
-		if int(_server_peer_gravity_end_at.get(peer_id_value, 0)) <= now:
-			_server_peer_gravity_end_at.erase(peer_id_value)
+		var state := _server_peers.state_for(peer_id)
+		# A phase bubble that has run out has to be replicated down, so it is
+		# the only expiry here with a visible side effect. Zero means "expired
+		# and already announced", which is why it is skipped.
+		if state.phase_end_at > 0 and state.phase_end_at <= now:
+			var remote := remote_players.get_node_or_null(_remote_player_name(peer_id))
+			if remote != null:
+				remote.call("set_phase_bubble", false)
+			_replicate_phase_bubble.rpc(peer_id, false)
+			state.phase_end_at = 0
+		if state.overcharge_end_at <= now:
+			state.overcharge_end_at = 0
+		if state.gravity_end_at <= now:
+			state.gravity_end_at = 0
 
 
 func _fire_rail_shot(now: int) -> void:
@@ -1282,9 +1271,8 @@ func _server_spawn_bounce_mine(peer_id: int) -> void:
 	var owner := player as Node3D if peer_id == local_peer_id else remote_players.get_node_or_null(_remote_player_name(peer_id)) as Node3D
 	if owner == null:
 		return
-	var existing := _server_peer_bounce_mines.get(peer_id) as Node
-	if is_instance_valid(existing):
-		existing.queue_free()
+	var state := _server_peers.state_for(peer_id)
+	state.clear_bounce_mine()
 	var direction: Vector3 = owner.get("aim_direction")
 	if direction.length_squared() <= 0.001:
 		direction = Vector3.FORWARD
@@ -1293,7 +1281,7 @@ func _server_spawn_bounce_mine(peer_id: int) -> void:
 	var spawn_position := owner.global_position + direction.normalized() * 2.0 + Vector3.UP * 0.3
 	mine.configure(spawn_position, direction, owner, true)
 	mine.detonated.connect(_on_authoritative_bounce_mine_detonated.bind(peer_id, mine))
-	_server_peer_bounce_mines[peer_id] = mine
+	state.bounce_mine = mine
 	if peer_id == local_peer_id:
 		_active_bounce_mine = mine
 	_replicate_bounce_mine.rpc(peer_id, spawn_position, direction)
@@ -1316,8 +1304,9 @@ func _replicate_bounce_mine(peer_id: int, spawn_position: Vector3, direction: Ve
 
 
 func _on_authoritative_bounce_mine_detonated(world_position: Vector3, peer_id: int, mine: Node) -> void:
-	if _server_peer_bounce_mines.get(peer_id) == mine:
-		_server_peer_bounce_mines.erase(peer_id)
+	var detonated_state := _server_peers.peek(peer_id)
+	if detonated_state != null and detonated_state.bounce_mine == mine:
+		detonated_state.bounce_mine = null
 	if _active_bounce_mine == mine:
 		_active_bounce_mine = null
 	for candidate_value in [player] + remote_players.get_children():
@@ -1537,7 +1526,7 @@ func _report_round_death(reason: String) -> void:
 	var safe_reason := reason.left(24)
 	var remote = remote_players.get_node_or_null(_remote_player_name(peer_id))
 	var verified := safe_reason == "menu_respawn"
-	verified = verified or (safe_reason == "health" and int(_server_peer_health.get(peer_id, player.max_health)) <= 0)
+	verified = verified or (safe_reason == "health" and _server_peers.state_for(peer_id).health <= 0)
 	verified = verified or (safe_reason == "fall" and remote != null and spawn_manager.is_outside_arena(remote.global_position))
 	if verified:
 		_register_round_death(peer_id, safe_reason)
@@ -1622,7 +1611,7 @@ func _resolve_duel_round(loser_peer_id: int, is_draw: bool) -> void:
 		return
 	_round_number += 1
 	for peer_key in _peer_spawn_slots:
-		_server_peer_health[int(peer_key)] = player.max_health
+		_server_peers.state_for(int(peer_key)).health = player.max_health
 	_begin_synchronized_round_countdown()
 
 
@@ -1669,23 +1658,11 @@ func _reset_duel_match_state() -> void:
 	_pending_deaths.clear()
 	_death_resolution_deadline = 0
 	_player_stats.clear()
-	_server_peer_health.clear()
-	_peer_last_state_position.clear()
-	_peer_last_state_msec.clear()
-	_peer_shot_ready_at.clear()
-	_server_peer_ability_ready_at.clear()
-	_server_peer_ricochet_loaded.clear()
-	_server_peer_rail_charge_end_at.clear()
-	_server_peer_overcharge_end_at.clear()
-	_server_peer_phase_end_at.clear()
-	_server_peer_gravity_end_at.clear()
-	for mine_value in _server_peer_bounce_mines.values():
-		var mine := mine_value as Node
-		if is_instance_valid(mine):
-			mine.queue_free()
-	_server_peer_bounce_mines.clear()
+	# Resets health, cooldowns, ability timers, and mines for every peer while
+	# keeping the loadout each one registered at join.
+	_server_peers.reset_for_match()
 	_ensure_player_stats(1)
-	_server_peer_health[1] = player.max_health
+	_server_peers.state_for(1).health = player.max_health
 	_victory_sequence_active = false
 	_match_reward_awarded = false
 	_reset_ability_state()
@@ -2123,7 +2100,7 @@ func _resolve_duel_timeout() -> void:
 func _authoritative_health_for_peer(peer_id: int) -> int:
 	if peer_id == local_peer_id and multiplayer.is_server():
 		return player.health
-	return int(_server_peer_health.get(peer_id, player.max_health))
+	return _server_peers.state_for(peer_id).health
 
 
 func _spawn_impact_burst(world_position: Vector3, color: Color, effect_scale: float) -> void:

@@ -31,14 +31,15 @@ func _run() -> void:
 	_check(is_equal_approx(get_root().scaling_3d_scale, 1.25), "Corrupt render scale is not clamped at the runtime boundary")
 	var no_token_flags := game._consume_server_shot_flags(2, 1000) as Dictionary
 	_check(not bool(no_token_flags.get("ricochet")) and not bool(no_token_flags.get("rail")), "Remote shots gain privileged ability flags without a server token")
-	game.set("_server_peer_ricochet_loaded", {2: true})
+	var server_peers = game.get("_server_peers")
+	server_peers.state_for(2).ricochet_loaded = true
 	var ricochet_flags := game._consume_server_shot_flags(2, 1000) as Dictionary
-	_check(bool(ricochet_flags.get("ricochet")) and not bool(game.get("_server_peer_ricochet_loaded").get(2, false)), "Server ricochet tokens are not consumed exactly once")
-	game.set("_server_peer_equipped_ability", {2: "ricochet_shot"})
-	game.set("_server_peer_ability_ready_at", {})
+	_check(bool(ricochet_flags.get("ricochet")) and not server_peers.state_for(2).ricochet_loaded, "Server ricochet tokens are not consumed exactly once")
+	server_peers.state_for(2).equipped_ability = "ricochet_shot"
+	server_peers.state_for(2).ability_ready_at = 0
 	_check(not game._is_server_ability_request_allowed(2, "rail_shot", 1000), "Server accepts an ability outside the peer's locked match loadout")
 	_check(game._is_server_ability_request_allowed(2, "ricochet_shot", 1000), "Server rejects the peer's locked match loadout ability")
-	game.set("_server_peer_rail_charge_end_at", {2: 1500})
+	server_peers.state_for(2).rail_charge_end_at = 1500
 	var early_rail_flags := game._consume_server_shot_flags(2, 1499) as Dictionary
 	_check(not bool(early_rail_flags.get("rail")), "Server releases a Rail shot before its charge completes")
 	var ready_rail_flags := game._consume_server_shot_flags(2, 1500) as Dictionary
@@ -65,7 +66,8 @@ func _run() -> void:
 	_check(not audio_manager.is_loop_playing(world_loop_id), "Wind zone audio survives map teardown")
 
 	game.set("_peer_spawn_slots", {1: 0, 2: 1})
-	game.set("_server_peer_health", {1: 100, 2: 40})
+	server_peers.state_for(1).health = 100
+	server_peers.state_for(2).health = 40
 	game.set("arena_started", true)
 	game.set("_practice_mode", false)
 	game.set("_match_timer_running", true)

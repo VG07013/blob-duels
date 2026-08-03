@@ -90,7 +90,9 @@ func _test_health_timeout_is_authoritative(game: Node) -> void:
 	game.set("_practice_mode", false)
 	game.set("arena_started", true)
 	game.set("_peer_spawn_slots", {1: 0, 2: 1})
-	game.set("_server_peer_health", {1: 100, 2: 34})
+	var server_peers = game.get("_server_peers")
+	server_peers.state_for(1).health = 100
+	server_peers.state_for(2).health = 34
 	game.set("_red_score", 0)
 	game.set("_blue_score", 0)
 	game.set("_round_resolving", false)

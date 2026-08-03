@@ -47,8 +47,7 @@ func _run() -> void:
 	_check(projectiles.get_child_count() == projectile_count_before + 1, "Replicated network shot does not create a client-side projectile")
 
 	game.set("_peer_spawn_slots", {1: 0, 2: 1})
-	game.set("_peer_last_state_position", {2: Vector3.ZERO})
-	game.set("_peer_last_state_msec", {2: 1000})
+	game.get("_server_peers").state_for(2).note_position(Vector3.ZERO, 1000)
 	var clamped_position: Vector3 = game._sanitize_remote_position(2, Vector3(1000.0, 0.0, 0.0), 1050)
 	var allowed_step: float = game.MAX_REMOTE_STATE_SPEED * 0.05 + game.REMOTE_STATE_LEEWAY
 	_check(clamped_position.length() <= allowed_step + 0.01, "Remote movement validation accepts an impossible teleport")
