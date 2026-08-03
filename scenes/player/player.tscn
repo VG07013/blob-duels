@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3]
+[gd_scene load_steps=24 format=3]
 
 [ext_resource type="Script" path="res://scripts/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://scripts/blob_visual.gd" id="2_visual"]
@@ -8,11 +8,11 @@
 font_names = PackedStringArray("SF Pro Display", "Avenir Next", "Helvetica Neue", "Arial")
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_blob"]
-friction = 0.12
-bounce = 0.94
+friction = 0.08
+bounce = 0.76
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_blob"]
-albedo_color = Color(0.05, 0.69, 0.96, 1)
+albedo_color = Color(0.02, 0.86, 1, 1)
 roughness = 0.38
 metallic = 0.0
 
@@ -84,14 +84,42 @@ gravity = Vector3(0, 0, 0)
 scale_min = 0.55
 scale_max = 1.15
 
+[sub_resource type="StandardMaterial3D" id="NameplateHealthBackgroundMaterial"]
+shading_mode = 0
+transparency = 1
+no_depth_test = true
+billboard_mode = 1
+albedo_color = Color(0.015, 0.025, 0.045, 0.92)
+render_priority = 10
+
+[sub_resource type="StandardMaterial3D" id="NameplateHealthFillMaterial"]
+shading_mode = 0
+no_depth_test = true
+billboard_mode = 1
+albedo_color = Color(0.14, 0.95, 0.45, 1)
+emission_enabled = true
+emission = Color(0.04, 0.58, 0.2, 1)
+emission_energy_multiplier = 0.65
+render_priority = 11
+
+[sub_resource type="QuadMesh" id="NameplateHealthBackgroundMesh"]
+material = SubResource("NameplateHealthBackgroundMaterial")
+size = Vector2(3.1, 0.46)
+
+[sub_resource type="QuadMesh" id="NameplateHealthFillMesh"]
+material = SubResource("NameplateHealthFillMaterial")
+size = Vector2(2.76, 0.24)
+
 [node name="Player" type="RigidBody3D" groups=["network_blob"]]
 collision_layer = 2
 collision_mask = 1
 mass = 3.2
 physics_material_override = SubResource("PhysicsMaterial_blob")
-linear_damp = 0.06
+linear_damp_mode = 1
+linear_damp = 0.01
 angular_damp = 0.28
 continuous_cd = true
+gravity_scale = 1.8
 script = ExtResource("1_player")
 
 [node name="VisualRoot" type="Node3D" parent="."]
@@ -195,11 +223,25 @@ visibility_aabb = AABB(-8, -8, -8, 16, 16, 16)
 process_material = SubResource("TrailProcess")
 draw_pass_1 = SubResource("TrailMesh")
 
-[node name="HealthBillboard" type="Label3D" parent="."]
-position = Vector3(0, 5.35, 0)
+[node name="Nameplate" type="Node3D" parent="."]
+top_level = true
+
+[node name="Name" type="Label3D" parent="Nameplate"]
+position = Vector3(0, 0.52, 0.02)
 billboard = 1
+no_depth_test = true
+fixed_size = false
 font = SubResource("WorldFont")
-text = "Player\n150 / 150"
-font_size = 42
-outline_size = 10
+text = "Player"
+font_size = 34
+outline_size = 9
+pixel_size = 0.011
 modulate = Color(0.75, 0.95, 1, 1)
+
+[node name="HealthBackground" type="MeshInstance3D" parent="Nameplate"]
+position = Vector3(0, -0.04, 0)
+mesh = SubResource("NameplateHealthBackgroundMesh")
+
+[node name="HealthFill" type="MeshInstance3D" parent="Nameplate"]
+position = Vector3(0, -0.04, 0.02)
+mesh = SubResource("NameplateHealthFillMesh")

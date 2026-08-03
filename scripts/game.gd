@@ -9,6 +9,7 @@ const BOUNCE_MINE_SCENE: PackedScene = preload("res://scenes/effects/bounce_mine
 const IMPACT_BURST_SCENE: PackedScene = preload("res://scenes/effects/impact_burst.tscn")
 const COSMETIC_LIBRARY := preload("res://scripts/cosmetic_library.gd")
 const ABILITY_TUNING := preload("res://scripts/ability_tuning.gd")
+const ABILITY_HUD_SCRIPT := preload("res://scripts/ui/ability_hud.gd")
 const COMPETITIVE_MAP_SCENES := {
 	"neon_arcade": preload("res://scenes/world/maps/neon_arcade.tscn"),
 	"backyard": preload("res://scenes/world/maps/backyard.tscn"),
@@ -20,7 +21,7 @@ const MAP_DISPLAY_NAMES := {
 	"neon_arcade": "Neon Arcade",
 	"backyard": "Backyard",
 	"arena": "Arena",
-	"sky_temple": "Sky Temple",
+	"sky_temple": "Aether Citadel",
 	"toybox": "Toybox",
 }
 const TEAM_RED := 0
@@ -28,13 +29,14 @@ const TEAM_BLUE := 1
 const SCORE_TO_WIN := 5
 const DRAW_WINDOW_MSEC := 35
 const DEATH_RESOLUTION_MSEC := 90
-const MAX_REMOTE_STATE_SPEED := 92.0
+const ROUND_COUNTDOWN_SECONDS := 3
+const MAX_REMOTE_STATE_SPEED := 138.0
 const MAX_REMOTE_STATE_STEP := 50.0
 const MIN_REMOTE_STATE_INTERVAL_MSEC := 25
 const REMOTE_STATE_LEEWAY := 0.35
 const NETWORK_SHOT_COOLDOWN_MSEC := 160
 const RED_TEAM_COLOR := Color(0.94, 0.12, 0.18, 1.0)
-const BLUE_TEAM_COLOR := Color(0.06, 0.42, 0.96, 1.0)
+const BLUE_TEAM_COLOR := Color(0.02, 0.82, 1.0, 1.0)
 const REMOTE_COLORS := [
 	Color(1.0, 0.28, 0.42, 1.0),
 	Color(1.0, 0.72, 0.12, 1.0),
@@ -67,7 +69,7 @@ const REMOTE_COLORS := [
 
 var camera_yaw := 0.0
 var camera_pitch := 0.0
-var third_person_enabled := false
+var third_person_enabled := true
 var arena_started := false
 var local_peer_id := 1
 var _network_sync_accumulator := 0.0
@@ -86,6 +88,9 @@ var _blue_score := 0
 var _round_number := 1
 var _round_resolving := false
 var _match_over := false
+var _waiting_for_opponent := false
+var _round_countdown_active := false
+var _round_countdown_generation := 0
 var _local_death_reported := false
 var _pending_deaths: Dictionary = {}
 var _death_resolution_deadline := 0
@@ -102,6 +107,7 @@ var _server_peer_overcharge_end_at: Dictionary = {}
 var _server_peer_phase_end_at: Dictionary = {}
 var _server_peer_gravity_end_at: Dictionary = {}
 var _server_peer_bounce_mines: Dictionary = {}
+var _visual_bounce_mines: Dictionary = {}
 var _server_peer_health: Dictionary = {}
 var _peer_last_state_position: Dictionary = {}
 var _peer_last_state_msec: Dictionary = {}
@@ -109,6 +115,7 @@ var _active_lighting_profile: Dictionary = {}
 var _graphics_quality := 1
 var _effects_quality := 1
 var _match_reward_awarded := false
+var _lobby_hud_suppressed_for_pause := false
 var _ability_ready_at := 0
 var _dash_end_at := 0
 var _ricochet_loaded := false
@@ -119,6 +126,8 @@ var _gravity_pulse_end_at := 0
 var _rail_charge_end_at := 0
 var _active_bounce_mine: Node3D
 var _phase_bubble_end_at := 0
+var _last_fling_charge_tier := 0
+var _rail_telegraph: MeshInstance3D
 
 
 
@@ -134,6 +143,7 @@ func _ready() -> void:
 	player.fling_maximum_reached.connect(_on_player_fling_maximum_reached)
 	player.fling_charge_updated.connect(_on_player_fling_charge_updated)
 	player.shoot_requested.connect(_handle_local_shot)
+	player.bounce_counted.connect(_on_player_bounce_counted)
 	player.bounce_triggered.connect(_on_player_bounce_triggered)
 	player.impact_event.connect(_on_player_impact)
 	player.damaged.connect(_on_player_damaged)
@@ -146,6 +156,8 @@ func _ready() -> void:
 	hud.host_requested.connect(_on_host_requested)
 	hud.join_requested.connect(_on_join_requested)
 	hud.practice_requested.connect(_start_practice_match)
+	hud.settings_requested.connect(_open_lobby_settings)
+	hud.return_to_lobby_requested.connect(_return_to_lobby)
 	hud.identity_changed.connect(_on_identity_changed)
 	_apply_lobby_identity()
 	hud.set_lobby_mode(true)
@@ -201,7 +213,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
-	if not _victory_sequence_active and event.is_action_pressed("toggle_camera"):
+	if arena_started and not _victory_sequence_active and event.is_action_pressed("toggle_camera"):
 		third_person_enabled = not third_person_enabled
 		_apply_camera_mode()
 
@@ -232,6 +244,7 @@ func _process(delta: float) -> void:
 	_update_player_audio()
 	_update_camera_shake(delta)
 	_update_match_timer(delta)
+	_update_fling_cooldown_hud()
 	_process_pending_round_death()
 	_process_ability_state()
 	_apply_gravity_pulse(delta)
@@ -267,15 +280,15 @@ func _on_host_requested() -> void:
 	hud.set_join_status("Starting host...", true)
 	var result: Error = network_session.host_game()
 	if result != OK:
-		hud.set_join_status("Host failed on port 7359", false)
+		hud.set_join_status(str(network_session.get("status_message")), false)
 
 
-func _on_join_requested(address: String) -> void:
+func _on_join_requested(room_code: String) -> void:
 	_apply_lobby_identity()
-	hud.set_join_status("Connecting to %s..." % address, true)
-	var result: Error = network_session.join_game(address)
+	hud.set_join_status("Connecting with code %s..." % room_code, true)
+	var result: Error = network_session.join_game_by_code(room_code)
 	if result != OK:
-		hud.set_join_status("Could not start connection", false)
+		hud.set_join_status(str(network_session.get("status_message")), false)
 
 
 func _on_identity_changed(display_name: String, color: Color) -> void:
@@ -343,6 +356,7 @@ func _on_network_peer_joined(peer_id: int) -> void:
 		_peer_last_state_position[peer_id] = spawn_manager.get_spawn_for_slot(_spawn_slot_for_peer(peer_id))
 		_peer_last_state_msec[peer_id] = Time.get_ticks_msec()
 		_receive_match_setup.rpc(_selected_map_id, _peer_spawn_slots, _red_score, _blue_score)
+		call_deferred("_begin_synchronized_round_countdown")
 	if arena_started:
 		_ensure_remote_player(peer_id)
 
@@ -364,11 +378,17 @@ func _on_network_peer_left(peer_id: int) -> void:
 	if is_instance_valid(peer_mine):
 		peer_mine.queue_free()
 	_server_peer_bounce_mines.erase(peer_id)
+	var visual_mine := _visual_bounce_mines.get(peer_id) as Node
+	if is_instance_valid(visual_mine):
+		visual_mine.queue_free()
+	if _active_bounce_mine == visual_mine:
+		_active_bounce_mine = null
+	_visual_bounce_mines.erase(peer_id)
 	var remote := remote_players.get_node_or_null(_remote_player_name(peer_id))
 	if remote != null:
 		remote.queue_free()
 	if multiplayer.is_server() and network_session.is_online():
-		_receive_match_setup.rpc(_selected_map_id, _peer_spawn_slots, _red_score, _blue_score)
+		_enter_waiting_for_opponent()
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -379,6 +399,7 @@ func _request_match_setup(equipped_ability: String = "") -> void:
 	_assign_spawn_slot(requester_id)
 	_register_server_peer_loadout(requester_id, equipped_ability)
 	_receive_match_setup.rpc_id(requester_id, _selected_map_id, _peer_spawn_slots, _red_score, _blue_score)
+	call_deferred("_begin_synchronized_round_countdown")
 
 
 func _register_server_peer_loadout(peer_id: int, equipped_ability: String) -> void:
@@ -396,10 +417,13 @@ func _receive_match_setup(map_id: String, spawn_slots: Dictionary, red_score: in
 	_blue_score = clampi(blue_score, 0, SCORE_TO_WIN)
 	local_peer_id = multiplayer.get_unique_id()
 	_practice_mode = false
+	if hud.has_method("set_practice_mode"):
+		hud.call("set_practice_mode", false)
 	_activate_competitive_map(_selected_map_id)
 	if not arena_started:
 		_start_arena_for_peer(local_peer_id)
 	else:
+		_force_first_person_camera()
 		_respawn_player(false)
 	if local_peer_id != 1:
 		_ensure_remote_player(1)
@@ -408,40 +432,166 @@ func _receive_match_setup(map_id: String, spawn_slots: Dictionary, red_score: in
 func _start_arena_for_peer(peer_id: int) -> void:
 	arena_started = true
 	_match_time_remaining = match_duration
-	_match_timer_running = true
+	_match_timer_running = false
 	var spawn_slot := _spawn_slot_for_peer(peer_id)
 	_apply_local_team_identity()
 	camera_yaw = spawn_manager.get_spawn_yaw_for_slot(spawn_slot)
 	camera_pitch = 0.0
 	player.respawn(spawn_manager.get_spawn_for_slot(spawn_slot))
-	player.set_shooting_enabled(true)
+	_force_first_person_camera()
+	player.set_shooting_enabled(_practice_mode)
 	join_pad.set_deferred("monitoring", false)
 	lobby_room.set_deferred("collision_layer", 0)
 	lobby.visible = false
 	hud.set_lobby_mode(false)
-	hud.set_duel_mode(not _practice_mode)
+	if hud.has_method("set_practice_mode"):
+		hud.call("set_practice_mode", _practice_mode)
+	hud.set_duel_mode(false)
+	hud.set_round_number(_round_number)
 	hud.set_duel_score(_red_score, _blue_score)
 	hud.set_match_time(_match_time_remaining)
-	var announcement_text := "PRACTICE" if _practice_mode else str(MAP_DISPLAY_NAMES.get(_selected_map_id, "ROUND START")).to_upper()
+	_set_match_clock_visible(false)
+	var announcement_text := "PRACTICE" if _practice_mode else "WAITING FOR OPPONENT"
 	hud.show_announcement(announcement_text, Color(0.3, 0.9, 1.0))
 	audio_manager.set_music_context(&"practice" if _practice_mode else &"match", 0.7)
 	audio_manager.play_sfx(&"round_start", -2.0)
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	if not _practice_mode:
+		_enter_waiting_for_opponent()
 
 
 func _respawn_player(_lose_life: bool = false) -> void:
 	var spawn_slot := _spawn_slot_for_peer(local_peer_id)
-	var spawn_position: Vector3 = spawn_manager.get_spawn_for_slot(spawn_slot) if arena_started else LOBBY_SPAWN_POSITION
+	var spawn_position: Vector3 = _assigned_spawn_for_local_player() if arena_started else LOBBY_SPAWN_POSITION
 	if arena_started:
 		camera_yaw = spawn_manager.get_spawn_yaw_for_slot(spawn_slot)
 		camera_pitch = 0.0
 	player.respawn(spawn_position)
 
 
+func _assigned_spawn_for_local_player() -> Vector3:
+	return spawn_manager.get_spawn_for_slot(_spawn_slot_for_peer(local_peer_id))
+
+
+func _force_first_person_camera() -> void:
+	third_person_enabled = false
+	_apply_camera_mode()
+
+
+func _set_match_clock_visible(visible: bool) -> void:
+	var timer := hud.get_node_or_null("TimerLabel") as CanvasItem
+	if timer != null:
+		timer.visible = visible
+
+
+func _update_fling_cooldown_hud() -> void:
+	if not hud.has_method("set_fling_cooldown") or not player.has_method("get_fling_cooldown_remaining"):
+		return
+	var remaining := float(player.call("get_fling_cooldown_remaining"))
+	var duration := float(player.call("get_fling_cooldown_duration"))
+	hud.call("set_fling_cooldown", remaining, duration)
+
+
+func _enter_waiting_for_opponent() -> void:
+	if _practice_mode or not arena_started:
+		return
+	_round_countdown_generation += 1
+	_round_countdown_active = false
+	_waiting_for_opponent = true
+	_round_resolving = false
+	_local_death_reported = false
+	_pending_deaths.clear()
+	_match_timer_running = false
+	player.freeze = false
+	player.sleeping = false
+	player.set_input_enabled(true)
+	player.set_shooting_enabled(false)
+	hud.set_duel_mode(false)
+	_set_match_clock_visible(false)
+	hud.show_announcement("WAITING FOR OPPONENT", Color(0.72, 0.8, 0.9))
+
+
+func _begin_synchronized_round_countdown() -> void:
+	if not multiplayer.is_server() or not arena_started or _practice_mode or _match_over:
+		return
+	if not _duel_has_opponent() or _round_countdown_active:
+		return
+	_round_countdown_generation += 1
+	var generation := _round_countdown_generation
+	_receive_round_countdown.rpc(_round_number, _red_score, _blue_score, generation)
+	_run_round_countdown(_round_number, _red_score, _blue_score, generation)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _receive_round_countdown(round_number: int, red_score: int, blue_score: int, generation: int) -> void:
+	_run_round_countdown(round_number, red_score, blue_score, generation)
+
+
+func _run_round_countdown(round_number: int, red_score: int, blue_score: int, generation: int) -> void:
+	if generation < _round_countdown_generation or not arena_started:
+		return
+	_round_countdown_generation = generation
+	_round_number = maxi(1, round_number)
+	_red_score = clampi(red_score, 0, SCORE_TO_WIN)
+	_blue_score = clampi(blue_score, 0, SCORE_TO_WIN)
+	_waiting_for_opponent = false
+	_round_countdown_active = true
+	_round_resolving = true
+	_local_death_reported = false
+	_pending_deaths.clear()
+	_match_time_remaining = match_duration
+	_match_timer_running = false
+	_clear_projectiles()
+	_force_first_person_camera()
+	_position_all_players_at_assigned_spawns()
+	player.set_input_enabled(false)
+	player.set_shooting_enabled(false)
+	player.freeze = true
+	hud.set_duel_mode(true)
+	hud.set_round_number(_round_number)
+	hud.set_duel_score(_red_score, _blue_score)
+	hud.set_match_time(_match_time_remaining)
+	_set_match_clock_visible(true)
+	for count in range(3, 0, -1):
+		if generation != _round_countdown_generation or not arena_started:
+			return
+		hud.call("_show_announcement_now", str(count), Color(0.86, 0.92, 1.0))
+		audio_manager.play_sfx(&"round_start", -6.0, 0.92 + float(3 - count) * 0.04)
+		await get_tree().create_timer(1.0).timeout
+	if generation != _round_countdown_generation or not arena_started:
+		return
+	_round_countdown_active = false
+	_round_resolving = false
+	player.freeze = false
+	player.sleeping = false
+	player.set_input_enabled(true)
+	player.set_shooting_enabled(true)
+	_match_timer_running = true
+	hud.call("_show_announcement_now", "GO!", Color(0.3, 0.9, 1.0))
+
+
+func _position_all_players_at_assigned_spawns() -> void:
+	_respawn_player(false)
+	for peer_key in _peer_spawn_slots:
+		var peer_id := int(peer_key)
+		var spawn_position: Vector3 = spawn_manager.get_spawn_for_slot(_spawn_slot_for_peer(peer_id))
+		if multiplayer.is_server():
+			_peer_last_state_position[peer_id] = spawn_position
+			_peer_last_state_msec[peer_id] = Time.get_ticks_msec()
+		if peer_id == local_peer_id:
+			continue
+		var remote := _ensure_remote_player(peer_id) as RigidBody3D
+		remote.freeze = true
+		remote.global_position = spawn_position
+		remote.linear_velocity = Vector3.ZERO
+		remote.angular_velocity = Vector3.ZERO
+		remote.reset_physics_interpolation()
+
+
 func _on_join_pad_body_entered(body: Node3D) -> void:
 	if arena_started or body != player:
 		return
-	_on_join_requested(hud.get_host_address())
+	hud.open_play_menu()
 
 
 func _ensure_remote_player(peer_id: int):
@@ -473,7 +623,11 @@ func _apply_remote_state(peer_id: int, network_position: Vector3, body_rotation:
 	if _victory_sequence_active:
 		remote.apply_network_identity(display_name, color)
 		return
-	remote.apply_network_state(network_position, body_rotation, velocity, current_health, facing_direction)
+	if _round_countdown_active:
+		var spawn_position: Vector3 = spawn_manager.get_spawn_for_slot(_spawn_slot_for_peer(peer_id))
+		remote.apply_network_state(spawn_position, body_rotation, Vector3.ZERO, current_health, facing_direction)
+	else:
+		remote.apply_network_state(network_position, body_rotation, velocity, current_health, facing_direction)
 	remote.apply_network_identity(display_name, color)
 
 
@@ -498,7 +652,7 @@ func _submit_player_state(network_position: Vector3, body_rotation: Vector3, _ve
 	var safe_facing := facing_direction.normalized() if facing_direction.is_finite() and facing_direction.length_squared() > 0.001 else Vector3.FORWARD
 	_apply_remote_state(peer_id, safe_position, safe_rotation, safe_velocity, safe_health, safe_name, safe_color, safe_facing)
 	_broadcast_player_state.rpc(peer_id, safe_position, safe_rotation, safe_velocity, safe_health, safe_name, safe_color, safe_facing)
-	if not _practice_mode and not _round_resolving and spawn_manager.is_outside_arena(safe_position):
+	if not _practice_mode and not _waiting_for_opponent and not _round_resolving and spawn_manager.is_outside_arena(safe_position):
 		_register_round_death(peer_id, "fall")
 
 
@@ -539,7 +693,7 @@ func _broadcast_player_state(peer_id: int, network_position: Vector3, body_rotat
 
 
 func _on_network_collision_requested(target_peer_id: int, impulse: Vector3, damage: int) -> void:
-	if not network_session.is_online() or target_peer_id <= 0:
+	if not network_session.is_online() or target_peer_id <= 0 or _waiting_for_opponent or _round_countdown_active:
 		return
 	var safe_impulse := impulse.limit_length(230.0)
 	var safe_damage := clampi(damage, 0, 60)
@@ -549,11 +703,13 @@ func _on_network_collision_requested(target_peer_id: int, impulse: Vector3, dama
 
 @rpc("authority", "call_remote", "reliable")
 func _receive_network_collision(impulse: Vector3, damage: int) -> void:
+	if _waiting_for_opponent or _round_countdown_active:
+		return
 	player.receive_collision_impact(clampi(damage, 0, 60), impulse.limit_length(230.0))
 
 
 func _handle_local_shot(origin: Vector3, direction: Vector3) -> void:
-	if not arena_started or _round_resolving or _match_over or not player.input_enabled:
+	if not arena_started or _waiting_for_opponent or _round_countdown_active or _round_resolving or _match_over or not player.input_enabled:
 		return
 	var safe_direction := direction.normalized()
 	if safe_direction.length_squared() <= 0.001:
@@ -574,7 +730,7 @@ func _handle_local_shot(origin: Vector3, direction: Vector3) -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _request_network_shot(origin: Vector3, direction: Vector3, _requested_ricochet: bool = false, _requested_rail: bool = false) -> void:
-	if not multiplayer.is_server() or not arena_started or _round_resolving or _match_over:
+	if not multiplayer.is_server() or not arena_started or _waiting_for_opponent or _round_countdown_active or _round_resolving or _match_over:
 		return
 	var shooter_peer_id := multiplayer.get_remote_sender_id()
 	var shooter = remote_players.get_node_or_null(_remote_player_name(shooter_peer_id))
@@ -600,7 +756,7 @@ func _request_network_shot(origin: Vector3, direction: Vector3, _requested_ricoc
 
 @rpc("any_peer", "call_remote", "reliable")
 func _request_network_ability(ability_id: String) -> void:
-	if not multiplayer.is_server() or not arena_started or _round_resolving or _match_over:
+	if not multiplayer.is_server() or not arena_started or _waiting_for_opponent or _round_countdown_active or _round_resolving or _match_over:
 		return
 	var peer_id := multiplayer.get_remote_sender_id()
 	if not multiplayer.get_peers().has(peer_id):
@@ -624,13 +780,14 @@ func _request_network_ability(ability_id: String) -> void:
 			var phase_player := remote_players.get_node_or_null(_remote_player_name(peer_id))
 			if phase_player != null:
 				phase_player.call("set_phase_bubble", true)
+			_replicate_phase_bubble.rpc(peer_id, true)
 		"gravity_pulse":
 			var gravity_end := now + ABILITY_TUNING.GRAVITY_PULSE_DURATION_MSEC
 			_server_peer_gravity_end_at[peer_id] = gravity_end
 			_server_peer_ability_ready_at[peer_id] = gravity_end + ABILITY_TUNING.GRAVITY_PULSE_COOLDOWN_MSEC
 		"bounce_mine":
 			_server_peer_ability_ready_at[peer_id] = now + ABILITY_TUNING.BOUNCE_MINE_COOLDOWN_MSEC
-			_spawn_remote_bounce_mine(peer_id)
+			_server_spawn_bounce_mine(peer_id)
 		_:
 			return
 
@@ -663,18 +820,19 @@ func _consume_server_shot_flags(peer_id: int, now: int) -> Dictionary:
 
 
 func _server_spawn_shot(shooter_peer_id: int, origin: Vector3, direction: Vector3, ricochet: bool = false, rail: bool = false) -> void:
-	_spawn_projectile(shooter_peer_id, origin, direction, true, ricochet, rail)
-	_replicate_shot.rpc(shooter_peer_id, origin, direction, ricochet, rail)
+	var projectile_id := "Shot_%d_%d" % [shooter_peer_id, Time.get_ticks_usec()]
+	_spawn_projectile(shooter_peer_id, origin, direction, true, ricochet, rail, projectile_id)
+	_replicate_shot.rpc(shooter_peer_id, origin, direction, ricochet, rail, projectile_id)
 
 
 @rpc("authority", "call_remote", "reliable")
-func _replicate_shot(shooter_peer_id: int, origin: Vector3, direction: Vector3, ricochet: bool = false, rail: bool = false) -> void:
-	_spawn_projectile(shooter_peer_id, origin, direction, false, ricochet, rail)
+func _replicate_shot(shooter_peer_id: int, origin: Vector3, direction: Vector3, ricochet: bool = false, rail: bool = false, projectile_id: String = "") -> void:
+	_spawn_projectile(shooter_peer_id, origin, direction, false, ricochet, rail, projectile_id)
 
 
-func _spawn_projectile(shooter_peer_id: int, origin: Vector3, direction: Vector3, authoritative: bool, ricochet: bool = false, rail: bool = false) -> void:
+func _spawn_projectile(shooter_peer_id: int, origin: Vector3, direction: Vector3, authoritative: bool, ricochet: bool = false, rail: bool = false, projectile_id: String = "") -> void:
 	var projectile = PROJECTILE_SCENE.instantiate()
-	projectile.name = "Shot_%d_%d" % [shooter_peer_id, Time.get_ticks_usec()]
+	projectile.name = projectile_id if not projectile_id.is_empty() else "Shot_%d_%d" % [shooter_peer_id, Time.get_ticks_usec()]
 	projectiles.add_child(projectile)
 	var source = player if shooter_peer_id == local_peer_id else remote_players.get_node_or_null(_remote_player_name(shooter_peer_id))
 	projectile.configure(origin, direction.normalized(), source, false, ricochet, rail)
@@ -732,7 +890,7 @@ func _receive_projectile_hit(damage: int, impulse: Vector3) -> void:
 
 
 func _apply_server_peer_impact(peer_id: int, damage: int, impulse: Vector3, projectile_hit: bool) -> void:
-	if not multiplayer.is_server() or not multiplayer.get_peers().has(peer_id):
+	if not multiplayer.is_server() or _waiting_for_opponent or _round_countdown_active or not multiplayer.get_peers().has(peer_id):
 		return
 	var safe_damage := clampi(damage, 0, 60)
 	var impulse_limit := 150.0 if projectile_hit else 230.0
@@ -757,6 +915,7 @@ func _confirm_shot_hit() -> void:
 
 
 func _on_player_fling_released(charge_ratio: float) -> void:
+	_last_fling_charge_tier = 0
 	_add_camera_shake(0.18 + charge_ratio * 0.44)
 	_fling_fov_kick = maxf(_fling_fov_kick, charge_ratio * 8.0)
 	_spawn_impact_burst(player.global_position, Color(0.08, 0.76, 1.0), 0.52 + charge_ratio * 0.42)
@@ -764,7 +923,7 @@ func _on_player_fling_released(charge_ratio: float) -> void:
 
 
 func _use_equipped_ability() -> void:
-	if not arena_started or _round_resolving or _match_over or not player.input_enabled:
+	if not arena_started or _waiting_for_opponent or _round_countdown_active or _round_resolving or _match_over or not player.input_enabled:
 		return
 	var progression := get_node_or_null("/root/Progression")
 	if progression == null:
@@ -774,10 +933,17 @@ func _use_equipped_ability() -> void:
 		hud.show_announcement("EQUIP AN ABILITY IN THE SHOP", Color(0.96, 0.75, 0.3))
 		return
 	if ability == "quick_charge":
-		hud.show_announcement("QUICK CHARGE IS ACTIVE", Color(0.3, 1.0, 0.5))
+		audio_manager.play_sfx_limited(&"ui_close", 0.14, -14.0, 0.9, &"ability_passive")
 		return
 	var now := Time.get_ticks_msec()
-	if now < _ability_ready_at or _ricochet_loaded or _has_active_timed_ability(now):
+	if now < _ability_ready_at:
+		audio_manager.play_sfx_limited(&"ui_close", 0.14, -14.0, 0.84, &"ability_denied")
+		return
+	if _ricochet_loaded:
+		audio_manager.play_sfx_limited(&"ui_close", 0.14, -14.0, 0.84, &"ability_denied")
+		return
+	if _has_active_timed_ability(now):
+		audio_manager.play_sfx_limited(&"ui_close", 0.14, -14.0, 0.84, &"ability_denied")
 		return
 	var activated := true
 	match ability:
@@ -793,10 +959,8 @@ func _use_equipped_ability() -> void:
 			_dash_end_at = now + ABILITY_TUNING.DASH_DURATION_MSEC
 			_fling_fov_kick = maxf(_fling_fov_kick, 8.0)
 			_spawn_impact_burst(player.global_position, Color(0.12, 0.6, 1.0), 0.85)
-			hud.show_announcement("DASH!", Color(0.35, 1.0, 0.56))
 		"ricochet_shot":
 			_ricochet_loaded = true
-			hud.show_announcement("RICOCHET LOADED", Color(0.22, 0.72, 1.0))
 		"blink":
 			activated = _activate_blink()
 			if activated:
@@ -808,26 +972,33 @@ func _use_equipped_ability() -> void:
 		"gravity_pulse":
 			_gravity_pulse_end_at = now + ABILITY_TUNING.GRAVITY_PULSE_DURATION_MSEC
 			_spawn_impact_burst(player.global_position, Color(0.42, 0.12, 0.82), 1.1)
-			hud.show_announcement("GRAVITY PULSE", Color(0.64, 0.3, 1.0))
 		"rail_shot":
 			_rail_charge_end_at = now + ABILITY_TUNING.RAIL_SHOT_CHARGE_MSEC
 			player.set_shooting_locked(true)
-			hud.show_announcement("RAIL CHARGING", Color(0.95, 0.98, 1.0))
+			_show_rail_telegraph()
 		"bounce_mine":
-			_spawn_bounce_mine()
+			if network_session.is_online() and not multiplayer.is_server():
+				_request_network_ability.rpc_id(1, ability)
+			elif network_session.is_online():
+				_server_peer_ability_ready_at[local_peer_id] = now + ABILITY_TUNING.BOUNCE_MINE_COOLDOWN_MSEC
+				_server_spawn_bounce_mine(local_peer_id)
+			else:
+				_spawn_bounce_mine()
 			_ability_ready_at = now + ABILITY_TUNING.BOUNCE_MINE_COOLDOWN_MSEC
 		"phase_bubble":
 			_phase_bubble_end_at = now + ABILITY_TUNING.PHASE_BUBBLE_DURATION_MSEC
 			player.set_phase_bubble(true)
+			if network_session.is_online() and multiplayer.is_server():
+				_replicate_phase_bubble.rpc(local_peer_id, true)
 			_spawn_impact_burst(player.global_position, Color(0.12, 0.76, 1.0), 1.05)
-			hud.show_announcement("PHASE BUBBLE", Color(0.32, 0.84, 1.0))
 		"adrenaline":
-			hud.show_announcement("ADRENALINE ARMS BELOW 60% HP", Color(1.0, 0.28, 0.28))
+			audio_manager.play_sfx_limited(&"ui_close", 0.14, -14.0, 0.9, &"ability_passive")
+			return
 		_:
 			return
 	if not activated:
 		return
-	if network_session.is_online() and not multiplayer.is_server() and ability in ["ricochet_shot", "rail_shot", "overcharge", "phase_bubble", "gravity_pulse", "bounce_mine"]:
+	if network_session.is_online() and not multiplayer.is_server() and ability in ["ricochet_shot", "rail_shot", "overcharge", "phase_bubble", "gravity_pulse"]:
 		_request_network_ability.rpc_id(1, ability)
 	audio_manager.play_ability_sfx(ability)
 	progression.call("record_stat", "abilities", 1)
@@ -858,9 +1029,13 @@ func _process_ability_state() -> void:
 		_ability_ready_at = now + ABILITY_TUNING.GRAVITY_PULSE_COOLDOWN_MSEC
 	if _rail_charge_end_at > 0 and now >= _rail_charge_end_at:
 		_fire_rail_shot(now)
+	elif _rail_charge_end_at > now:
+		_update_rail_telegraph()
 	if _phase_bubble_end_at > 0 and now >= _phase_bubble_end_at:
 		_phase_bubble_end_at = 0
 		player.set_phase_bubble(false)
+		if network_session.is_online() and multiplayer.is_server():
+			_replicate_phase_bubble.rpc(local_peer_id, false)
 		_ability_ready_at = now + ABILITY_TUNING.PHASE_BUBBLE_COOLDOWN_MSEC
 	if hud.has_method("set_ability_state"):
 		var ability := str(progression.call("get_equipped", "abilities"))
@@ -875,7 +1050,6 @@ func _consume_ricochet_shot() -> bool:
 		return false
 	_ricochet_loaded = false
 	_ability_ready_at = Time.get_ticks_msec() + ABILITY_TUNING.RICOCHET_COOLDOWN_MSEC
-	hud.show_announcement("RICOCHET FIRED", Color(0.22, 0.72, 1.0))
 	return true
 
 
@@ -899,13 +1073,12 @@ func _activate_blink() -> bool:
 	if not hit.is_empty():
 		destination = Vector3(hit.get("position", origin)) - direction * 0.85
 	if destination.distance_to(origin) < 0.35:
-		hud.show_announcement("BLINK BLOCKED", Color(0.7, 0.42, 1.0))
+		audio_manager.play_sfx_limited(&"ui_close", 0.14, -14.0, 0.84, &"ability_denied")
 		return false
 	_spawn_impact_burst(origin, Color(0.62, 0.22, 1.0), 0.6)
 	player.global_position = destination
 	camera_rig.global_position = destination + Vector3(0.0, 1.8, 0.0)
 	_spawn_impact_burst(destination, Color(0.72, 0.32, 1.0), 0.78)
-	hud.show_announcement("BLINK", Color(0.72, 0.4, 1.0))
 	return true
 
 
@@ -915,15 +1088,18 @@ func _has_active_timed_ability(now: int) -> bool:
 
 func _activate_target_scanner(now: int) -> void:
 	_scanned_targets.clear()
-	for remote_value in remote_players.get_children():
+	var candidates: Array[Node] = remote_players.get_children()
+	if _practice_mode:
+		candidates.append_array(get_tree().get_nodes_in_group("training_dummy"))
+	for remote_value in candidates:
 		var remote := remote_value as Node3D
 		if remote != null and remote.global_position.distance_to(player.global_position) <= ABILITY_TUNING.SCANNER_RADIUS:
 			_scanned_targets.append(remote)
 			if remote.has_method("set_scanner_highlight"):
 				remote.call("set_scanner_highlight", true)
 	_scanner_end_at = now + ABILITY_TUNING.SCANNER_DURATION_MSEC
+	_spawn_scan_wave()
 	_spawn_impact_burst(player.global_position, Color(0.08, 0.58, 1.0), 1.35)
-	hud.show_announcement("SCAN PULSE", Color(0.18, 0.68, 1.0))
 
 
 func _end_target_scanner(now: int) -> void:
@@ -939,7 +1115,6 @@ func _activate_overcharge(now: int) -> void:
 	_overcharge_end_at = now + ABILITY_TUNING.OVERCHARGE_DURATION_MSEC
 	player.set_overcharge_active(true)
 	_spawn_impact_burst(player.global_position, Color(1.0, 0.38, 0.06), 0.92)
-	hud.show_announcement("OVERCHARGE", Color(1.0, 0.5, 0.12))
 
 
 func _end_overcharge(now: int) -> void:
@@ -967,6 +1142,26 @@ func _deflect_projectiles_around(owner: Node3D, delta: float) -> void:
 		if projectile != null and projectile.has_method("deflect_from") and projectile.get("source") != owner:
 			if projectile.global_position.distance_to(owner.global_position) <= ABILITY_TUNING.GRAVITY_PULSE_RADIUS:
 				projectile.call("deflect_from", owner.global_position, ABILITY_TUNING.GRAVITY_PULSE_CURVE_STRENGTH, delta)
+				if multiplayer.is_server() and network_session.is_online():
+					_replicate_projectile_deflection.rpc(projectile.name, projectile.global_position, projectile.get("velocity"))
+
+
+@rpc("authority", "call_remote", "unreliable_ordered")
+func _replicate_projectile_deflection(projectile_id: String, world_position: Vector3, velocity: Vector3) -> void:
+	var projectile := projectiles.get_node_or_null(NodePath(projectile_id)) as Node3D
+	if projectile == null or not world_position.is_finite() or not velocity.is_finite():
+		return
+	projectile.global_position = world_position
+	projectile.set("velocity", velocity)
+	if velocity.length_squared() > 0.001:
+		projectile.look_at(world_position + velocity.normalized(), Vector3.UP)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _replicate_phase_bubble(peer_id: int, active: bool) -> void:
+	var target = player if peer_id == local_peer_id else remote_players.get_node_or_null(_remote_player_name(peer_id))
+	if target != null and target.has_method("set_phase_bubble"):
+		target.call("set_phase_bubble", active)
 
 
 func _expire_server_peer_abilities(now: int) -> void:
@@ -977,6 +1172,7 @@ func _expire_server_peer_abilities(now: int) -> void:
 		var remote := remote_players.get_node_or_null(_remote_player_name(peer_id))
 		if remote != null:
 			remote.call("set_phase_bubble", false)
+		_replicate_phase_bubble.rpc(peer_id, false)
 		_server_peer_phase_end_at.erase(peer_id)
 	for peer_id_value in _server_peer_overcharge_end_at.keys():
 		if int(_server_peer_overcharge_end_at.get(peer_id_value, 0)) <= now:
@@ -988,6 +1184,7 @@ func _expire_server_peer_abilities(now: int) -> void:
 
 func _fire_rail_shot(now: int) -> void:
 	_rail_charge_end_at = 0
+	_clear_rail_telegraph()
 	player.set_shooting_locked(false)
 	var direction: Vector3 = player.aim_direction.normalized()
 	if direction.length_squared() <= 0.001:
@@ -1003,7 +1200,71 @@ func _fire_rail_shot(now: int) -> void:
 	_spawn_impact_burst(player.global_position, Color(0.95, 0.98, 1.0), 1.05)
 	_add_camera_shake(0.08)
 	audio_manager.play_sfx(&"projectile_fire", -1.5, 0.72)
-	hud.show_announcement("RAIL SHOT", Color(0.98, 0.98, 1.0))
+
+
+func _show_rail_telegraph() -> void:
+	_clear_rail_telegraph()
+	var beam_mesh := BoxMesh.new()
+	beam_mesh.size = Vector3(0.09, 0.09, 52.0)
+	var beam_material := StandardMaterial3D.new()
+	beam_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	beam_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	beam_material.albedo_color = Color(0.82, 0.94, 1.0, 0.42)
+	beam_material.emission_enabled = true
+	beam_material.emission = Color(0.5, 0.86, 1.0)
+	beam_material.emission_energy_multiplier = 2.4
+	beam_mesh.material = beam_material
+	_rail_telegraph = MeshInstance3D.new()
+	_rail_telegraph.name = "RailTelegraph"
+	_rail_telegraph.mesh = beam_mesh
+	_rail_telegraph.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_rail_telegraph)
+	_update_rail_telegraph()
+
+
+func _update_rail_telegraph() -> void:
+	if not is_instance_valid(_rail_telegraph):
+		return
+	var direction: Vector3 = player.aim_direction.normalized()
+	if direction.length_squared() <= 0.001:
+		direction = Vector3.FORWARD
+	var origin: Vector3 = player.global_position + Vector3.UP * 0.25 + direction * 3.75
+	_rail_telegraph.global_position = origin + direction * 26.0
+	_rail_telegraph.look_at(_rail_telegraph.global_position + direction, Vector3.UP)
+	var pulse := 0.72 + sin(float(Time.get_ticks_msec()) * 0.018) * 0.22
+	_rail_telegraph.modulate = Color(1.0, 1.0, 1.0, pulse)
+
+
+func _clear_rail_telegraph() -> void:
+	if is_instance_valid(_rail_telegraph):
+		_rail_telegraph.queue_free()
+	_rail_telegraph = null
+
+
+func _spawn_scan_wave() -> void:
+	var wave := MeshInstance3D.new()
+	wave.name = "TargetScannerWave"
+	var sphere := SphereMesh.new()
+	sphere.radius = 1.0
+	sphere.height = 2.0
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.albedo_color = Color(0.12, 0.68, 1.0, 0.26)
+	material.emission_enabled = true
+	material.emission = Color(0.06, 0.42, 1.0)
+	material.emission_energy_multiplier = 1.8
+	sphere.material = material
+	wave.mesh = sphere
+	wave.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(wave)
+	wave.global_position = player.global_position
+	var radius: float = ABILITY_TUNING.SCANNER_RADIUS
+	var tween := wave.create_tween().set_parallel(true)
+	tween.tween_property(wave, "scale", Vector3.ONE * radius, 0.42).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(wave, "transparency", 1.0, 0.42)
+	tween.chain().tween_callback(wave.queue_free)
 
 
 func _spawn_bounce_mine() -> void:
@@ -1015,11 +1276,10 @@ func _spawn_bounce_mine() -> void:
 	mine.detonated.connect(_on_bounce_mine_detonated)
 	_active_bounce_mine = mine
 	_spawn_impact_burst(player.global_position, Color(1.0, 0.35, 0.06), 0.52)
-	hud.show_announcement("MINE DEPLOYED", Color(1.0, 0.48, 0.12))
 
 
-func _spawn_remote_bounce_mine(peer_id: int) -> void:
-	var owner := remote_players.get_node_or_null(_remote_player_name(peer_id)) as Node3D
+func _server_spawn_bounce_mine(peer_id: int) -> void:
+	var owner := player as Node3D if peer_id == local_peer_id else remote_players.get_node_or_null(_remote_player_name(peer_id)) as Node3D
 	if owner == null:
 		return
 	var existing := _server_peer_bounce_mines.get(peer_id) as Node
@@ -1030,20 +1290,62 @@ func _spawn_remote_bounce_mine(peer_id: int) -> void:
 		direction = Vector3.FORWARD
 	var mine := BOUNCE_MINE_SCENE.instantiate()
 	projectiles.add_child(mine)
-	mine.configure(owner.global_position + direction.normalized() * 2.0 + Vector3.UP * 0.3, direction, owner)
-	mine.detonated.connect(_on_remote_bounce_mine_detonated.bind(peer_id, mine))
+	var spawn_position := owner.global_position + direction.normalized() * 2.0 + Vector3.UP * 0.3
+	mine.configure(spawn_position, direction, owner, true)
+	mine.detonated.connect(_on_authoritative_bounce_mine_detonated.bind(peer_id, mine))
 	_server_peer_bounce_mines[peer_id] = mine
+	if peer_id == local_peer_id:
+		_active_bounce_mine = mine
+	_replicate_bounce_mine.rpc(peer_id, spawn_position, direction)
 
 
-func _on_remote_bounce_mine_detonated(world_position: Vector3, peer_id: int, mine: Node) -> void:
+@rpc("authority", "call_remote", "reliable")
+func _replicate_bounce_mine(peer_id: int, spawn_position: Vector3, direction: Vector3) -> void:
+	var existing := _visual_bounce_mines.get(peer_id) as Node
+	if is_instance_valid(existing):
+		existing.queue_free()
+	var source := player as Node3D if peer_id == local_peer_id else remote_players.get_node_or_null(_remote_player_name(peer_id)) as Node3D
+	if source == null:
+		return
+	var mine := BOUNCE_MINE_SCENE.instantiate()
+	projectiles.add_child(mine)
+	mine.configure(spawn_position, direction, source, false)
+	_visual_bounce_mines[peer_id] = mine
+	if peer_id == local_peer_id:
+		_active_bounce_mine = mine
+
+
+func _on_authoritative_bounce_mine_detonated(world_position: Vector3, peer_id: int, mine: Node) -> void:
 	if _server_peer_bounce_mines.get(peer_id) == mine:
 		_server_peer_bounce_mines.erase(peer_id)
-	var offset: Vector3 = player.global_position - world_position
-	var distance: float = offset.length()
-	if distance <= 4.5:
-		var direction: Vector3 = (offset.normalized() + Vector3.UP * 0.32).normalized()
-		var impulse: Vector3 = direction * ABILITY_TUNING.BOUNCE_MINE_LAUNCH_STRENGTH * (1.0 - distance / 6.0)
-		player.receive_collision_impact(0, impulse)
+	if _active_bounce_mine == mine:
+		_active_bounce_mine = null
+	for candidate_value in [player] + remote_players.get_children():
+		var target := candidate_value as Node3D
+		if target == null or int(target.get("network_peer_id")) == peer_id:
+			continue
+		var offset: Vector3 = target.global_position - world_position
+		var distance := offset.length()
+		if distance > 4.5:
+			continue
+		var launch_direction := (offset.normalized() + Vector3.UP * 0.32).normalized()
+		var impulse := launch_direction * ABILITY_TUNING.BOUNCE_MINE_LAUNCH_STRENGTH * (1.0 - distance / 6.0)
+		if target == player:
+			player.receive_collision_impact(0, impulse)
+		elif target.is_in_group("network_blob"):
+			_apply_server_peer_impact(int(target.get("network_peer_id")), 0, impulse, false)
+	_spawn_impact_burst(world_position, Color(1.0, 0.36, 0.06), 1.35)
+	_replicate_bounce_mine_detonation.rpc(peer_id, world_position)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _replicate_bounce_mine_detonation(peer_id: int, world_position: Vector3) -> void:
+	var mine := _visual_bounce_mines.get(peer_id) as Node
+	if is_instance_valid(mine):
+		mine.queue_free()
+	if _active_bounce_mine == mine:
+		_active_bounce_mine = null
+	_visual_bounce_mines.erase(peer_id)
 	_spawn_impact_burst(world_position, Color(1.0, 0.36, 0.06), 1.35)
 
 
@@ -1071,9 +1373,15 @@ func _on_bounce_mine_detonated(world_position: Vector3) -> void:
 
 func _on_player_fling_charge_updated(charge_ratio: float) -> void:
 	audio_manager.update_charge_audio(charge_ratio)
+	var tier := clampi(int(floor(charge_ratio * 4.0 + 0.001)), 0, 4)
+	if tier > _last_fling_charge_tier:
+		_last_fling_charge_tier = tier
+		_spawn_impact_burst(player.global_position - Vector3.UP * 0.7, Color(0.2, 0.8, 1.0).lerp(Color(1.0, 0.7, 0.16), charge_ratio), 0.18 + charge_ratio * 0.18)
+		audio_manager.play_sfx_limited(&"fling_charge", 0.08, -16.0 + charge_ratio * 4.0, 0.86 + float(tier) * 0.08, &"fling_charge_tier")
 
 
 func _on_player_fling_charge_started() -> void:
+	_last_fling_charge_tier = 0
 	_spawn_impact_burst(player.global_position - Vector3.UP * 0.8, Color(0.22, 0.78, 1.0), 0.28)
 	audio_manager.play_sfx_limited(&"fling_charge", 0.14, -10.0, 0.94, &"fling_charge_start")
 
@@ -1085,12 +1393,15 @@ func _on_player_fling_maximum_reached() -> void:
 
 
 func _on_player_bounce_triggered(strength: float) -> void:
-	var progression := get_node_or_null("/root/Progression")
-	if arena_started and progression != null:
-		progression.call("record_stat", "bounces", 1)
 	_add_camera_shake(clampf(strength * 0.012, 0.08, 0.34))
 	_spawn_impact_burst(player.global_position - Vector3.UP * 0.9, Color(0.2, 0.92, 0.78), clampf(strength * 0.025, 0.35, 0.85))
 	audio_manager.play_impact(&"bounce", clampf(strength / 42.0, 0.0, 1.0))
+
+
+func _on_player_bounce_counted(_strength: float) -> void:
+	var progression := get_node_or_null("/root/Progression")
+	if arena_started and progression != null:
+		progression.call("record_stat", "bounces", 1)
 
 
 func _on_player_impact(world_position: Vector3, strength: float) -> void:
@@ -1132,6 +1443,7 @@ func _on_player_knocked_out(_peer_id: int) -> void:
 		_ability_ready_at = Time.get_ticks_msec() + ABILITY_TUNING.GRAVITY_PULSE_COOLDOWN_MSEC
 	if _rail_charge_end_at > 0:
 		_rail_charge_end_at = 0
+		_clear_rail_telegraph()
 		player.set_shooting_locked(false)
 		_ability_ready_at = Time.get_ticks_msec() + ABILITY_TUNING.RAIL_SHOT_COOLDOWN_MSEC
 	if _phase_bubble_end_at > 0:
@@ -1143,7 +1455,18 @@ func _on_player_knocked_out(_peer_id: int) -> void:
 
 
 func _open_pause() -> void:
-	pause_menu.set_context(arena_started and not _practice_mode, arena_started and _practice_mode)
+	_lobby_hud_suppressed_for_pause = not arena_started
+	if _lobby_hud_suppressed_for_pause:
+		hud.set_lobby_ui_suppressed(true)
+	var ability_id: String = str(player.get_equipped_ability())
+	if pause_menu.has_method("set_host_room_code"):
+		pause_menu.call("set_host_room_code", _room_code_for_pause())
+	pause_menu.set_context(
+		arena_started and not _practice_mode,
+		arena_started and _practice_mode,
+		ability_id,
+		ABILITY_HUD_SCRIPT.get_icon(ability_id)
+	)
 	pause_menu.open_pause()
 	player.set_input_enabled(false)
 	audio_manager.cancel_charge_audio()
@@ -1152,9 +1475,25 @@ func _open_pause() -> void:
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 
 
+func _room_code_for_pause() -> String:
+	if not network_session.is_online() or not multiplayer.is_server():
+		return ""
+	return str(network_session.call("get_host_room_code"))
+
+
+func _open_lobby_settings() -> void:
+	if hud.is_progression_open():
+		hud.close_progression()
+	_open_pause()
+	pause_menu.show_settings()
+
+
 func _resume_from_pause() -> void:
 	get_tree().paused = false
 	pause_menu.close_pause()
+	if _lobby_hud_suppressed_for_pause:
+		hud.set_lobby_ui_suppressed(false)
+	_lobby_hud_suppressed_for_pause = false
 	player.set_input_enabled(not _round_resolving and not _match_over)
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED if arena_started else Input.MOUSE_MODE_VISIBLE)
 
@@ -1165,7 +1504,10 @@ func _on_pause_respawn_requested() -> void:
 		return
 	if _practice_mode:
 		_respawn_player(false)
-	else:
+	elif _waiting_for_opponent:
+		_respawn_player(false)
+	elif not _round_countdown_active and not _round_resolving and not _match_over:
+		_respawn_player(false)
 		_request_local_death("menu_respawn")
 
 
@@ -1279,8 +1621,9 @@ func _resolve_duel_round(loser_peer_id: int, is_draw: bool) -> void:
 	if _match_over or not arena_started:
 		return
 	_round_number += 1
-	_apply_round_reset(_round_number, _red_score, _blue_score)
-	_receive_round_reset.rpc(_round_number, _red_score, _blue_score)
+	for peer_key in _peer_spawn_slots:
+		_server_peer_health[int(peer_key)] = player.max_health
+	_begin_synchronized_round_countdown()
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -1301,6 +1644,7 @@ func _apply_round_result(red_score: int, blue_score: int, winning_team: int, is_
 	player.set_shooting_enabled(false)
 	player.freeze = true
 	hud.set_duel_score(_red_score, _blue_score, winning_team)
+	hud.set_round_number(_round_number)
 	if is_draw:
 		hud.show_round_banner("DRAW", Color(0.66, 0.72, 0.82))
 	elif winning_team == TEAM_RED:
@@ -1312,38 +1656,15 @@ func _apply_round_result(red_score: int, blue_score: int, winning_team: int, is_
 		call_deferred("_start_victory_sequence", winning_team)
 
 
-@rpc("authority", "call_remote", "reliable")
-func _receive_round_reset(round_number: int, red_score: int, blue_score: int) -> void:
-	_apply_round_reset(round_number, red_score, blue_score)
-
-
-func _apply_round_reset(round_number: int, red_score: int, blue_score: int) -> void:
-	_round_number = maxi(1, round_number)
-	_red_score = clampi(red_score, 0, SCORE_TO_WIN)
-	_blue_score = clampi(blue_score, 0, SCORE_TO_WIN)
-	_round_resolving = false
-	_local_death_reported = false
-	_pending_deaths.clear()
-	player.freeze = false
-	player.sleeping = false
-	player.set_input_enabled(true)
-	player.set_shooting_enabled(true)
-	_match_time_remaining = match_duration
-	_match_timer_running = true
-	if multiplayer.is_server():
-		for peer_key in _peer_spawn_slots:
-			_server_peer_health[int(peer_key)] = player.max_health
-	_respawn_player(false)
-	hud.set_duel_score(_red_score, _blue_score)
-	hud.show_announcement("ROUND %d" % _round_number, Color(0.86, 0.92, 1.0))
-
-
 func _reset_duel_match_state() -> void:
 	_red_score = 0
 	_blue_score = 0
 	_round_number = 1
 	_round_resolving = false
 	_match_over = false
+	_waiting_for_opponent = false
+	_round_countdown_active = false
+	_round_countdown_generation += 1
 	_local_death_reported = false
 	_pending_deaths.clear()
 	_death_resolution_deadline = 0
@@ -1373,6 +1694,7 @@ func _reset_duel_match_state() -> void:
 		player.freeze = false
 		player.sleeping = false
 	hud.set_duel_score(_red_score, _blue_score)
+	hud.set_round_number(_round_number)
 
 
 func _reset_ability_state() -> void:
@@ -1385,6 +1707,7 @@ func _reset_ability_state() -> void:
 	_rail_charge_end_at = 0
 	_phase_bubble_end_at = 0
 	_scanned_targets.clear()
+	_clear_rail_telegraph()
 	if is_instance_valid(_active_bounce_mine):
 		_active_bounce_mine.queue_free()
 	_active_bounce_mine = null
@@ -1568,7 +1891,8 @@ func _restart_match() -> void:
 	_resume_from_pause()
 	if arena_started:
 		_match_time_remaining = match_duration
-		_match_timer_running = true
+		_match_timer_running = not _practice_mode
+		_set_match_clock_visible(not _practice_mode)
 		_respawn_player(false)
 		hud.show_announcement("MATCH RESTARTED", Color(0.3, 0.88, 1.0))
 
@@ -1576,6 +1900,7 @@ func _restart_match() -> void:
 func _return_to_lobby() -> void:
 	get_tree().paused = false
 	pause_menu.close_pause()
+	_lobby_hud_suppressed_for_pause = false
 	network_session.close_session()
 	_clear_projectiles()
 	_clear_remote_players()
@@ -1596,9 +1921,12 @@ func _return_to_lobby() -> void:
 	player.set_input_enabled(true)
 	player.set_shooting_enabled(false)
 	player.respawn(LOBBY_SPAWN_POSITION)
+	third_person_enabled = true
 	_apply_camera_mode()
 	hud.set_lobby_mode(true)
 	hud.set_duel_mode(false)
+	if hud.has_method("set_practice_mode"):
+		hud.call("set_practice_mode", false)
 	hud.set_join_status("Choose Host, Join, or Practice", false)
 	audio_manager.stop_all_loops(0.18, true)
 	audio_manager.call("set_map_music_theme", &"", 0.0, false)
@@ -1719,6 +2047,7 @@ func _apply_settings(settings: Dictionary) -> void:
 	mouse_sensitivity = clampf(float(settings.get("mouse_sensitivity", 0.0025)), 0.0008, 0.006)
 	set_camera_shake_scale(clampf(float(settings.get("camera_shake", 0.72)), 0.0, 1.0))
 	hud.apply_crosshair_settings(settings)
+	hud.apply_ui_settings(settings)
 	get_viewport().scaling_3d_scale = clampf(float(settings.get("render_scale", 1.0)), 0.75, 1.25)
 
 	var wants_fullscreen := bool(settings.get("fullscreen", false))
@@ -1750,10 +2079,16 @@ func _effective_fog_density(profile: Dictionary) -> float:
 func _set_audio_bus_volume(bus_name: StringName, linear_volume: float) -> void:
 	var bus_index := AudioServer.get_bus_index(bus_name)
 	if bus_index >= 0:
-		AudioServer.set_bus_volume_db(bus_index, linear_to_db(clampf(linear_volume, 0.001, 1.0)))
+		var clamped_volume := clampf(linear_volume, 0.0, 1.0)
+		AudioServer.set_bus_mute(bus_index, clamped_volume <= 0.0)
+		AudioServer.set_bus_volume_db(bus_index, linear_to_db(maxf(clamped_volume, 0.001)))
 
 
 func _update_match_timer(delta: float) -> void:
+	if _practice_mode:
+		_match_timer_running = false
+		_set_match_clock_visible(false)
+		return
 	if not _match_timer_running or not arena_started:
 		return
 	_match_time_remaining = maxf(_match_time_remaining - delta, 0.0)
@@ -1786,7 +2121,7 @@ func _resolve_duel_timeout() -> void:
 
 
 func _authoritative_health_for_peer(peer_id: int) -> int:
-	if peer_id == 1 and multiplayer.is_server():
+	if peer_id == local_peer_id and multiplayer.is_server():
 		return player.health
 	return int(_server_peer_health.get(peer_id, player.max_health))
 
@@ -1802,16 +2137,24 @@ func _spawn_kill_effect(world_position: Vector3, effect_id: String) -> void:
 	var color := profile.get("color", Color(1.0, 0.7, 0.2)) as Color
 	var rarity := str(profile.get("rarity", "Common"))
 	var scale := 1.0 if rarity == "Common" else (1.22 if rarity == "Rare" else (1.48 if rarity == "Epic" else 1.78))
-	_spawn_impact_burst(world_position, color, scale)
+	var effect = IMPACT_BURST_SCENE.instantiate()
+	add_child(effect)
+	effect.configure(world_position, color, scale, _effects_quality, effect_id)
 	if rarity in ["Epic", "Legendary"] and _graphics_quality >= 1:
-		_spawn_impact_burst(world_position + Vector3.UP * 1.1, color.lightened(0.22), scale * 0.72)
+		var echo = IMPACT_BURST_SCENE.instantiate()
+		add_child(echo)
+		echo.configure(world_position + Vector3.UP * 1.1, color.lightened(0.22), scale * 0.72, _effects_quality, effect_id)
 	if rarity == "Legendary" and _graphics_quality >= 2:
-		_spawn_impact_burst(world_position + Vector3.UP * 2.0, Color.WHITE, scale * 0.42)
+		var crown = IMPACT_BURST_SCENE.instantiate()
+		add_child(crown)
+		crown.configure(world_position + Vector3.UP * 2.0, Color.WHITE, scale * 0.42, _effects_quality, effect_id)
 
 
 func _clear_projectiles() -> void:
 	for projectile in projectiles.get_children():
 		projectile.queue_free()
+	_active_bounce_mine = null
+	_visual_bounce_mines.clear()
 
 
 func set_camera_shake_scale(value: float) -> void:

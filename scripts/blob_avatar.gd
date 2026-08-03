@@ -1,6 +1,6 @@
 extends Control
 
-@export var blob_color := Color(0.05, 0.69, 0.96)
+@export var blob_color := Color(0.02, 0.86, 1.0)
 
 
 func set_color(value: Color) -> void:

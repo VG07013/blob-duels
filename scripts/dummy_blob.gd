@@ -5,16 +5,27 @@ signal health_changed(current_health: int, max_health: int)
 @export var max_health := 150
 @export var respawn_delay := 0.55
 @export var blob_color := Color(1.0, 0.38, 0.18, 1.0)
+@export var display_name := ""
+
+const FUNNY_NAMES: PackedStringArray = [
+	"Bob", "Sir Bounces", "Jellybean", "Wobbleton",
+	"Mochi", "Boop", "Captain Squish", "Pogo",
+	"Noodle", "Sprinkles", "Bloop", "Pickles",
+	"Gumdrop", "Tater Tot", "Biscuit", "Wiggles",
+]
 
 var health := 150
 var _spawn_position := Vector3.ZERO
 var _respawn_timer := 0.0
 var _collision_ready_at: Dictionary = {}
-@onready var health_billboard: Label3D = $HealthBillboard
+@onready var nameplate_root: Node3D = $Nameplate
+@onready var name_label: Label3D = $Nameplate/Name
+@onready var health_fill: MeshInstance3D = $Nameplate/HealthFill
 @onready var mesh: MeshInstance3D = $VisualRoot/Mesh
 @onready var face_root: Node3D = $FaceRoot
 
 var _face_direction := Vector3.FORWARD
+var _scanner_outline: MeshInstance3D
 
 
 func _ready() -> void:
@@ -23,6 +34,8 @@ func _ready() -> void:
 	max_contacts_reported = 12
 	$ContactArea.area_entered.connect(_on_contact_area_entered)
 	_spawn_position = global_position
+	if display_name.strip_edges().is_empty():
+		display_name = _stable_funny_name()
 	health = max_health
 	health_changed.emit(health, max_health)
 	_apply_blob_color()
@@ -41,6 +54,7 @@ func _physics_process(delta: float) -> void:
 	if flat_velocity.length_squared() > 1.0:
 		_face_direction = _face_direction.lerp(flat_velocity.normalized(), 1.0 - exp(-5.0 * delta)).normalized()
 	_update_face()
+	_update_nameplate_transform()
 
 
 func take_damage(amount: int, hit_direction: Vector3, knockback: float) -> void:
@@ -94,8 +108,25 @@ func respawn() -> void:
 
 
 func _update_health_billboard() -> void:
-	if health_billboard != null:
-		health_billboard.text = "%d / %d" % [health, max_health]
+	if name_label != null:
+		name_label.text = display_name
+	if health_fill != null:
+		var health_ratio := clampf(float(health) / maxf(float(max_health), 1.0), 0.0, 1.0)
+		health_fill.scale = Vector3(health_ratio, 1.0, 1.0)
+
+
+func _update_nameplate_transform() -> void:
+	if nameplate_root == null:
+		return
+	nameplate_root.global_position = global_position + Vector3.UP * 5.35
+	nameplate_root.global_rotation = Vector3.ZERO
+
+
+func _stable_funny_name() -> String:
+	# Scene-node identity makes names feel randomly assigned while remaining
+	# deterministic across respawns, replays, and multiplayer test runs.
+	var stable_hash := absi(String(name).hash())
+	return FUNNY_NAMES[stable_hash % FUNNY_NAMES.size()]
 
 
 func _apply_blob_color() -> void:
@@ -110,7 +141,29 @@ func _apply_blob_color() -> void:
 	material.emission = blob_color.darkened(0.48)
 	material.emission_energy_multiplier = 0.35
 	mesh.material_override = material
-	health_billboard.modulate = blob_color.lightened(0.35)
+	if name_label != null:
+		name_label.modulate = blob_color.lightened(0.35)
+
+
+func set_scanner_highlight(enabled: bool) -> void:
+	if _scanner_outline == null:
+		_scanner_outline = MeshInstance3D.new()
+		_scanner_outline.name = "ScannerOutline"
+		var outline_mesh := SphereMesh.new()
+		outline_mesh.radius = 1.18
+		outline_mesh.height = 2.36
+		_scanner_outline.mesh = outline_mesh
+		var material := StandardMaterial3D.new()
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		material.albedo_color = Color(1.0, 0.12, 0.16, 0.3)
+		material.emission_enabled = true
+		material.emission = Color(1.0, 0.03, 0.08)
+		material.emission_energy_multiplier = 1.8
+		material.no_depth_test = true
+		_scanner_outline.material_override = material
+		$VisualRoot.add_child(_scanner_outline)
+	_scanner_outline.visible = enabled
 
 
 func _update_face() -> void:

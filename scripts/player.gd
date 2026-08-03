@@ -8,8 +8,10 @@ signal fling_charge_started
 signal fling_charge_updated(charge_ratio: float)
 signal fling_maximum_reached
 signal fling_released(charge_ratio: float)
+signal fling_cooldown_updated(remaining_seconds: float, duration_seconds: float)
 signal shoot_requested(origin: Vector3, direction: Vector3)
 signal bounce_triggered(strength: float)
+signal bounce_counted(strength: float)
 signal impact_event(world_position: Vector3, strength: float)
 signal damaged(amount: int)
 signal respawned(world_position: Vector3)
@@ -18,33 +20,51 @@ signal network_collision_requested(target_peer_id: int, impulse: Vector3, damage
 
 @export_category("Ground Movement")
 @export var ground_acceleration := 78.0
-@export var ground_start_impulse := 8.5
-@export var ground_control_speed := 30.0
-@export var ground_counter_acceleration := 44.0
-@export var idle_ground_drag := 0.18
+@export var ground_start_impulse := 6.5
+@export var ground_control_speed := 38.0
+@export var ground_counter_acceleration := 58.0
+@export var idle_ground_drag := 1.2
 @export var movement_roll_torque := 128.0
+@export var movement_build_up_time := 0.55
+@export_range(0.1, 1.0, 0.05) var movement_initial_acceleration_factor := 0.62
+@export_range(0.0, 12.0, 0.1) var brake_drag := 3.6
 
 @export_category("Air Movement")
-@export var air_acceleration := 22.0
-@export var air_steering_strength := 0.38
+@export var air_steering_strength := 0.52
 @export var air_control_speed := 20.0
-@export var emergency_max_speed := 138.0
+@export var air_momentum_decay := 0.04
+@export var post_fling_drag := 0.25
+@export var high_speed_drag := 0.48
+@export var high_speed_drag_threshold := 45.0
+@export var maximum_movement_speed := 96.0
+@export var emergency_max_speed := 104.0
 
 @export_category("Bounce Boost")
 @export var bounce_boost_impulse := 56.0
 @export var bounce_boost_cooldown := 0.18
 @export var coyote_time := 0.18
 @export var input_buffer_time := 0.10
+@export var surface_bounce_min_speed := 2.5
+@export var max_bounce_upward_speed := 52.0
 @export_range(0.0, 89.0, 1.0) var ground_max_angle := 56.0
 
 @export_category("Fling")
 @export var maximum_charge_time := 7.0
 @export var minimum_fling_impulse := 14.0
-@export var maximum_fling_impulse := 310.0
+@export var maximum_fling_impulse := 280.0
 @export var charge_exponent := 1.35
 @export var fling_upward_assist := 0.12
 @export var fling_control_reduction_time := 0.32
 @export var fling_control_multiplier := 0.28
+@export var maximum_fling_charge_drag := 0.55
+@export var fling_cooldown_duration := 3.0
+
+@export_category("Nameplate")
+@export var nameplate_near_distance := 8.0
+@export var nameplate_scale_distance := 18.0
+@export var nameplate_hide_distance := 58.0
+@export var nameplate_near_scale := 0.76
+@export var nameplate_far_scale := 0.32
 
 @export_category("Combat")
 @export var max_health := 150
@@ -63,12 +83,14 @@ var shooting_enabled := false
 var input_enabled := true
 var network_peer_id := 1
 var display_name := "Player"
-var blob_color := Color(0.05, 0.69, 0.96)
+var blob_color := Color(0.02, 0.86, 1.0)
 
 var _is_charging_fling := false
 var _maximum_charge_announced := false
 var _spawn_position := Vector3.ZERO
 var _was_moving := false
+var _movement_build_up := 0.0
+var _movement_build_direction := Vector3.ZERO
 var _grounded := false
 var _ground_normal := Vector3.UP
 var _coyote_timer := 0.0
@@ -78,7 +100,10 @@ var _shot_cooldown_timer := 0.0
 var _post_fling_control_timer := 0.0
 var _recent_fling_timer := 0.0
 var _recent_fling_charge := 0.0
+var _fling_cooldown_timer := 0.0
+var _upward_cap_exempt_timer := 0.0
 var _collision_ready_at: Dictionary = {}
+var _bounce_count_ready_at: Dictionary = {}
 var _network_target_position := Vector3.ZERO
 var _network_target_rotation := Vector3.ZERO
 var _equipped_skin_id := "classic_blue"
@@ -100,7 +125,9 @@ var _phase_bubble_active := false
 var _phase_bubble_visual: MeshInstance3D
 var _adrenaline_active := false
 
-@onready var health_billboard: Label3D = $HealthBillboard
+@onready var nameplate_root: Node3D = $Nameplate
+@onready var name_label: Label3D = $Nameplate/Name
+@onready var health_fill: MeshInstance3D = $Nameplate/HealthFill
 @onready var mesh: MeshInstance3D = $VisualRoot/Mesh
 @onready var speed_trail: GPUParticles3D = $SpeedTrail
 @onready var face_root: Node3D = $FaceRoot
@@ -116,28 +143,38 @@ func _ready() -> void:
 	health = max_health
 	_network_target_position = global_position
 	_network_target_rotation = rotation
+	_update_nameplate_transform()
 	_update_health_billboard()
 	_apply_saved_cosmetics()
 
 
 func _physics_process(delta: float) -> void:
+	_update_nameplate_transform()
 	_update_speed_trail()
 	_update_cosmetic_animation(delta)
 	_update_face()
 	_update_adrenaline()
 	if not local_controlled:
 		_update_remote_transform(delta)
+		_update_nameplate_transform()
 		return
 
 	_tick_timers(delta)
 	_update_ground_state(delta)
 	if not input_enabled:
+		_apply_momentum_decay(delta)
+		_apply_bounce_height_cap()
+		_apply_emergency_speed_guard()
 		return
 
 	_update_bounce_input()
 	_apply_movement(delta)
+	_apply_brake(delta)
+	_apply_fling_charge_drag()
 	_update_fling_charge(delta)
 	_update_shooting()
+	_apply_momentum_decay(delta)
+	_apply_bounce_height_cap()
 	_apply_emergency_speed_guard()
 
 
@@ -199,8 +236,8 @@ func set_blob_color(color: Color) -> void:
 	material.clearcoat = 0.55
 	material.clearcoat_roughness = 0.22
 	mesh.material_override = material
-	health_billboard.modulate = color.lightened(0.3)
-	var trail_mesh := speed_trail.draw_pass_1.duplicate() as SphereMesh
+	name_label.modulate = color.lightened(0.3)
+	var trail_mesh := speed_trail.draw_pass_1.duplicate() as PrimitiveMesh
 	var trail_material := trail_mesh.material.duplicate() as StandardMaterial3D
 	trail_material.albedo_color = Color(color.r, color.g, color.b, 0.72)
 	trail_material.emission = color
@@ -253,6 +290,18 @@ func get_skin_accent_color() -> Color:
 	return _skin_profile.get("secondary", blob_color) as Color
 
 
+func get_cosmetic_signature() -> Dictionary:
+	return {
+		"skin": _equipped_skin_id,
+		"skin_effect": str(_skin_profile.get("effect", "jelly")),
+		"trail": _equipped_trail_id,
+		"trail_mesh": speed_trail.draw_pass_1.get_class() if speed_trail != null and speed_trail.draw_pass_1 != null else "",
+		"face": _equipped_face_id,
+		"face_accessories": face_root.get_node("CosmeticAccessories").get_child_count() if face_root != null and face_root.has_node("CosmeticAccessories") else 0,
+		"kill_effect": _equipped_kill_effect_id,
+	}
+
+
 func _apply_saved_cosmetics() -> void:
 	var progression := get_node_or_null("/root/Progression")
 	if progression == null:
@@ -269,13 +318,17 @@ func _apply_saved_cosmetics() -> void:
 func _apply_trail_profile(profile: Dictionary) -> void:
 	var trail_color := profile.get("color", blob_color) as Color
 	var rarity := str(profile.get("rarity", "Common"))
-	_trail_base_lifetime = 0.95
+	var effect := str(profile.get("effect", "soft"))
+	var lifetime_by_effect := {"spark": 0.42, "lightning": 0.5, "pixels": 0.68, "glitch": 0.55, "bubble": 1.15, "snow": 1.25, "leaves": 1.2, "sakura": 1.35, "notes": 1.15, "meteor": 0.72, "fire": 0.78, "aurora": 1.4, "galaxy": 1.25, "void": 0.9}
+	_trail_base_lifetime = float(lifetime_by_effect.get(effect, 0.95))
 	_trail_base_amount = [10, 18, 28, 40][_cosmetic_quality]
 	if rarity in ["Epic", "Legendary"] and _cosmetic_quality >= 2:
 		_trail_base_amount += 8
+	if effect in ["spark", "lightning", "meteor", "fire"]:
+		_trail_base_amount = maxi(8, int(_trail_base_amount * 0.72))
 	speed_trail.lifetime = _trail_base_lifetime
 	speed_trail.amount = _trail_base_amount
-	var trail_mesh := speed_trail.draw_pass_1.duplicate() as SphereMesh
+	var trail_mesh := _trail_mesh_for_effect(effect)
 	var trail_material := StandardMaterial3D.new()
 	trail_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	trail_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -287,9 +340,31 @@ func _apply_trail_profile(profile: Dictionary) -> void:
 	speed_trail.draw_pass_1 = trail_mesh
 
 
+func _trail_mesh_for_effect(effect: String) -> PrimitiveMesh:
+	if effect in ["pixels", "glitch"]:
+		var box := BoxMesh.new()
+		box.size = Vector3(0.32, 0.32, 0.32) if effect == "pixels" else Vector3(0.42, 0.12, 0.18)
+		return box
+	if effect in ["leaves", "sakura", "notes", "aurora"]:
+		var quad := QuadMesh.new()
+		quad.size = Vector2(0.48, 0.24) if effect != "notes" else Vector2(0.32, 0.52)
+		return quad
+	if effect in ["lightning", "meteor", "fire", "spark"]:
+		var streak := BoxMesh.new()
+		streak.size = Vector3(0.12, 0.12, 0.72 if effect != "spark" else 0.34)
+		return streak
+	var sphere := SphereMesh.new()
+	sphere.radius = 0.26 if effect == "bubble" else 0.2
+	sphere.height = sphere.radius * 2.0
+	sphere.radial_segments = 8
+	sphere.rings = 4
+	return sphere
+
+
 func _apply_face_profile(profile: Dictionary) -> void:
 	var face_color := profile.get("color", Color(0.04, 0.05, 0.07)) as Color
 	var effect := str(profile.get("effect", "happy"))
+	_reset_face_geometry()
 	for node_name in ["LeftPupil", "RightPupil", "LeftHighlight", "RightHighlight"]:
 		var node := face_root.get_node_or_null(node_name) as MeshInstance3D
 		if node == null:
@@ -305,6 +380,88 @@ func _apply_face_profile(profile: Dictionary) -> void:
 	var right_eye := face_root.get_node_or_null("RightEyeWhite") as MeshInstance3D
 	if right_eye != null:
 		right_eye.visible = not wink
+	var left_pupil := face_root.get_node_or_null("LeftPupil") as MeshInstance3D
+	var right_pupil := face_root.get_node_or_null("RightPupil") as MeshInstance3D
+	if effect in ["angry", "evil", "fire"]:
+		left_pupil.rotation.z = -0.3
+		right_pupil.rotation.z = 0.3
+	if effect in ["surprised", "love", "cosmic", "divine"]:
+		left_pupil.scale *= 1.35
+		right_pupil.scale *= 1.35
+	if effect in ["sleepy", "frozen"]:
+		left_pupil.scale.y *= 0.35
+		right_pupil.scale.y *= 0.35
+	var smile_base := face_root.get_node_or_null("SmileBase") as MeshInstance3D
+	if smile_base != null and effect in ["sad", "angry", "evil", "frozen"]:
+		smile_base.rotation.z = -PI * 0.5
+		smile_base.position.y = -0.5
+	_rebuild_face_accessories(effect, face_color)
+
+
+func _reset_face_geometry() -> void:
+	var defaults := {
+		"LeftPupil": [Vector3(-0.82, 0.6, -2.9), Vector3(0.46, 0.58, 0.3), 0.0],
+		"RightPupil": [Vector3(0.82, 0.6, -2.9), Vector3(0.46, 0.58, 0.3), 0.0],
+		"SmileBase": [Vector3(0, -0.84, -2.91), Vector3(0.7, 0.62, 0.62), PI * 0.5],
+	}
+	for node_name in defaults:
+		var node := face_root.get_node_or_null(node_name) as MeshInstance3D
+		if node == null:
+			continue
+		var values := defaults[node_name] as Array
+		node.position = values[0]
+		node.scale = values[1]
+		node.rotation.z = float(values[2])
+	var right_eye := face_root.get_node_or_null("RightEyeWhite") as MeshInstance3D
+	if right_eye != null:
+		right_eye.visible = true
+
+
+func _rebuild_face_accessories(effect: String, color: Color) -> void:
+	var old := face_root.get_node_or_null("CosmeticAccessories")
+	if old != null:
+		old.free()
+	var root := Node3D.new()
+	root.name = "CosmeticAccessories"
+	face_root.add_child(root)
+	match effect:
+		"cool":
+			_add_face_accessory(root, Vector3(0, 0.64, -3.03), Vector3(2.25, 0.44, 0.16), Color("080b12"))
+		"pirate":
+			_add_face_accessory(root, Vector3(-0.82, 0.64, -3.05), Vector3(0.72, 0.72, 0.18), Color("161116"), true)
+			_add_face_accessory(root, Vector3(0, 0.95, -3.0), Vector3(2.7, 0.12, 0.12), Color("161116"))
+		"nerd":
+			_add_face_accessory(root, Vector3(-0.82, 0.64, -3.04), Vector3(0.94, 0.82, 0.14), color, true)
+			_add_face_accessory(root, Vector3(0.82, 0.64, -3.04), Vector3(0.94, 0.82, 0.14), color, true)
+			_add_face_accessory(root, Vector3(0, 0.64, -3.02), Vector3(0.52, 0.1, 0.1), color)
+		"robot", "energy":
+			_add_face_accessory(root, Vector3(0, 0.62, -3.05), Vector3(2.45, 0.72, 0.12), color)
+		"love":
+			_add_face_accessory(root, Vector3(-0.82, 0.65, -3.08), Vector3(0.42, 0.42, 0.14), color, true)
+			_add_face_accessory(root, Vector3(0.82, 0.65, -3.08), Vector3(0.42, 0.42, 0.14), color, true)
+		"divine":
+			_add_face_accessory(root, Vector3(0, 2.35, -2.9), Vector3(1.4, 0.16, 0.16), color, true)
+
+
+func _add_face_accessory(parent: Node3D, position_value: Vector3, scale_value: Vector3, color: Color, sphere := false) -> void:
+	var instance := MeshInstance3D.new()
+	var shape: PrimitiveMesh = SphereMesh.new() if sphere else BoxMesh.new()
+	if shape is SphereMesh:
+		(shape as SphereMesh).radius = 0.5
+		(shape as SphereMesh).height = 1.0
+	else:
+		(shape as BoxMesh).size = Vector3.ONE
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.roughness = 0.2
+	material.emission_enabled = color.get_luminance() > 0.55
+	material.emission = color
+	material.emission_energy_multiplier = 0.6
+	shape.material = material
+	instance.mesh = shape
+	instance.position = position_value
+	instance.scale = scale_value
+	parent.add_child(instance)
 
 
 func _apply_cosmetic_light(color: Color, rarity: String) -> void:
@@ -348,6 +505,26 @@ func get_charge_ratio() -> float:
 	return clampf(fling_charge / maxf(maximum_charge_time, 0.001), 0.0, 1.0)
 
 
+func get_fling_cooldown_remaining() -> float:
+	return _fling_cooldown_timer
+
+
+func get_fling_cooldown_duration() -> float:
+	return fling_cooldown_duration
+
+
+func get_fling_cooldown_ratio() -> float:
+	return clampf(_fling_cooldown_timer / maxf(fling_cooldown_duration, 0.001), 0.0, 1.0)
+
+
+func is_fling_ready() -> bool:
+	return _fling_cooldown_timer <= 0.0
+
+
+func can_fling() -> bool:
+	return is_fling_ready() and input_enabled and local_controlled
+
+
 func trigger_launch_visual(amount: float = 0.5) -> void:
 	_launch_visual(amount)
 
@@ -388,6 +565,12 @@ func respawn(spawn_position: Vector3) -> void:
 	_shot_cooldown_timer = 0.0
 	_post_fling_control_timer = 0.0
 	_recent_fling_timer = 0.0
+	_fling_cooldown_timer = 0.0
+	fling_cooldown_updated.emit(0.0, fling_cooldown_duration)
+	_upward_cap_exempt_timer = 0.0
+	_movement_build_up = 0.0
+	_movement_build_direction = Vector3.ZERO
+	_bounce_count_ready_at.clear()
 	_hit_visual(0.12)
 	respawned.emit(global_position)
 
@@ -408,6 +591,7 @@ func apply_external_impulse(impulse: Vector3) -> void:
 		return
 	sleeping = false
 	apply_central_impulse(impulse)
+	_upward_cap_exempt_timer = 0.28
 	_hit_visual(clampf(impulse.length() * 0.008, 0.08, 0.3))
 	impact_event.emit(global_position, impulse.length())
 
@@ -418,6 +602,7 @@ func receive_collision_impact(amount: int, impulse: Vector3) -> void:
 	sleeping = false
 	var lift := Vector3.UP * clampf(impulse.length() * 0.34, 8.0, 48.0)
 	apply_central_impulse((impulse + lift) * 1.2)
+	_upward_cap_exempt_timer = 0.32
 	_hit_visual(clampf(impulse.length() * 0.007, 0.08, 0.32))
 	impact_event.emit(global_position, impulse.length())
 	if amount <= 0 or health <= 0:
@@ -439,6 +624,7 @@ func apply_bounce_pad(launch_impulse: float) -> void:
 	_post_fling_control_timer = maxf(_post_fling_control_timer, 0.08)
 	_hit_visual(0.18)
 	_launch_visual(0.72)
+	bounce_counted.emit(launch_impulse)
 	bounce_triggered.emit(launch_impulse)
 
 
@@ -461,6 +647,11 @@ func _tick_timers(delta: float) -> void:
 	_shot_cooldown_timer = maxf(_shot_cooldown_timer - delta, 0.0)
 	_post_fling_control_timer = maxf(_post_fling_control_timer - delta, 0.0)
 	_recent_fling_timer = maxf(_recent_fling_timer - delta, 0.0)
+	var previous_fling_cooldown := _fling_cooldown_timer
+	_fling_cooldown_timer = maxf(_fling_cooldown_timer - delta, 0.0)
+	if previous_fling_cooldown > 0.0:
+		fling_cooldown_updated.emit(_fling_cooldown_timer, fling_cooldown_duration)
+	_upward_cap_exempt_timer = maxf(_upward_cap_exempt_timer - delta, 0.0)
 
 
 func _update_ground_state(delta: float) -> void:
@@ -498,15 +689,18 @@ func _update_bounce_input() -> void:
 	_coyote_timer = 0.0
 	_hit_visual(0.12)
 	_launch_visual(0.58)
+	bounce_counted.emit(bounce_boost_impulse)
 	bounce_triggered.emit(bounce_boost_impulse)
 
 
-func _apply_movement(_delta: float) -> void:
+func _apply_movement(delta: float) -> void:
 	var movement_input := get_movement_input()
 	var planar_velocity := Vector3(linear_velocity.x, 0.0, linear_velocity.z)
 	if movement_input.length_squared() <= 0.001:
 		_was_moving = false
-		if _grounded and _post_fling_control_timer <= 0.0:
+		_movement_build_up = 0.0
+		_movement_build_direction = Vector3.ZERO
+		if _grounded and get_contact_count() > 0:
 			apply_central_force(-planar_velocity * idle_ground_drag * mass)
 		return
 
@@ -514,30 +708,93 @@ func _apply_movement(_delta: float) -> void:
 	var camera_forward := -aim_basis.z
 	var camera_right := aim_basis.x
 	var desired_direction := (camera_right * movement_input.x + camera_forward * -movement_input.y).normalized()
+	# When direction changes sharply, preserve some build-up so turns feel responsive
+	# instead of resetting to zero and suffering the full ramp-up delay again.
+	if _movement_build_direction.length_squared() > 0.001 and _movement_build_direction.dot(desired_direction) < 0.72:
+		_movement_build_up *= 0.4
 	var control_multiplier := _charge_control_multiplier() * _post_fling_control_multiplier()
+	if not _grounded:
+		_apply_air_steering(desired_direction, delta, control_multiplier)
+		_was_moving = true
+		_movement_build_up = 0.0
+		_movement_build_direction = Vector3.ZERO
+		return
+
+	_movement_build_direction = desired_direction
+	_movement_build_up = minf(_movement_build_up + delta, movement_build_up_time)
 	if not _was_moving and _grounded:
 		apply_central_impulse(desired_direction * ground_start_impulse * get_movement_multiplier() * control_multiplier)
 	_was_moving = true
 
-	var acceleration := (ground_acceleration if _grounded else air_acceleration) * get_movement_multiplier()
-	var control_speed := (ground_control_speed if _grounded else air_control_speed) * get_movement_multiplier()
-	var speed_along_input := planar_velocity.dot(desired_direction)
-	var acceleration_factor := 1.0
-	if speed_along_input >= control_speed:
-		acceleration_factor = 0.12 if _grounded else air_steering_strength * 0.18
-	elif not _grounded:
-		acceleration_factor = air_steering_strength
+	var acceleration := ground_acceleration * get_movement_multiplier()
+	var acceleration_factor := _movement_build_up_factor()
+	var forward_speed := maxf(planar_velocity.dot(desired_direction), 0.0)
+	# Ground input builds toward a controllable traversal band. Fling/impact
+	# momentum above that band remains physical, but input can never amplify it.
+	var control_headroom := clampf(1.0 - forward_speed / maxf(ground_control_speed, 0.001), 0.0, 1.0)
+	acceleration_factor *= control_headroom
 
 	if planar_velocity.length_squared() > 0.5 and planar_velocity.normalized().dot(desired_direction) < -0.18:
-		acceleration += ground_counter_acceleration if _grounded else ground_counter_acceleration * 0.22
+		acceleration += ground_counter_acceleration
+		acceleration_factor = maxf(acceleration_factor, 0.42)
 	apply_central_force(desired_direction * acceleration * mass * acceleration_factor * control_multiplier)
-	if _grounded:
-		var roll_axis := Vector3.UP.cross(desired_direction).normalized()
-		apply_torque(roll_axis * movement_roll_torque * control_multiplier)
+	var roll_axis := Vector3.UP.cross(desired_direction).normalized()
+	apply_torque(roll_axis * movement_roll_torque * control_multiplier)
+
+
+func _apply_air_steering(desired_direction: Vector3, delta: float, control_multiplier: float) -> void:
+	# Force-based air control: applies a lateral steering force that redirects
+	# existing momentum without adding net planar speed. This lets the physics
+	# engine resolve the motion naturally instead of overriding velocity directly.
+	var planar_velocity := Vector3(linear_velocity.x, 0.0, linear_velocity.z)
+	var planar_speed := planar_velocity.length()
+	if planar_speed <= 0.01:
+		return
+	var current_direction := planar_velocity.normalized()
+	# Lateral component: how far "sideways" the desired direction is from current travel.
+	var lateral := desired_direction - current_direction * desired_direction.dot(current_direction)
+	if lateral.length_squared() <= 0.0001:
+		return
+	lateral = lateral.normalized()
+	var steering_force := lateral * air_steering_strength * planar_speed * mass * control_multiplier * 4.0
+	apply_central_force(steering_force)
+	# Clamp planar speed so air input never amplifies momentum beyond entry speed.
+	var next_planar := Vector3(linear_velocity.x, 0.0, linear_velocity.z)
+	var next_speed := next_planar.length()
+	if next_speed > planar_speed:
+		var corrected := next_planar.normalized() * planar_speed
+		linear_velocity = Vector3(corrected.x, linear_velocity.y, corrected.z)
+
+
+func _movement_build_up_factor() -> float:
+	var ratio := clampf(_movement_build_up / maxf(movement_build_up_time, 0.001), 0.0, 1.0)
+	# Smoothstep keeps the opening movement deliberate while still reaching full force.
+	var eased_ratio := ratio * ratio * (3.0 - 2.0 * ratio)
+	return lerpf(movement_initial_acceleration_factor, 1.0, eased_ratio)
+
+
+func _apply_brake(delta: float) -> void:
+	if not Input.is_action_pressed("brake") or _is_charging_fling:
+		return
+	var planar_velocity := Vector3(linear_velocity.x, 0.0, linear_velocity.z)
+	if planar_velocity.length_squared() <= 0.001:
+		return
+	var retained_speed := exp(-maxf(brake_drag, 0.0) * maxf(delta, 0.0))
+	var next_planar_velocity := planar_velocity * retained_speed
+	linear_velocity = Vector3(next_planar_velocity.x, linear_velocity.y, next_planar_velocity.z)
+
+
+func _apply_fling_charge_drag() -> void:
+	if not _is_charging_fling:
+		return
+	var charge_drag := maximum_fling_charge_drag * get_charge_ratio()
+	if charge_drag <= 0.0:
+		return
+	apply_central_force(-linear_velocity * mass * charge_drag)
 
 
 func _update_fling_charge(delta: float) -> void:
-	if Input.is_action_just_pressed("charge_fling"):
+	if Input.is_action_just_pressed("charge_fling") and can_fling():
 		_is_charging_fling = true
 		_maximum_charge_announced = false
 		fling_charge = 0.0
@@ -554,6 +811,9 @@ func _update_fling_charge(delta: float) -> void:
 
 
 func _release_fling(charge_ratio: float) -> void:
+	if not can_fling():
+		cancel_active_charge()
+		return
 	var direction := aim_direction.normalized()
 	if direction.length_squared() <= 0.001:
 		direction = _forward_flat()
@@ -564,6 +824,9 @@ func _release_fling(charge_ratio: float) -> void:
 	apply_central_impulse(direction * launch_strength + correction_impulse)
 	_post_fling_control_timer = fling_control_reduction_time * charge_ratio
 	_recent_fling_timer = 0.65
+	_fling_cooldown_timer = fling_cooldown_duration
+	fling_cooldown_updated.emit(_fling_cooldown_timer, fling_cooldown_duration)
+	_upward_cap_exempt_timer = 0.42
 	_recent_fling_charge = charge_ratio
 	_hit_visual(0.16)
 	_launch_visual(0.34 + charge_ratio * 0.66)
@@ -688,8 +951,35 @@ func _post_fling_control_multiplier() -> float:
 
 func _apply_emergency_speed_guard() -> void:
 	var speed := linear_velocity.length()
-	if speed > emergency_max_speed:
-		linear_velocity = linear_velocity.normalized() * emergency_max_speed
+	var speed_limit := minf(maximum_movement_speed, emergency_max_speed)
+	if speed > speed_limit:
+		# Soft decay toward the cap instead of a hard snap — avoids jarring sudden stops.
+		var decay_rate := 8.0
+		var target_speed := lerpf(speed, speed_limit, 1.0 - exp(-decay_rate * get_physics_process_delta_time()))
+		linear_velocity = linear_velocity.normalized() * target_speed
+
+
+func _apply_momentum_decay(delta: float) -> void:
+	var velocity := linear_velocity
+	var speed := velocity.length()
+	if speed <= 0.01:
+		return
+	var drag := 0.0
+	if not _grounded:
+		drag += air_momentum_decay
+	if _fling_cooldown_timer > 0.0:
+		drag += post_fling_drag * get_fling_cooldown_ratio()
+	if speed > high_speed_drag_threshold:
+		var excess_ratio := clampf((speed - high_speed_drag_threshold) / maxf(maximum_movement_speed - high_speed_drag_threshold, 0.001), 0.0, 1.0)
+		drag += high_speed_drag * excess_ratio
+	if drag > 0.0:
+		linear_velocity *= exp(-drag * delta)
+
+
+func _apply_bounce_height_cap() -> void:
+	if _upward_cap_exempt_timer > 0.0 or linear_velocity.y <= max_bounce_upward_speed:
+		return
+	linear_velocity = Vector3(linear_velocity.x, max_bounce_upward_speed, linear_velocity.z)
 
 
 func _update_remote_transform(delta: float) -> void:
@@ -701,12 +991,27 @@ func _update_remote_transform(delta: float) -> void:
 	)
 
 
-func _on_body_entered(_body: Node) -> void:
+func _on_body_entered(body: Node) -> void:
 	if not local_controlled:
 		return
 	var impact_strength := linear_velocity.length()
 	if impact_strength >= 7.0:
 		impact_event.emit(global_position, impact_strength)
+	if impact_strength < surface_bounce_min_speed:
+		return
+	var now := Time.get_ticks_msec()
+	var body_id := body.get_instance_id()
+	if now >= int(_bounce_count_ready_at.get(body_id, 0)):
+		_bounce_count_ready_at[body_id] = now + 100
+		bounce_counted.emit(impact_strength)
+
+
+func _restore_surface_collision_speed(retained_speed: float) -> void:
+	# Legacy hook retained for interactables/tests. Surface impacts are intentionally
+	# lossy now; never add energy back after the physics solver resolves a bounce.
+	var allowed_speed := minf(retained_speed, maximum_movement_speed)
+	if linear_velocity.length() > allowed_speed:
+		linear_velocity = linear_velocity.normalized() * allowed_speed
 
 
 func _on_contact_area_entered(area: Area3D) -> void:
@@ -795,5 +1100,32 @@ func _update_face() -> void:
 
 
 func _update_health_billboard() -> void:
-	if health_billboard != null:
-		health_billboard.text = "%s\n%d / %d" % [display_name, health, max_health]
+	if name_label != null:
+		name_label.text = display_name
+	if health_fill != null:
+		var health_ratio := clampf(float(health) / maxf(float(max_health), 1.0), 0.0, 1.0)
+		health_fill.scale = Vector3(health_ratio, 1.0, 1.0)
+		# Keep the left edge fixed so damage reads as a conventional depleting bar.
+		health_fill.position.x = -1.38 * (1.0 - health_ratio)
+
+
+func _update_nameplate_transform() -> void:
+	if nameplate_root == null:
+		return
+	nameplate_root.global_position = global_position + Vector3.UP * 4.65
+	nameplate_root.global_rotation = Vector3.ZERO
+	var active_camera := get_viewport().get_camera_3d() if is_inside_tree() else null
+	if active_camera != null:
+		update_nameplate_for_camera(active_camera.global_position)
+
+
+func update_nameplate_for_camera(camera_position: Vector3) -> void:
+	if nameplate_root == null:
+		return
+	var camera_distance := global_position.distance_to(camera_position)
+	nameplate_root.visible = camera_distance < nameplate_hide_distance
+	if not nameplate_root.visible:
+		return
+	var distance_ratio := clampf((camera_distance - nameplate_scale_distance) / maxf(nameplate_hide_distance - nameplate_scale_distance, 0.001), 0.0, 1.0)
+	var target_scale := lerpf(nameplate_near_scale, nameplate_far_scale, distance_ratio)
+	nameplate_root.scale = Vector3.ONE * target_scale

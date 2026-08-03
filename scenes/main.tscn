@@ -57,27 +57,27 @@ position = Vector3(0, 0, 620)
 
 [node name="SpawnManager" type="Node3D" parent="."]
 script = ExtResource("5_spawn_manager")
-arena_half_extent = 490.0
+arena_half_extent = 245.0
 fall_limit = -80.0
 lobby_center = Vector3(0, 0, 620)
-lobby_radius = 25.0
+lobby_radius = 39.5
 
 [node name="ArenaSpawns" type="Node3D" parent="SpawnManager"]
 
 [node name="HostSpawn" type="Marker3D" parent="SpawnManager/ArenaSpawns"]
-position = Vector3(-360, 5, 0)
+position = Vector3(-180, 5, 0)
 rotation = Vector3(0, -1.5708, 0)
 
 [node name="ClientSpawn" type="Marker3D" parent="SpawnManager/ArenaSpawns"]
-position = Vector3(360, 5, 0)
+position = Vector3(180, 5, 0)
 rotation = Vector3(0, 1.5708, 0)
 
 [node name="NorthReserve" type="Marker3D" parent="SpawnManager/ArenaSpawns"]
-position = Vector3(0, 5, -360)
+position = Vector3(0, 5, -180)
 rotation = Vector3(0, 3.14159, 0)
 
 [node name="SouthReserve" type="Marker3D" parent="SpawnManager/ArenaSpawns"]
-position = Vector3(0, 5, 360)
+position = Vector3(0, 5, 180)
 
 [node name="FallbackSpawn" type="Marker3D" parent="SpawnManager"]
 position = Vector3(0, 6, 0)
@@ -90,23 +90,23 @@ position = Vector3(0, 6, 0)
 position = Vector3(0, 2, 627)
 
 [node name="DummyRose" parent="." groups=["training_dummy"] instance=ExtResource("4_dummy")]
-position = Vector3(-120, 2, -70)
+position = Vector3(-60, 2, -35)
 blob_color = Color(1, 0.2, 0.52, 1)
 
 [node name="DummyGold" parent="." groups=["training_dummy"] instance=ExtResource("4_dummy")]
-position = Vector3(120, 2, 70)
+position = Vector3(60, 2, 35)
 blob_color = Color(1, 0.72, 0.08, 1)
 
 [node name="DummyLime" parent="." groups=["training_dummy"] instance=ExtResource("4_dummy")]
-position = Vector3(-260, 2, -80)
+position = Vector3(-130, 2, -40)
 blob_color = Color(0.36, 1, 0.25, 1)
 
 [node name="DummyViolet" parent="." groups=["training_dummy"] instance=ExtResource("4_dummy")]
-position = Vector3(260, 2, 100)
+position = Vector3(130, 2, 50)
 blob_color = Color(0.63, 0.3, 1, 1)
 
 [node name="DummyOrange" parent="." groups=["training_dummy"] instance=ExtResource("4_dummy")]
-position = Vector3(0, 2, -210)
+position = Vector3(0, 2, -105)
 blob_color = Color(1, 0.35, 0.1, 1)
 
 [node name="CameraRig" type="Node3D" parent="."]

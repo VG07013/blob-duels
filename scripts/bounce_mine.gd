@@ -5,6 +5,7 @@ const ABILITY_TUNING := preload("res://scripts/ability_tuning.gd")
 signal detonated(world_position: Vector3)
 
 var source: Node3D
+var _authoritative := true
 var _armed := false
 var _arm_timer := 0.0
 var _lifetime := ABILITY_TUNING.BOUNCE_MINE_LIFETIME
@@ -17,9 +18,19 @@ func _ready() -> void:
 	trigger.body_entered.connect(_on_trigger_body_entered)
 
 
-func configure(spawn_position: Vector3, direction: Vector3, mine_source: Node3D) -> void:
+func configure(spawn_position: Vector3, direction: Vector3, mine_source: Node3D, authoritative: bool = true) -> void:
 	global_position = spawn_position
 	source = mine_source
+	_authoritative = authoritative
+	if not _authoritative:
+		# Replicas retain world collision so their toss settles naturally, but
+		# expose no layer or trigger that can affect client-side player physics.
+		collision_layer = 0
+		collision_mask = 1
+		trigger.monitoring = false
+		trigger.monitorable = false
+		trigger.collision_layer = 0
+		trigger.collision_mask = 0
 	linear_velocity = direction.normalized() * 22.0 + Vector3.UP * 4.5
 
 
@@ -39,7 +50,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _on_trigger_body_entered(body: Node3D) -> void:
-	if not _armed or body == source:
+	if not _authoritative or not _armed or body == source:
 		return
 	if body.has_method("take_damage") or body.is_in_group("network_blob"):
 		detonated.emit(global_position)

@@ -120,6 +120,18 @@ const DEFAULT_SFX_COOLDOWNS := {
 	&"reward_tick": 0.08,
 }
 
+const ABILITY_SFX_PROFILES := {
+	"dash": {"key": &"ability_dash", "pitch": 1.1},
+	"ricochet_shot": {"key": &"ability_ricochet", "pitch": 1.0},
+	"blink": {"key": &"ability_blink", "pitch": 1.0},
+	"target_scanner": {"key": &"ability_scan", "pitch": 1.0},
+	"overcharge": {"key": &"charge_max", "pitch": 1.08},
+	"gravity_pulse": {"key": &"ability_pulse", "pitch": 0.92},
+	"rail_shot": {"key": &"fling_charge", "pitch": 0.74},
+	"bounce_mine": {"key": &"blob_bounce", "pitch": 1.16},
+	"phase_bubble": {"key": &"ability_phase", "pitch": 0.84},
+}
+
 var _music_players: Array[AudioStreamPlayer] = []
 var _active_music_index := 0
 var _music_tween: Tween
@@ -300,34 +312,17 @@ func has_sfx(key: StringName) -> bool:
 
 
 func play_ability_sfx(ability_id: String) -> void:
-	var key: StringName = &"ability_pulse"
-	var pitch := 1.0
-	match ability_id:
-		"dash":
-			key = &"ability_dash"
-			pitch = 1.1
-		"ricochet_shot":
-			key = &"ability_ricochet"
-			pitch = 1.22
-		"blink":
-			key = &"ability_blink"
-			pitch = 1.1
-		"target_scanner":
-			key = &"ability_scan"
-			pitch = 1.18
-		"overcharge", "rail_shot":
-			key = &"charge_max"
-			pitch = 1.08
-		"gravity_pulse", "bounce_mine":
-			key = &"ability_pulse"
-			pitch = 0.92 if ability_id == "gravity_pulse" else 1.18
-		"phase_bubble":
-			key = &"ability_phase"
-			pitch = 0.84
-		"adrenaline":
-			key = &"charge_low"
-			pitch = 1.22
+	var profile := ABILITY_SFX_PROFILES.get(ability_id, {}) as Dictionary
+	if profile.is_empty():
+		return
+	var key := profile.get("key", &"") as StringName
+	var pitch := float(profile.get("pitch", 1.0))
 	play_sfx_limited(key, 0.08, -6.0, pitch, StringName("ability_%s" % ability_id))
+
+
+func get_ability_sfx_signature(ability_id: String) -> String:
+	var profile := ABILITY_SFX_PROFILES.get(ability_id, {}) as Dictionary
+	return str(profile.get("key", &""))
 
 
 func start_loop(

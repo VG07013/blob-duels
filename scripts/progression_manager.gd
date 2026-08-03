@@ -13,17 +13,17 @@ const DAILY_REWARD := 75
 const DAILY_SET_BONUS := 50
 const BASE_MATCH_REWARD := 25
 const ABILITY_CATALOG := [
-		{"id": "dash", "name": "Dash", "rarity": "Basic", "price": 150, "description": "Burst 7m in your movement direction. 7 second cooldown."},
-		{"id": "ricochet_shot", "name": "Ricochet Shot", "rarity": "Advanced", "price": 300, "description": "Charge your next shot: +10 damage and up to 3 wall bounces."},
-		{"id": "quick_charge", "name": "Quick Charge", "rarity": "Expert", "price": 500, "description": "Passive: fling charge fills 20% faster without changing max impact."},
-		{"id": "blink", "name": "Blink", "rarity": "Expert", "price": 600, "description": "Instantly teleport 5m while preserving all momentum. 18 second cooldown."},
-		{"id": "target_scanner", "name": "Target Scanner", "rarity": "Advanced", "price": 450, "description": "Reveal enemies within 30m through walls for 5 seconds."},
-		{"id": "overcharge", "name": "Overcharge", "rarity": "Expert", "price": 600, "description": "Fire 30% faster for 5 seconds. Damage stays unchanged."},
-		{"id": "gravity_pulse", "name": "Gravity Pulse", "rarity": "Expert", "price": 650, "description": "Curve enemy bullets away for 0.8 seconds within 6m."},
-		{"id": "rail_shot", "name": "Rail Shot", "rarity": "Expert", "price": 700, "description": "Charge for 1 second, then fire one near-instant shot for +15 damage."},
-		{"id": "bounce_mine", "name": "Bounce Mine", "rarity": "Advanced", "price": 550, "description": "Deploy one bouncing mine that launches enemies without dealing damage."},
-		{"id": "phase_bubble", "name": "Phase Bubble", "rarity": "Legendary", "price": 750, "description": "Enemy bullets pass through you for 4 seconds. Physics stays unchanged."},
-		{"id": "adrenaline", "name": "Adrenaline", "rarity": "Expert", "price": 650, "description": "Passive: below 60% HP, gain 15% movement and fling charge speed."},
+	{"id": "dash", "name": "Dash", "rarity": "Basic", "price": 150, "tagline": "Turn momentum into distance", "description": "Burst 7m in your movement direction while keeping the duel fast and readable. 7 second cooldown.", "preview_mode": "ability_demo", "runtime_effect": "directional_dash"},
+	{"id": "ricochet_shot", "name": "Ricochet Shot", "rarity": "Advanced", "price": 300, "tagline": "Make the walls your weapon", "description": "Charge your next shot for +10 damage and up to 3 bright, readable wall bounces.", "preview_mode": "ability_demo", "runtime_effect": "charged_ricochet"},
+	{"id": "quick_charge", "name": "Quick Charge", "rarity": "Expert", "price": 500, "tagline": "Always first off the line", "description": "Passive: fling charge fills 20% faster without changing the maximum impact.", "preview_mode": "ability_demo", "runtime_effect": "charge_accelerator"},
+	{"id": "blink", "name": "Blink", "rarity": "Expert", "price": 600, "tagline": "Skip the space between", "description": "Instantly teleport 5m while preserving all momentum. 18 second cooldown.", "preview_mode": "ability_demo", "runtime_effect": "momentum_blink"},
+	{"id": "target_scanner", "name": "Target Scanner", "rarity": "Advanced", "price": 450, "tagline": "No rival stays hidden", "description": "Reveal enemies within 30m through walls for 5 seconds with a clear counterplay telegraph.", "preview_mode": "ability_demo", "runtime_effect": "radar_reveal"},
+	{"id": "overcharge", "name": "Overcharge", "rarity": "Expert", "price": 600, "tagline": "Five seconds of pressure", "description": "Fire 30% faster for 5 seconds while damage stays unchanged and readable.", "preview_mode": "ability_demo", "runtime_effect": "fire_rate_overcharge"},
+	{"id": "gravity_pulse", "name": "Gravity Pulse", "rarity": "Expert", "price": 650, "tagline": "Bend the incoming line", "description": "Curve enemy bullets away for 0.8 seconds within a visible 6m gravity field.", "preview_mode": "ability_demo", "runtime_effect": "projectile_deflection"},
+	{"id": "rail_shot", "name": "Rail Shot", "rarity": "Expert", "price": 700, "tagline": "One line. One decision.", "description": "Charge for 1 second, then fire one near-instant precision shot for +15 damage.", "preview_mode": "ability_demo", "runtime_effect": "charged_rail"},
+	{"id": "bounce_mine", "name": "Bounce Mine", "rarity": "Advanced", "price": 550, "tagline": "Reposition the whole fight", "description": "Deploy one bright bouncing mine that launches enemies without dealing damage.", "preview_mode": "ability_demo", "runtime_effect": "launch_mine"},
+	{"id": "phase_bubble", "name": "Phase Bubble", "rarity": "Legendary", "price": 750, "tagline": "Let the bullets pass through", "description": "Enemy bullets pass through you for 4 seconds while your movement physics stay unchanged.", "preview_mode": "ability_demo", "runtime_effect": "projectile_phase"},
+	{"id": "adrenaline", "name": "Adrenaline", "rarity": "Expert", "price": 650, "tagline": "Come alive under pressure", "description": "Passive: below 60% HP, gain 15% movement and fling charge speed.", "preview_mode": "ability_demo", "runtime_effect": "low_health_haste"},
 ]
 const DAILY_POOL := [
 	{"id": "play_matches", "title": "Play 3 Matches", "target": 3, "stat": "matches"},
@@ -52,6 +52,7 @@ var persistence_enabled := true
 
 func _ready() -> void:
 	_load()
+	_ensure_starter_loadout()
 	_refresh_quests_if_needed()
 
 
@@ -86,12 +87,28 @@ func purchase(category: String, item_id: String) -> bool:
 
 
 func equip(category: String, item_id: String) -> bool:
-	if not is_owned(item_id):
+	if not is_owned(item_id) or _find_item(category, item_id).is_empty():
 		return false
 	equipped[category] = item_id
 	_save()
 	inventory_changed.emit()
 	return true
+
+
+func _ensure_starter_loadout() -> void:
+	var starters := {"abilities": "dash", "skins": "classic_blue", "trails": "bubble", "kill_effects": "bubble_pop", "faces": "happy"}
+	var changed := false
+	for category in starters:
+		var item_id := str(starters[category])
+		if not bool(owned.get(item_id, false)):
+			owned[item_id] = true
+			changed = true
+		var equipped_id := str(equipped.get(category, ""))
+		if equipped_id.is_empty() or _find_item(category, equipped_id).is_empty():
+			equipped[category] = item_id
+			changed = true
+	if changed:
+		_save()
 
 
 func record_stat(stat: String, amount := 1) -> void:
