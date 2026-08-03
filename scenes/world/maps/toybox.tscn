@@ -6,4 +6,5 @@
 script = ExtResource("1_arena")
 theme_id = 4
 map_name = "Toybox"
-arena_half_width = 42.0
+arena_half_width = 46.208
+arena_aspect_ratio = 2.0

@@ -41,11 +41,20 @@ func _audit_map(map_id: String, scene_path: String) -> void:
 	_expect(arena.has_method("get_lighting_profile"), "%s: lighting API exists" % map_id)
 	_expect(arena.has_method("get_map_audit"), "%s: map audit API exists" % map_id)
 	var is_neon := map_id == "neon_arcade"
+	var is_backyard_blueprint := map_id == "backyard"
 	var is_arena_blueprint := map_id == "arena"
+	var is_toybox_blueprint := map_id == "toybox"
+	var is_aether_citadel := map_id == "sky_temple"
 	if is_neon:
 		_expect(is_equal_approx(float(arena.get("arena_half_length")), float(arena.get("arena_half_width"))), "%s: Neon Arcade uses the 18 x 18 GU square footprint" % map_id)
 	elif is_arena_blueprint:
 		_expect(is_equal_approx(float(arena.get("arena_half_length")), float(arena.get("arena_half_width")) * (24.0 / 34.0)), "%s: Arena uses the literal 34 x 24 blueprint footprint" % map_id)
+	elif is_backyard_blueprint:
+		_expect(is_equal_approx(float(arena.get("arena_half_length")), float(arena.get("arena_half_width")) * (64.0 / 84.0)), "%s: Backyard uses the literal 84 x 64 GU blueprint footprint" % map_id)
+	elif is_toybox_blueprint:
+		_expect(is_equal_approx(float(arena.get("arena_half_length")), float(arena.get("arena_half_width")) * 2.0), "%s: Toybox uses the literal 64 x 128 GU blueprint footprint" % map_id)
+	elif is_aether_citadel:
+		_expect(is_equal_approx(float(arena.get("arena_half_length")), float(arena.get("arena_half_width")) * 1.5), "%s: Aether Citadel uses the approved 48 x 72 GU blueprint footprint" % map_id)
 	else:
 		_expect(is_equal_approx(float(arena.get("arena_half_length")), float(arena.get("arena_half_width")) * 3.0), "%s: arena is 1:3" % map_id)
 
@@ -54,6 +63,12 @@ func _audit_map(map_id: String, scene_path: String) -> void:
 		_expect(spawns.size() == 2, "%s: exactly two duel spawns" % map_id)
 		if spawns.size() == 2 and is_arena_blueprint:
 			_expect(absf((spawns[0] as Marker3D).position.z - (spawns[1] as Marker3D).position.z) > float(arena.get("arena_half_length")) * 1.5, "%s: blueprint spawns oppose along the tournament axis" % map_id)
+		elif spawns.size() == 2 and is_backyard_blueprint:
+			_expect(absf((spawns[0] as Marker3D).position.z - (spawns[1] as Marker3D).position.z) > float(arena.get("arena_half_length")) * 1.5, "%s: Backyard spawns oppose at exact blueprint decks" % map_id)
+		elif spawns.size() == 2 and is_toybox_blueprint:
+			_expect(absf((spawns[0] as Marker3D).position.z - (spawns[1] as Marker3D).position.z) > float(arena.get("arena_half_length")) * 1.8, "%s: Toybox spawns oppose at exact blueprint platforms" % map_id)
+		elif spawns.size() == 2 and is_aether_citadel:
+			_expect(absf((spawns[0] as Marker3D).position.z - (spawns[1] as Marker3D).position.z) > float(arena.get("arena_half_length")) * 1.6, "%s: Aether sanctum spawns oppose at blueprint coordinates" % map_id)
 		elif spawns.size() == 2 and not is_neon:
 			_expect(absf((spawns[0] as Marker3D).position.z - (spawns[1] as Marker3D).position.z) > float(arena.get("arena_half_width")) * 3.5, "%s: spawns oppose along long axis" % map_id)
 		elif spawns.size() == 2:
@@ -76,7 +91,8 @@ func _audit_map(map_id: String, scene_path: String) -> void:
 		_expect(interactable.has_method("get_interaction_kind"), "%s: %s exposes interaction kind" % [map_id, interactable.name])
 		if interactable.has_method("get_interaction_kind"):
 			kinds[interactable.call("get_interaction_kind")] = true
-	_expect(kinds.size() >= (1 if is_arena_blueprint else 3), "%s: enough distinct interactive systems" % map_id)
+	var required_kinds := 1 if is_arena_blueprint else (2 if is_backyard_blueprint else (4 if is_toybox_blueprint else 3))
+	_expect(kinds.size() >= required_kinds, "%s: enough distinct interactive systems" % map_id)
 	_expect((audit.get("interactables", []) as Array).size() >= (1 if is_arena_blueprint else 3), "%s: audit documents interactables" % map_id)
 
 	var mesh_count := _count_type(arena, "MeshInstance3D")

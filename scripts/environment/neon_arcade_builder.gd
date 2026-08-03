@@ -17,11 +17,11 @@ func build(a) -> Dictionary:
 	return {
 		"identity": "Literal 3D reconstruction of the supplied Neon Arcade blueprint.",
 		"landmark": "Concentric magenta center bumper at grid (9,9).",
-		"routes": ["four diagonal corner ramps", "central bumper", "eight low-cover lanes", "four inward boost pads", "stacked perimeter ledges", "timed wall gates"],
+		"routes": ["four clear diagonal corner ramps", "central bumper", "six low-cover lanes", "four inward boost pads", "stacked perimeter ledges", "timed wall gates"],
 		"interactables": ["center bumper", "four boost pads", "sixteen stacked wall bumper pads", "four laser gates"],
 		"prop_families": ["chamfered spawn towers", "purple low covers", "amber wall pads", "cyan/pink wall ledges"],
 		"flow_plan": ["Ramps rise from the floor to the four corner towers.", "The four green pads point directly into the center bumper.", "The perimeter alternates ledges and pads at the exact cross-section heights shown in the blueprint."],
-		"combat_spaces": ["Eight image-positioned cover lanes create the central sightlines.", "The central disc remains the only circular obstacle.", "The four side gates are push zones rather than elimination hazards."],
+		"combat_spaces": ["Ten separated cover segments create readable central sightlines.", "The central disc remains the only circular obstacle.", "The four side gates are push zones rather than elimination hazards."],
 		"blueprint": {
 			"unit_scale": GU,
 			"footprint_gu": Vector2(18, 18), "interior_gu": Vector2(16, 16),
@@ -86,22 +86,23 @@ func _build_ramps(a) -> void:
 		var grid := grid_value as Vector2
 		var tower := _world(grid.x, grid.y)
 		var outward := tower.normalized()
-		var midpoint := tower + -outward * 3.5 * GU + Vector3.UP * 0.02
+		var midpoint := tower + -outward * 3.0 * GU + Vector3.UP * 0.02
 		# The prism rises along its local +Z axis, so +Z must point outward toward the tower.
 		var yaw := atan2(outward.x, outward.z)
-		var ramp := GEOMETRY.add_ramp_prism(a, "CornerRamp", midpoint, 3.0 * GU, 4.0 * GU, 3.0 * GU, yaw, a.mat("dark_metal"), a.surface("bounce"), a.mat("violet_trim"))
-		a.mark_neon_element(ramp, "corner_ramp", grid + Vector2(-outward.x, -outward.z) * 3.5, Vector3(3, 3, 4), {"top_height_gu": 3.0})
+		var ramp := GEOMETRY.add_ramp_prism(a, "CornerRamp", midpoint, 3.0 * GU, 3.0 * GU, 3.0 * GU, yaw, a.mat("dark_metal"), a.surface("bounce"), a.mat("violet_trim"))
+		var ramp_grid := grid + Vector2(-outward.x, -outward.z) * 3.0
+		a.mark_neon_element(ramp, "corner_ramp", ramp_grid, Vector3(3, 3, 3), {"top_height_gu": 3.0})
+		_mark_overlap_footprint(ramp, ramp_grid, Vector2(3.0, 3.0), yaw)
 		for stripe in [0.25, 0.5, 0.75]:
-			var stripe_position: Vector3 = midpoint + outward * ((stripe - 0.5) * 3.5 * GU) + Vector3.UP * (stripe * 3.0 * GU + 0.10 * GU)
+			var stripe_position: Vector3 = midpoint + outward * ((stripe - 0.5) * 2.5 * GU) + Vector3.UP * (stripe * 3.0 * GU + 0.10 * GU)
 			a.add_box("RampChevron", stripe_position, Vector3(1.45 * GU, 0.05 * GU, 0.18 * GU), a.mat("warm_light"), false, Vector3(0, yaw, 0))
 
 
 func _build_low_covers(a) -> void:
-	# Literal #5 placements from the top-down blueprint: eight single blocks, four L groups, and two center bars.
-	for position in [Vector2(7.25, 3.55), Vector2(10.75, 3.55), Vector2(4.5, 6.65), Vector2(13.5, 6.65), Vector2(4.5, 11.0), Vector2(13.5, 11.0), Vector2(7.25, 14.45), Vector2(10.75, 14.45)]:
+	# Ten separated segments retain the blueprint's central lanes while removing the
+	# four L clusters that physically crossed the corner ramps and boost-pad exits.
+	for position in [Vector2(7.25, 3.55), Vector2(10.75, 3.55), Vector2(2.9, 6.65), Vector2(15.1, 6.65), Vector2(2.9, 11.0), Vector2(15.1, 11.0), Vector2(7.25, 14.45), Vector2(10.75, 14.45)]:
 		_add_cover(a, "LowCover", position, Vector3(2.0 * GU, 1.5 * GU, 1.0 * GU), Vector3.ZERO)
-	for spec in [[Vector2(4.35, 4.85), Vector3(1.25 * GU, 1.5 * GU, 0.46 * GU)], [Vector2(4.75, 5.20), Vector3(0.46 * GU, 1.5 * GU, 1.35 * GU)], [Vector2(13.65, 4.85), Vector3(1.25 * GU, 1.5 * GU, 0.46 * GU)], [Vector2(13.25, 5.20), Vector3(0.46 * GU, 1.5 * GU, 1.35 * GU)], [Vector2(4.35, 13.15), Vector3(1.25 * GU, 1.5 * GU, 0.46 * GU)], [Vector2(4.75, 12.80), Vector3(0.46 * GU, 1.5 * GU, 1.35 * GU)], [Vector2(13.65, 13.15), Vector3(1.25 * GU, 1.5 * GU, 0.46 * GU)], [Vector2(13.25, 12.80), Vector3(0.46 * GU, 1.5 * GU, 1.35 * GU)]]:
-		_add_cover(a, "LCover", spec[0] as Vector2, spec[1] as Vector3, Vector3.ZERO)
 	for spec in [[Vector2(3.35, 9.0), Vector3(0.45 * GU, 1.5 * GU, 2.1 * GU)], [Vector2(14.65, 9.0), Vector3(0.45 * GU, 1.5 * GU, 2.1 * GU)]]:
 		_add_cover(a, "MidCover", spec[0] as Vector2, spec[1] as Vector3, Vector3.ZERO)
 
@@ -110,6 +111,7 @@ func _add_cover(a, prefix: String, grid: Vector2, size: Vector3, rotation_value:
 	var cover: MeshInstance3D = a.add_box(prefix, _world(grid.x, grid.y, size.y * 0.5), size, a.mat("purple"), true, rotation_value, null, a.surface("bounce"))
 	a.add_box(prefix + "NeonTrim", _world(grid.x, grid.y, size.y + 0.035 * GU), Vector3(size.x + 0.12 * GU, 0.07 * GU, size.z + 0.12 * GU), a.mat("violet_trim"), false, rotation_value)
 	a.mark_neon_element(cover, "low_cover", grid, Vector3(size.x / GU, 1.5, size.z / GU), {"top_height_gu": 1.5, "solid": true})
+	_mark_overlap_footprint(cover, grid, Vector2(size.x / GU, size.z / GU), rotation_value.y)
 	cover.add_to_group("duel_cover")
 	cover.set_meta("flow_lane", "left" if grid.x < 9.0 else "right")
 	cover.set_meta("cover_role", "blueprint low cover")
@@ -137,6 +139,7 @@ func _build_boost_pads(a) -> void:
 		a.add_route_chevron("BoostChevron", _world(grid.x, grid.y, 0.245 * GU), inward, a.mat("white"), 1.25)
 		_add_glow_light(a, _world(grid.x, grid.y, 0.42 * GU), Color(0.62, 0.96, 0.10), 2.4, 4.2 * GU)
 		a.mark_neon_element(boost, "boost_pad", grid, Vector3(1.5, 0.2, 1.5), {"launch_strength": "strong_medium", "emission_rank": 2, "direction": inward})
+		_mark_overlap_footprint(boost, grid, Vector2(1.5, 1.5), 0.0)
 		a.mark_duel_interactable(boost, "Square image-positioned boost pad launches toward the center", true)
 		a.mark_neon_element(base, "boost_pad_base", grid, Vector3(1.5, 0.16, 1.5), {"solid": true})
 
@@ -262,3 +265,10 @@ func _add_glow_light(a, position: Vector3, color: Color, energy: float, range_va
 	light.omni_range = range_value
 	light.shadow_enabled = false
 	a.visual_root().add_child(light)
+
+
+func _mark_overlap_footprint(node: Node, center: Vector2, size: Vector2, yaw: float) -> void:
+	node.add_to_group("overlap_audit")
+	node.set_meta("footprint_center", center)
+	node.set_meta("footprint_size", size)
+	node.set_meta("footprint_yaw", yaw)

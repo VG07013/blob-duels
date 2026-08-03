@@ -45,7 +45,10 @@ func _build_spawns_and_rush(a) -> void:
 		var grid_y := float(spec[0])
 		var material: Material = a.mat(spec[1] as String)
 		var platform_center := _world(17.0, grid_y, 0.95 * D)
-		a.add_box("SpawnPlatform", platform_center, Vector3(6.0 * D, 0.5 * D, 3.0 * D), a.mat("arena_wall"), true, Vector3.ZERO, null, a.surface("bounce"))
+		var platform: MeshInstance3D = a.add_box("SpawnPlatform", platform_center, Vector3(6.0 * D, 0.5 * D, 3.0 * D), a.mat("arena_wall"), true, Vector3.ZERO, null, a.surface("bounce"))
+		var support_key := String(platform.name)
+		a.mark_supported_structure(platform, support_key)
+		a.add_ground_support("SpawnPlatformBase", Vector3(platform_center.x, 0.35 * D, platform_center.z), Vector3(5.35 * D, 0.70 * D, 2.35 * D), a.mat("dark_metal"), support_key, a.surface("bounce"))
 		a.add_box("SpawnAccentInset", platform_center + Vector3.UP * 0.28 * D, Vector3(5.5 * D, 0.06 * D, 2.5 * D), material, false)
 		for side in [-1.0, 1.0]:
 			a.add_box("SpawnRearBarrier", platform_center + Vector3(side * 2.45 * D, 0.62 * D, signf(_world(17.0, grid_y).z) * 1.12 * D), Vector3(1.0 * D, 0.8 * D, 0.4 * D), a.mat("arena_trim"), true)
@@ -58,6 +61,7 @@ func _build_spawns_and_rush(a) -> void:
 func _add_rush_ramp(a, center: Vector3, yaw: float, accent: Material, prefix: String) -> void:
 	var ramp := GEOMETRY.add_curved_ramp(a, prefix, center, 8.0 * D, 5.0 * D, 1.2 * D, yaw, a.mat("arena_wall"), a.surface("bounce"), accent)
 	ramp.add_to_group("duel_cover")
+	_mark_overlap_footprint(ramp, Vector2(center.x / D + 17.0, 12.0 - center.z / D), Vector2(8.0, 5.0), yaw)
 	for fraction in [0.3, 0.5, 0.7]:
 		var offset := Basis(Vector3.UP, yaw) * Vector3(0, fraction * 1.2 * D + 0.05 * D, (fraction - 0.5) * 4.0 * D)
 		a.add_route_chevron(prefix + "Chevron", center + offset, Basis(Vector3.UP, yaw) * Vector3.FORWARD, accent, 0.8)
@@ -79,11 +83,14 @@ func _build_side_ramps(a) -> void:
 		var ramp: Node3D = GEOMETRY.add_curved_ramp(a, "DiagonalSideRamp", _world(grid.x, grid.y), 5.0 * D, 3.5 * D, 0.9 * D, yaw, a.mat("arena_wall"), a.surface("bounce"), accent)
 		ramp.add_to_group("duel_cover")
 		ramp.add_to_group("arena_diagonal_ramp")
+		_mark_overlap_footprint(ramp, grid, Vector2(5.0, 3.5), yaw)
 		a.add_flow_anchor("DiagonalRamp", _world(grid.x, grid.y), "flank_route", "left" if grid.x < 17.0 else "right")
 
 
 func _build_redirects(a) -> void:
-	var specs := [[Vector2(11.5, 8.5), -PI * 0.25], [Vector2(22.5, 8.5), PI * 0.25], [Vector2(11.5, 15.5), PI * 0.25], [Vector2(22.5, 15.5), -PI * 0.25]]
+	# Keep the redirect tips one full grid cell outside the rush-ramp hulls so the
+	# two bounce surfaces do not z-fight or create a hidden collision seam.
+	var specs := [[Vector2(10.5, 8.5), -PI * 0.25], [Vector2(23.5, 8.5), PI * 0.25], [Vector2(10.5, 15.5), PI * 0.25], [Vector2(23.5, 15.5), -PI * 0.25]]
 	for spec in specs:
 		var grid := spec[0] as Vector2
 		var yaw := float(spec[1])
@@ -91,6 +98,7 @@ func _build_redirects(a) -> void:
 		var wall: Node3D = GEOMETRY.add_beveled_redirect(a, "AngledRedirectWall", _world(grid.x, grid.y, D), 6.0 * D, 2.0 * D, 0.6 * D, yaw, a.mat("arena_wall"), accent, a.surface("bounce"))
 		wall.add_to_group("duel_cover")
 		wall.add_to_group("arena_redirect_wall")
+		_mark_overlap_footprint(wall, grid, Vector2(0.6, 6.0), yaw)
 		a.add_box("RedirectTopRail", _world(grid.x, grid.y, 2.05 * D), Vector3(0.72 * D, 0.10 * D, 6.0 * D), accent, false, Vector3(0, yaw, 0))
 		a.add_flow_anchor("RedirectWall", _world(grid.x, grid.y), "rebound_route", "left" if grid.x < 17.0 else "right")
 	var landmark: Node3D = a.add_landmark_root("CentralDividerLandmark")
@@ -126,3 +134,10 @@ func _build_wall_facades(a) -> void:
 			var x_inset := 0.2 * D if grid_x < 17.0 else -0.2 * D
 			a.add_box("WallRecessPanel", _world(grid_x, grid_y, 1.65 * D) + Vector3(x_inset, 0, 0), Vector3(0.12 * D, 1.65 * D, 2.6 * D), a.mat("arena_wall"), false)
 			_add_plus(a, _world(grid_x + (0.2 if grid_x < 17.0 else -0.2), grid_y, 1.68 * D), 0.55 * D)
+
+
+func _mark_overlap_footprint(node: Node, center: Vector2, size: Vector2, yaw: float) -> void:
+	node.add_to_group("overlap_audit")
+	node.set_meta("footprint_center", center)
+	node.set_meta("footprint_size", size)
+	node.set_meta("footprint_yaw", yaw)

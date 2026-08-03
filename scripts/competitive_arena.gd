@@ -12,6 +12,7 @@ const MODELS_SCRIPT := preload("res://scripts/environment/arena_models.gd")
 const ASSET_LIBRARY := preload("res://scripts/environment/environment_asset_library.gd")
 const ENVIRONMENT_ART := preload("res://scripts/environment/environment_art.gd")
 const ENVIRONMENT_PRESENTATION := preload("res://scripts/environment/environment_presentation.gd")
+const AETHER_GEOMETRY := preload("res://scripts/environment/aether_citadel_geometry.gd")
 const LAUNCH_PAD_SCENE := preload("res://scenes/interactables/launch_pad.tscn")
 const WIND_ZONE_SCENE := preload("res://scenes/interactables/wind_zone.tscn")
 const MOVING_PLATFORM_SCENE := preload("res://scenes/interactables/moving_platform.tscn")
@@ -93,7 +94,7 @@ const FABRIC_WEAVE_TEXTURE: Texture2D = preload("res://assets/environment/textur
 const SOIL_PEBBLES_TEXTURE: Texture2D = preload("res://assets/environment/textures/soil_pebbles.svg")
 const WOOD_GRAIN_TEXTURE: Texture2D = preload("res://assets/environment/textures/wood_grain.svg")
 
-@export_enum("Neon Arcade", "Backyard", "Arena", "Sky Temple", "Toybox") var theme_id := 0
+@export_enum("Neon Arcade", "Backyard", "Arena", "Aether Citadel", "Toybox") var theme_id := 0
 @export var map_name := "Neon Arcade"
 @export var arena_half_width := 40.0
 @export var arena_half_length := 120.0
@@ -119,6 +120,12 @@ func _ready() -> void:
 	theme_id = clampi(theme_id, 0, BUILDER_SCRIPTS.size() - 1)
 	if is_arena_blueprint():
 		arena_aspect_ratio = 24.0 / 34.0
+	if is_backyard_blueprint():
+		arena_aspect_ratio = 64.0 / 84.0
+	if is_toybox_blueprint():
+		arena_aspect_ratio = 2.0
+	if is_aether_citadel():
+		arena_aspect_ratio = 1.5
 	arena_half_length = arena_half_width * arena_aspect_ratio
 	_create_roots()
 	_build_materials()
@@ -126,9 +133,9 @@ func _ready() -> void:
 	_build_shell()
 	var builder = BUILDER_SCRIPTS[theme_id].new()
 	_map_audit = builder.call("build", self)
-	if not is_neon_arcade() and not is_arena_blueprint():
+	if not is_neon_arcade() and not is_arena_blueprint() and not is_backyard_blueprint() and not is_toybox_blueprint() and not is_aether_citadel():
 		ENVIRONMENT_ART.decorate(self, theme_id)
-	if not is_neon_arcade() and not is_arena_blueprint():
+	if not is_neon_arcade() and not is_arena_blueprint() and not is_backyard_blueprint() and not is_toybox_blueprint() and not is_aether_citadel():
 		var presentation := ENVIRONMENT_PRESENTATION.new()
 		presentation.configure(theme_id, arena_half_width, arena_half_length)
 		add_child(presentation)
@@ -170,6 +177,51 @@ func get_lighting_profile() -> Dictionary:
 		profile["fog_energy"] = 0.16
 		profile["fog_density"] = 0.00016
 		profile["fog_sky_affect"] = 0.18
+	if is_backyard_blueprint():
+		profile["sky_top"] = Color(0.20, 0.58, 0.92)
+		profile["sky_horizon"] = Color(0.82, 0.94, 1.0)
+		profile["ambient"] = Color(0.84, 0.88, 0.76)
+		profile["ambient_energy"] = 0.68
+		profile["sun_color"] = Color(1.0, 0.91, 0.72)
+		profile["sun_energy"] = 1.18
+		profile["sun_rotation"] = Vector3(-48, -34, 0)
+		profile["sun_size"] = 22.0
+		profile["fog"] = Color(0.74, 0.87, 0.86)
+		profile["fog_energy"] = 0.28
+		profile["fog_density"] = 0.00018
+		profile["fog_sky_affect"] = 0.16
+	if is_toybox_blueprint():
+		# The reference is a bright indoor playroom: soft neutral daylight preserves
+		# all six foam colors without atmospheric haze or arcade-style bloom.
+		profile["sky_top"] = Color("A9D8F2")
+		profile["sky_horizon"] = Color("F4E9D2")
+		profile["ambient"] = Color("F4E6D4")
+		profile["ambient_energy"] = 0.52
+		profile["sun_color"] = Color("FFF1D2")
+		profile["sun_energy"] = 0.94
+		profile["sun_rotation"] = Vector3(-52, -34, 0)
+		profile["sun_size"] = 25.0
+		profile["fog"] = Color("D9E8EA")
+		profile["fog_energy"] = 0.0
+		profile["fog_density"] = 0.0
+		profile["fog_sky_affect"] = 0.0
+	if is_aether_citadel():
+		profile["sky_top"] = Color("3C77BE")
+		profile["sky_horizon"] = Color("D9F3FA")
+		profile["ambient"] = Color("DCEAF1")
+		profile["ambient_energy"] = 0.62
+		profile["sun_color"] = Color("FFF3D2")
+		profile["sun_energy"] = 1.14
+		profile["sun_rotation"] = Vector3(-48, -28, 0)
+		profile["sun_size"] = 20.0
+		profile["fog"] = Color("A9D8EA")
+		profile["fog_energy"] = 0.18
+		profile["fog_density"] = 0.00012
+		profile["fog_sky_affect"] = 0.12
+		profile["glow_enabled"] = true
+		profile["glow_intensity"] = 0.68
+		profile["glow_strength"] = 0.82
+		profile["glow_bloom"] = 0.08
 	if is_neon_arcade():
 		profile["glow_enabled"] = true
 		# Keep the image's hard neon edge definition: the center/boosts bloom, but the
@@ -194,6 +246,18 @@ func is_neon_arcade() -> bool:
 
 func is_arena_blueprint() -> bool:
 	return theme_id == 2 and map_name == "Arena"
+
+
+func is_backyard_blueprint() -> bool:
+	return theme_id == 1 and map_name == "Backyard"
+
+
+func is_toybox_blueprint() -> bool:
+	return theme_id == 4 and map_name == "Toybox"
+
+
+func is_aether_citadel() -> bool:
+	return theme_id == 3 and map_name == "Aether Citadel"
 
 
 func visual_root() -> Node3D:
@@ -270,6 +334,17 @@ func mark_neon_element(node: Node, kind: String, gu_position: Vector2 = Vector2.
 	if node == null:
 		return node
 	node.set_meta("neon_kind", kind)
+	node.set_meta("gu_position", gu_position)
+	node.set_meta("gu_size", gu_size)
+	for key in extra:
+		node.set_meta(key, extra[key])
+	return node
+
+
+func mark_toybox_element(node: Node, kind: String, gu_position: Vector2 = Vector2.ZERO, gu_size := Vector3.ZERO, extra: Dictionary = {}) -> Node:
+	if node == null:
+		return node
+	node.set_meta("toybox_kind", kind)
 	node.set_meta("gu_position", gu_position)
 	node.set_meta("gu_size", gu_size)
 	for key in extra:
@@ -399,13 +474,44 @@ func add_trimmed_box(prefix: String, position: Vector3, size: Vector3, body_mate
 	add_box(prefix + "BottomTrim", position - Vector3(0, size.y * 0.5 - 0.28, 0), Vector3(size.x + 0.5, 0.56, size.z + 0.5), trim_material, false, Vector3.ZERO, parent)
 
 
-func add_ramp(prefix: String, position: Vector3, size: Vector3, material: Material, rotation_value: Vector3, physics_material: PhysicsMaterial = null) -> void:
-	add_box(prefix, position, size, material, true, rotation_value, null, physics_material)
+func add_ramp(prefix: String, position: Vector3, size: Vector3, material: Material, rotation_value: Vector3, physics_material: PhysicsMaterial = null) -> MeshInstance3D:
+	var ramp := add_box(prefix, position, size, material, true, rotation_value, null, physics_material)
+	var support_key := String(ramp.name)
+	mark_supported_structure(ramp, support_key)
+	# Legacy theme ramps are tilted rectangular slabs. Their low edge reaches the
+	# court, but the raised half used to expose a disconnected underside. Two
+	# recessed piers now carry that underside down to the foundation without
+	# narrowing the playable ramp surface.
+	var basis := Basis.from_euler(rotation_value)
+	for fraction in [-0.24, 0.24]:
+		var underside_offset := basis * Vector3(size.x * fraction, -size.y * 0.5, 0)
+		var support_top := position.y + underside_offset.y
+		if support_top <= 0.18:
+			continue
+		var support_center := position + underside_offset
+		support_center.y = support_top * 0.5
+		add_ground_support(prefix + "Pier", support_center, Vector3(maxf(1.2, size.x * 0.09), support_top, size.z * 0.78), mat("dark_metal"), support_key, physics_material)
 	var ramp_basis := Basis.from_euler(rotation_value)
 	var edge_a_offset := ramp_basis * Vector3(-size.x * 0.5 + 0.45, 1.0, 0)
 	var edge_b_offset := ramp_basis * Vector3(size.x * 0.5 - 0.45, 1.0, 0)
 	add_box(prefix + "EdgeA", position + edge_a_offset, Vector3(0.5, 2.0, size.z), mat("hazard"), false, rotation_value)
 	add_box(prefix + "EdgeB", position + edge_b_offset, Vector3(0.5, 2.0, size.z), mat("hazard"), false, rotation_value)
+	return ramp
+
+
+func mark_supported_structure(node: Node, support_key: String) -> Node:
+	if node == null:
+		return node
+	node.add_to_group("supported_elevated_structure")
+	node.set_meta("support_key", support_key)
+	return node
+
+
+func add_ground_support(prefix: String, position: Vector3, size: Vector3, material: Material, support_key: String, physics_material: PhysicsMaterial = null) -> MeshInstance3D:
+	var support := add_box(prefix, position, size, material, true, Vector3.ZERO, null, physics_material)
+	support.add_to_group("structural_support")
+	support.set_meta("support_key", support_key)
+	return support
 
 
 func add_arch(prefix: String, position: Vector3, width: float, height: float, body_material: Material, trim_material: Material) -> void:
@@ -619,11 +725,65 @@ func _build_materials() -> void:
 		_materials["arena_marking"] = _make_material(Color("D3D7DA"), 0.48, 0.38)
 		_materials["arena_blue"] = _make_material(Color("278CFF"), 0.34, 0.16, 0.42)
 		_materials["arena_orange"] = _make_material(Color("F36B32"), 0.36, 0.14, 0.42)
-	if theme_id == 3:
-		_materials["white"] = _make_material(Color(0.7, 0.76, 0.78), 0.78)
-		_materials["stone"] = _make_textured_material(STONE_BLOCKS_TEXTURE, Color(0.48, 0.52, 0.5), 0.94, 5.0)
-		_materials["marble"] = _make_textured_material(STONE_BLOCKS_TEXTURE, Color(0.58, 0.63, 0.62), 0.76, 4.0)
-		_materials["cloud"] = _make_material(Color(0.78, 0.84, 0.88), 1.0)
+	if is_backyard_blueprint():
+		_materials["backyard_grass"] = _make_turf_material(Color("6F9A4A"), Color("587E3B"))
+		_materials["backyard_grass_light"] = _make_material(Color("769E50"), 0.98)
+		_materials["backyard_grass_dark"] = _make_material(Color("638B43"), 0.98)
+		_materials["backyard_wood"] = _make_textured_material(WOOD_GRAIN_TEXTURE, Color("8A5934"), 0.82, 9.0)
+		_materials["backyard_wood_light"] = _make_textured_material(WOOD_GRAIN_TEXTURE, Color("B47A4C"), 0.78, 8.0)
+		_materials["backyard_wood_dark"] = _make_textured_material(WOOD_GRAIN_TEXTURE, Color("65432D"), 0.9, 9.0)
+		_materials["backyard_fence"] = _make_textured_material(WOOD_GRAIN_TEXTURE, Color("765035"), 0.88, 8.0)
+		_materials["backyard_stone"] = _make_textured_material(STONE_BLOCKS_TEXTURE, Color("A9A28D"), 0.92, 5.0)
+		_materials["backyard_stone_light"] = _make_textured_material(STONE_BLOCKS_TEXTURE, Color("C3BDA9"), 0.9, 5.0)
+		_materials["backyard_hose"] = _make_material(Color("26705B"), 0.55, 0.08)
+		_materials["backyard_hose_light"] = _make_material(Color("3C8B70"), 0.48, 0.12)
+		_materials["backyard_red"] = _make_material(Color("D7534B"), 0.58, 0.04)
+		_materials["backyard_blue"] = _make_material(Color("347FD0"), 0.52, 0.08)
+		_materials["backyard_cream"] = _make_material(Color("FFF4D9"), 0.82)
+		_materials["backyard_terracotta"] = _make_material(Color("B7693C"), 0.86)
+		_materials["backyard_flower_red"] = _make_material(Color("D95B4F"), 0.78)
+		_materials["backyard_flower_yellow"] = _make_material(Color("F4C84A"), 0.76)
+		_materials["backyard_flower_pink"] = _make_material(Color("E9799B"), 0.76)
+		_materials["backyard_leaf"] = _make_material(Color("3F7E3E"), 0.94)
+		_materials["backyard_water"] = _make_material(Color("43B7E8", 0.62), 0.12, 0.1, 0.9)
+		# Collision encloses the map, but the canopy must remain almost invisible from
+		# gameplay cameras; the thin grid lines carry the net read without bleaching grass.
+		_materials["backyard_net"] = _make_material(Color(0.92, 0.96, 0.97, 0.045), 0.35, 0.02)
+		_materials["backyard_net_line"] = _make_material(Color(0.94, 0.97, 0.98, 0.24), 0.32, 0.02)
+		_materials["backyard_gingham"] = _make_striped_material(Color("F9EEE1"), Color("D7534B"), 16.0, 0.82)
+	if is_toybox_blueprint():
+		# Literal blueprint palette. Soft toy plastic/fabric roughness prevents the
+		# colored pieces from reading as neon, metal, or generic primitive blocks.
+		_materials["toybox_red"] = _make_textured_material(TOY_PLASTIC_TEXTURE, Color("E7433C"), 0.78, 4.5)
+		_materials["toybox_red_dark"] = _make_textured_material(TOY_PLASTIC_TEXTURE, Color("A92D30"), 0.82, 4.5)
+		_materials["toybox_blue"] = _make_textured_material(TOY_PLASTIC_TEXTURE, Color("3F79C8"), 0.76, 4.5)
+		_materials["toybox_blue_dark"] = _make_textured_material(TOY_PLASTIC_TEXTURE, Color("2857A0"), 0.82, 4.5)
+		_materials["toybox_yellow"] = _make_textured_material(TOY_PLASTIC_TEXTURE, Color("F2BD27"), 0.76, 4.5)
+		_materials["toybox_yellow_light"] = _make_material(Color("FFE36A"), 0.68)
+		_materials["toybox_green"] = _make_textured_material(TOY_PLASTIC_TEXTURE, Color("71A444"), 0.79, 4.5)
+		_materials["toybox_green_light"] = _make_material(Color("A5C85A"), 0.72)
+		_materials["toybox_orange"] = _make_textured_material(TOY_PLASTIC_TEXTURE, Color("ED842C"), 0.76, 4.5)
+		_materials["toybox_purple"] = _make_textured_material(TOY_PLASTIC_TEXTURE, Color("935BB2"), 0.77, 4.5)
+		_materials["toybox_light_blue"] = _make_material(Color("45AEDD"), 0.68)
+		_materials["toybox_teal"] = _make_material(Color("24A3A1"), 0.72)
+		_materials["toybox_pink"] = _make_material(Color("DF5C91"), 0.72)
+		_materials["toybox_wood"] = _make_textured_material(WOOD_GRAIN_TEXTURE, Color("A87342"), 0.86, 6.0)
+		_materials["toybox_tan"] = _make_textured_material(WOOD_GRAIN_TEXTURE, Color("C69A65"), 0.84, 6.0)
+		_materials["toybox_gray"] = _make_material(Color("8D9298"), 0.80)
+		_materials["toybox_floor_seam"] = _make_material(Color("24394B"), 0.88)
+		_materials["toybox_glass"] = _make_material(Color(0.72, 0.88, 0.97, 0.075), 0.18)
+		_materials["toybox_invisible"] = _make_material(Color(1.0, 1.0, 1.0, 0.0), 1.0)
+	if is_aether_citadel():
+		_materials["aether_navy"] = _make_textured_material(STONE_BLOCKS_TEXTURE, Color("0B1730"), 0.88, 7.0, 0.04)
+		_materials["aether_ivory"] = _make_textured_material(STONE_BLOCKS_TEXTURE, Color("E8E0CF"), 0.74, 5.0)
+		_materials["aether_gold"] = _make_textured_material(BRUSHED_METAL_TEXTURE, Color("E6AF3A"), 0.28, 5.0, 0.72)
+		_materials["aether_cyan"] = _make_material(Color("48CDE8"), 0.24, 0.08, 1.3)
+		_materials["aether_blue"] = _make_material(Color("4E83D7"), 0.54, 0.02, 0.18)
+		_materials["aether_violet"] = _make_material(Color("7657B5"), 0.48, 0.04, 0.28)
+		_materials["aether_amber"] = _make_material(Color("EA7B4B"), 0.42, 0.04, 0.5)
+		_materials["aether_white"] = _make_material(Color("F4F8FA"), 0.42, 0.0, 0.72)
+		_materials["aether_glass"] = _make_material(Color(0.62, 0.87, 0.95, 0.045), 0.16, 0.0, 0.04)
+		_materials["aether_seam"] = _make_material(Color("23304A"), 0.68, 0.12)
 	var floor_textures := [FABRIC_WEAVE_TEXTURE, SOIL_PEBBLES_TEXTURE, ASPHALT_TEXTURE, STONE_BLOCKS_TEXTURE, TOY_PLASTIC_TEXTURE]
 	var floor_colors := [
 		[Color(0.025, 0.035, 0.1), Color(0.18, 0.04, 0.3)],
@@ -650,8 +810,17 @@ func _build_shell() -> void:
 	if is_neon_arcade():
 		_build_neon_arcade_shell()
 		return
+	if is_backyard_blueprint():
+		_build_backyard_blueprint_shell()
+		return
 	if is_arena_blueprint():
 		_build_arena_blueprint_shell()
+		return
+	if is_toybox_blueprint():
+		_build_toybox_blueprint_shell()
+		return
+	if is_aether_citadel():
+		_build_aether_citadel_shell()
 		return
 	var w := arena_half_width
 	var l := arena_half_length
@@ -678,6 +847,199 @@ func _build_shell() -> void:
 	add_box("EastTopRail", Vector3(w - 1.2, wall_height + 0.8, 0), Vector3(2.4, 1.6, l * 2.0), trim, false)
 	add_box("NorthTopRail", Vector3(0, wall_height + 0.8, -l + 1.2), Vector3(w * 2.0, 1.6, 2.4), trim, false)
 	add_box("SouthTopRail", Vector3(0, wall_height + 0.8, l - 1.2), Vector3(w * 2.0, 1.6, 2.4), trim, false)
+
+
+func _build_aether_citadel_shell() -> void:
+	var gu := arena_half_width / 24.0
+	var wall_height := 4.0 * gu
+	var wall_thickness := 2.0 * gu
+	var glass_height := 10.5 * gu
+	var glass_thickness := 0.4 * gu
+	var roof_height := 14.5 * gu
+	# The eight segment centers sit halfway between the 48x72 outer footprint and
+	# the 44x68 playable interior. Their collision and visible masonry are identical.
+	var grid_points := [Vector2(3, 1), Vector2(45, 1), Vector2(47, 3), Vector2(47, 69), Vector2(45, 71), Vector2(3, 71), Vector2(1, 69), Vector2(1, 3)]
+	var world_points: Array[Vector3] = []
+	for grid in grid_points:
+		world_points.append(Vector3((grid.x - 24.0) * gu, 0, (36.0 - grid.y) * gu))
+	for index in range(world_points.size()):
+		var point_a := world_points[index]
+		var point_b := world_points[(index + 1) % world_points.size()]
+		var delta := point_b - point_a
+		var center := (point_a + point_b) * 0.5
+		var yaw := atan2(delta.x, delta.z)
+		var inward := -Vector3(center.x, 0, center.z).normalized()
+		var wall := add_box("AetherParapetModule", center + Vector3.UP * wall_height * 0.5, Vector3(wall_thickness, wall_height, delta.length() + 0.04 * gu), mat("aether_ivory"), true, Vector3(0, yaw, 0), null, BOUNCE_SURFACE)
+		wall.set_meta("aether_kind", "wall_module")
+		wall.set_meta("gu_position", Vector2(center.x / gu + 24.0, 36.0 - center.z / gu))
+		wall.set_meta("gu_size", Vector3(2.0, 4.0, delta.length() / gu))
+		wall.set_meta("closed_collision", true)
+		# Recessed navy face, cyan channel, gold crown rail, and buttresses give every
+		# module the layered celestial architecture shown in the approved sheet.
+		add_box("AetherWallRecess", center + inward * (1.04 * gu) + Vector3.UP * 1.9 * gu, Vector3(0.12 * gu, 2.45 * gu, delta.length() * 0.76), mat("aether_navy"), false, Vector3(0, yaw, 0))
+		add_box("AetherWallCyanChannel", center + inward * (1.12 * gu) + Vector3.UP * 2.0 * gu, Vector3(0.08 * gu, 0.18 * gu, delta.length() * 0.66), mat("aether_cyan"), false, Vector3(0, yaw, 0))
+		add_box("AetherGoldCrownRail", center + inward * (0.08 * gu) + Vector3.UP * 3.84 * gu, Vector3(wall_thickness + 0.18 * gu, 0.22 * gu, delta.length() * 0.96), mat("aether_gold"), false, Vector3(0, yaw, 0))
+		for fraction in [0.17, 0.5, 0.83]:
+			var buttress_position := point_a.lerp(point_b, fraction)
+			add_box("AetherWallButtress", buttress_position + inward * 0.22 * gu + Vector3.UP * 2.0 * gu, Vector3(2.45 * gu, 4.0 * gu, 0.58 * gu), mat("aether_ivory"), true, Vector3(0, yaw, 0), null, BOUNCE_SURFACE)
+		var glass_center_y := wall_height + glass_height * 0.5
+		add_box("AetherStormglassWall", center + Vector3.UP * glass_center_y, Vector3(glass_thickness, glass_height, delta.length() + 0.02 * gu), mat("aether_glass"), true, Vector3(0, yaw, 0), null, ICE_SURFACE)
+		add_box("StormglassGoldTopRail", center + Vector3.UP * (roof_height - 0.14 * gu), Vector3(0.28 * gu, 0.28 * gu, delta.length()), mat("aether_gold"), false, Vector3(0, yaw, 0))
+	var roof_polygon := AETHER_GEOMETRY.clipped_rectangle(48.0 * gu, 72.0 * gu, 3.0 * gu)
+	var roof := AETHER_GEOMETRY.add_extruded_polygon(self, "AetherStormglassRoof", Vector3(0, roof_height - 0.2 * gu, 0), roof_polygon, 0.4 * gu, mat("aether_glass"), ICE_SURFACE)
+	roof.set_meta("aether_kind", "transparent_roof")
+	roof.set_meta("gu_position", Vector2(24, 36))
+	roof.set_meta("gu_size", Vector3(48, 0.4, 72))
+	roof.set_meta("momentum_preserving", true)
+	roof.add_to_group("arena_roof")
+	for x_gu in [-12.0, 0.0, 12.0]:
+		add_box("AetherRoofLongFrame", Vector3(x_gu * gu, roof_height + 0.23 * gu, 0), Vector3(0.18 * gu, 0.22 * gu, 66.0 * gu), mat("aether_gold"), false)
+	for z_gu in [-24.0, 0.0, 24.0]:
+		add_box("AetherRoofCrossFrame", Vector3(0, roof_height + 0.23 * gu, z_gu * gu), Vector3(42.0 * gu, 0.22 * gu, 0.18 * gu), mat("aether_cyan"), false)
+	for x_side in [-1.0, 1.0]:
+		for z_side in [-1.0, 1.0]:
+			add_cylinder("StormglassCornerFinial", Vector3(x_side * 22.6 * gu, roof_height * 0.5, z_side * 34.6 * gu), 0.42 * gu, roof_height, mat("aether_gold"), true, Vector3.ZERO, null, BOUNCE_SURFACE)
+
+
+func _build_toybox_blueprint_shell() -> void:
+	var gu := arena_half_width / 32.0
+	var wall_height := 10.0 * gu
+	var roof_height := 18.0 * gu
+	var wall_thickness := 2.0 * gu
+	# One floor and four uninterrupted base walls are the anti-phasing authority.
+	add_box("ToyboxContinuousFoamFloor", Vector3(0, -0.5 * gu, 0), Vector3(64.0 * gu, 1.0 * gu, 128.0 * gu), mat("toybox_floor_seam"), true, Vector3.ZERO, null, GRIP_SURFACE)
+	add_box("ToyboxWestWallSolid", Vector3(-31.0 * gu, wall_height * 0.5, 0), Vector3(wall_thickness, wall_height, 128.0 * gu), mat("toybox_invisible"), true, Vector3.ZERO, null, BOUNCE_SURFACE)
+	add_box("ToyboxEastWallSolid", Vector3(31.0 * gu, wall_height * 0.5, 0), Vector3(wall_thickness, wall_height, 128.0 * gu), mat("toybox_invisible"), true, Vector3.ZERO, null, BOUNCE_SURFACE)
+	add_box("ToyboxNorthWallSolid", Vector3(0, wall_height * 0.5, 63.0 * gu), Vector3(64.0 * gu, wall_height, wall_thickness), mat("toybox_invisible"), true, Vector3.ZERO, null, BOUNCE_SURFACE)
+	add_box("ToyboxSouthWallSolid", Vector3(0, wall_height * 0.5, -63.0 * gu), Vector3(64.0 * gu, wall_height, wall_thickness), mat("toybox_invisible"), true, Vector3.ZERO, null, BOUNCE_SURFACE)
+	var sequence := ["toybox_red", "toybox_yellow", "toybox_green", "toybox_blue", "toybox_purple", "toybox_orange"]
+	# The visible padded wall is built from the same repeating 8-GU modules shown
+	# in the inside-wall reference, with narrow dark seams between cushions.
+	for side_value in [-1.0, 1.0]:
+		var side: float = side_value
+		for index in range(16):
+			var z_gu := -60.0 + float(index) * 8.0
+			var material: Material = mat(sequence[index % sequence.size()])
+			var section := add_box("ToyboxPaddedSideWall", Vector3(side * 29.74 * gu, 5.0 * gu, z_gu * gu), Vector3(0.38 * gu, 9.4 * gu, 7.62 * gu), material, false)
+			mark_toybox_element(section, "padded_wall_section", Vector2(1 if side < 0.0 else 63, 64.0 - z_gu), Vector3(2, 10, 8), {"solid_backing": true})
+			_add_toybox_cushion_details(Vector3(side * 29.51 * gu, 5.0 * gu, z_gu * gu), Vector3(0.16 * gu, 8.8 * gu, 7.1 * gu), side < 0.0, material)
+		for index in range(8):
+			var x_gu := -28.0 + float(index) * 8.0
+			var palette_index := posmod(index + (2 if side < 0.0 else 0), sequence.size())
+			var material: Material = mat(sequence[palette_index])
+			var section := add_box("ToyboxPaddedEndWall", Vector3(x_gu * gu, 5.0 * gu, side * 61.74 * gu), Vector3(7.62 * gu, 9.4 * gu, 0.38 * gu), material, false)
+			mark_toybox_element(section, "padded_wall_section", Vector2(x_gu + 32.0, 1 if side > 0.0 else 127), Vector3(8, 10, 2), {"solid_backing": true})
+			_add_toybox_cushion_details(Vector3(x_gu * gu, 5.0 * gu, side * 61.51 * gu), Vector3(7.1 * gu, 8.8 * gu, 0.16 * gu), false, material)
+	# Rounded red posts finish the four corners and have their own solid cylinders.
+	for x_side in [-1.0, 1.0]:
+		for z_side in [-1.0, 1.0]:
+			var post := add_cylinder("ToyboxRoundedCornerPost", Vector3(x_side * 31.0 * gu, 5.0 * gu, z_side * 63.0 * gu), 1.5 * gu, wall_height, mat("toybox_red"), true, Vector3.ZERO, null, BOUNCE_SURFACE)
+			mark_toybox_element(post, "corner_post", Vector2(32.0 + x_side * 31.0, 64.0 - z_side * 63.0), Vector3(3, 10, 3))
+	# Dark bottom trim makes the cushions feel seated in a real padded enclosure.
+	for side in [-1.0, 1.0]:
+		add_box("ToyboxLongBaseTrim", Vector3(side * 30.55 * gu, 0.35 * gu, 0), Vector3(0.3 * gu, 0.7 * gu, 124.0 * gu), mat("toybox_floor_seam"), false)
+		add_box("ToyboxEndBaseTrim", Vector3(0, 0.35 * gu, side * 62.55 * gu), Vector3(60.0 * gu, 0.7 * gu, 0.3 * gu), mat("toybox_floor_seam"), false)
+	# Transparent upper enclosure and roof are solid, momentum-preserving surfaces.
+	var upper_center_y := 14.0 * gu
+	var upper_height := 8.0 * gu
+	for side in [-1.0, 1.0]:
+		add_box("ToyboxUpperGlassSide", Vector3(side * 31.0 * gu, upper_center_y, 0), Vector3(0.4 * gu, upper_height, 128.0 * gu), mat("toybox_glass"), true, Vector3.ZERO, null, ICE_SURFACE)
+		add_box("ToyboxUpperGlassEnd", Vector3(0, upper_center_y, side * 63.0 * gu), Vector3(64.0 * gu, upper_height, 0.4 * gu), mat("toybox_glass"), true, Vector3.ZERO, null, ICE_SURFACE)
+	var roof := add_box("ToyboxTransparentCanopy", Vector3(0, roof_height, 0), Vector3(64.0 * gu, 0.4 * gu, 128.0 * gu), mat("toybox_glass"), true, Vector3.ZERO, null, ICE_SURFACE)
+	mark_toybox_element(roof, "transparent_roof", Vector2(32, 64), Vector3(64, 0.4, 128), {"height_gu": 18.0, "full_coverage": true})
+	for x_gu in [-32.0, 0.0, 32.0]:
+		add_box("ToyboxCanopyFrameLong", Vector3(x_gu * gu, roof_height + 0.16 * gu, 0), Vector3(0.20 * gu, 0.28 * gu, 128.0 * gu), mat("toybox_light_blue"), false)
+	for z_gu in [-64.0, 0.0, 64.0]:
+		add_box("ToyboxCanopyFrameCross", Vector3(0, roof_height + 0.16 * gu, z_gu * gu), Vector3(64.0 * gu, 0.28 * gu, 0.20 * gu), mat("toybox_light_blue"), false)
+
+
+func _add_toybox_cushion_details(position: Vector3, size: Vector3, side_wall: bool, material: Material) -> void:
+	# Rounded-looking face panel plus shallow edge piping adds the reference's sewn,
+	# padded depth without introducing extra gameplay collision seams.
+	add_box("ToyboxCushionFace", position, size, material, false)
+	if side_wall:
+		for z_side in [-1.0, 1.0]:
+			add_cylinder("ToyboxCushionPiping", position + Vector3(0, 0, z_side * size.z * 0.49), 0.12 * (arena_half_width / 32.0), size.y * 0.94, mat("toybox_floor_seam"), false)
+	else:
+		for x_side in [-1.0, 1.0]:
+			add_cylinder("ToyboxCushionPiping", position + Vector3(x_side * size.x * 0.49, 0, 0), 0.12 * (arena_half_width / 32.0), size.y * 0.94, mat("toybox_floor_seam"), false)
+	add_box("ToyboxCushionTopPiping", position + Vector3.UP * size.y * 0.49, Vector3(size.x * 1.05, 0.10 * (arena_half_width / 32.0), size.z * 1.05), mat("toybox_floor_seam"), false)
+
+
+func _build_backyard_blueprint_shell() -> void:
+	var d := arena_half_width / 21.0
+	var gu := d * 0.5
+	var fence_height := 2.5 * d
+	var fence_thickness := 0.5 * d
+	var roof_height := 5.8 * d
+	# One unbroken grass collision slab avoids floor seams at the picnic and route pieces.
+	add_box("BackyardGround", Vector3(0, -0.2 * d, 0), Vector3(84.0 * gu, 0.4 * d, 64.0 * gu), mat("backyard_grass"), true, Vector3.ZERO, null, GRIP_SURFACE)
+	# Eight long-wall and six side-wall bays keep the solid shell continuous while their
+	# shallow depth offsets/angles create the predictable fence redirects in the spec.
+	for side in [-1.0, 1.0]:
+		for index in range(8):
+			var x_gu := -35.0 + float(index) * 10.0
+			var recess: float = float([0.0, 0.22, -0.18, 0.0, 0.0, -0.18, 0.22, 0.0][index]) * d
+			var yaw: float = float([0.0, 0.025, -0.025, 0.0, 0.0, 0.025, -0.025, 0.0][index]) * side
+			var position := Vector3(x_gu * gu, fence_height * 0.5, side * (31.5 * gu) - side * recess)
+			var section := add_box("BackyardFenceSection", position, Vector3(10.05 * gu, fence_height, fence_thickness), mat("backyard_fence"), true, Vector3(0, yaw, 0), null, BOUNCE_SURFACE)
+			mark_backyard_element(section, "perimeter_fence_section", Vector2(x_gu + 42.0, 0.5 if side > 0.0 else 63.5), Vector3(10.05, 5.0, 1.0))
+			_add_backyard_fence_face(position, Vector3(10.05 * gu, fence_height, fence_thickness), Vector3(0, yaw, 0), true)
+		for index in range(6):
+			var z_gu := -25.0 + float(index) * 10.0
+			var recess: float = float([0.0, 0.22, -0.16, -0.16, 0.22, 0.0][index]) * d
+			var yaw: float = PI * 0.5 + float([0.0, 0.025, -0.025, 0.025, -0.025, 0.0][index]) * side
+			var position := Vector3(side * (41.5 * gu) - side * recess, fence_height * 0.5, z_gu * gu)
+			var section := add_box("BackyardFenceSection", position, Vector3(10.05 * gu, fence_height, fence_thickness), mat("backyard_fence"), true, Vector3(0, yaw, 0), null, BOUNCE_SURFACE)
+			mark_backyard_element(section, "perimeter_fence_section", Vector2(0.5 if side < 0.0 else 83.5, 32.0 - z_gu), Vector3(10.05, 5.0, 1.0))
+			_add_backyard_fence_face(position, Vector3(10.05 * gu, fence_height, fence_thickness), Vector3(0, yaw, 0), false)
+	# Softly beveled solid corners close every join without ninety-degree trap pockets.
+	for x_side in [-1.0, 1.0]:
+		for z_side in [-1.0, 1.0]:
+			var corner := Vector3(x_side * 40.8 * gu, fence_height * 0.5, z_side * 30.8 * gu)
+			var yaw: float = -x_side * z_side * PI * 0.25
+			var bevel := add_box("BackyardFenceBevel", corner, Vector3(3.0 * gu, fence_height, fence_thickness), mat("backyard_fence"), true, Vector3(0, yaw, 0), null, BOUNCE_SURFACE)
+			mark_backyard_element(bevel, "perimeter_fence_section", Vector2(42.0 + x_side * 40.8, 32.0 - z_side * 30.8), Vector3(3, 5, 1))
+	# One merged stone rebound strip per wall: broad enough to meet the fence, never a trap gap.
+	for side in [-1.0, 1.0]:
+		add_box("StonePerimeterLong", Vector3(0, 0.175 * d, side * 30.7 * gu), Vector3(80.0 * gu, 0.35 * d, 0.65 * d), mat("backyard_stone"), true, Vector3.ZERO, null, BOUNCE_SURFACE)
+		add_box("StonePerimeterSide", Vector3(side * 40.7 * gu, 0.175 * d, 0), Vector3(0.65 * d, 0.35 * d, 60.0 * gu), mat("backyard_stone"), true, Vector3.ZERO, null, BOUNCE_SURFACE)
+	# Transparent enclosure begins exactly at the solid fence top.
+	var upper_height := roof_height - fence_height
+	for side in [-1.0, 1.0]:
+		add_box("BackyardUpperGlassLong", Vector3(0, fence_height + upper_height * 0.5, side * 31.55 * gu), Vector3(80.0 * gu, upper_height, 0.10 * d), mat("backyard_net"), true, Vector3.ZERO, null, ICE_SURFACE)
+		add_box("BackyardUpperGlassSide", Vector3(side * 41.55 * gu, fence_height + upper_height * 0.5, 0), Vector3(0.10 * d, upper_height, 60.0 * gu), mat("backyard_net"), true, Vector3.ZERO, null, ICE_SURFACE)
+	var roof := add_box("BackyardTransparentRoof", Vector3(0, roof_height, 0), Vector3(84.0 * gu, 0.10 * d, 64.0 * gu), mat("backyard_net"), true, Vector3.ZERO, null, ICE_SURFACE)
+	mark_backyard_element(roof, "transparent_roof", Vector2(42, 32), Vector3(84, 0.2, 64), {"height_d": 5.8, "momentum_preserving": true})
+	roof.add_to_group("arena_roof")
+	# The visible net bows visually through two crossed fans, while the collision stays flat.
+	for x_gu in range(-40, 41, 8):
+		add_box("CanopyNetLineX", Vector3(float(x_gu) * gu, roof_height + 0.06 * d - (1.0 - absf(float(x_gu)) / 40.0) * 0.10 * d, 0), Vector3(0.028 * d, 0.025 * d, 62.0 * gu), mat("backyard_net_line"), false)
+	for z_gu in range(-30, 31, 8):
+		add_box("CanopyNetLineZ", Vector3(0, roof_height + 0.06 * d - (1.0 - absf(float(z_gu)) / 30.0) * 0.10 * d, float(z_gu) * gu), Vector3(82.0 * gu, 0.025 * d, 0.028 * d), mat("backyard_net_line"), false)
+	for x_side in [-1.0, 1.0]:
+		for z_side in [-1.0, 1.0]:
+			add_cylinder("CanopyCornerPost", Vector3(x_side * 41.0 * gu, roof_height * 0.5, z_side * 31.0 * gu), 0.22 * d, roof_height, mat("backyard_wood_light"), true, Vector3.ZERO, null, BOUNCE_SURFACE)
+
+
+func _add_backyard_fence_face(position: Vector3, size: Vector3, rotation_value: Vector3, horizontal: bool) -> void:
+	var inward_offset := Basis.from_euler(rotation_value) * Vector3(0, 0, -size.z * 0.53)
+	for height_ratio in [0.27, 0.68]:
+		add_box("FenceHorizontalSupport", position + inward_offset + Vector3.UP * (height_ratio - 0.5) * size.y, Vector3(size.x * 0.96, 0.16 * size.y, 0.14 * size.z), mat("backyard_wood_light"), false, rotation_value)
+	for fraction in [-0.4, 0.0, 0.4]:
+		var lateral := Basis.from_euler(rotation_value) * Vector3(fraction * size.x, 0, 0)
+		add_box("FenceVerticalPlank", position + inward_offset + lateral, Vector3(0.16 * size.x, size.y * 0.92, 0.12 * size.z), mat("backyard_wood_light"), false, rotation_value)
+
+
+func mark_backyard_element(node: Node, kind: String, gu_position: Vector2, gu_size := Vector3.ZERO, extra: Dictionary = {}) -> Node:
+	if node == null:
+		return node
+	node.set_meta("backyard_kind", kind)
+	node.set_meta("gu_position", gu_position)
+	node.set_meta("gu_size", gu_size)
+	for key in extra:
+		node.set_meta(key, extra[key])
+	return node
 
 
 func _build_arena_blueprint_shell() -> void:
@@ -773,6 +1135,18 @@ func _build_spawn_points() -> void:
 			marker.rotation.y = atan2(marker.position.x, marker.position.z)
 			_spawn_points.add_child(marker)
 		return
+	if is_aether_citadel():
+		var gu := arena_half_width / 24.0
+		var blob_radius := 2.8875
+		var spawn_y := 4.0 * gu + blob_radius + 0.18
+		var positions := [Vector3(0, spawn_y, 30.0 * gu), Vector3(0, spawn_y, -30.0 * gu)]
+		for index in range(positions.size()):
+			var marker := Marker3D.new()
+			marker.name = "DawnSpawn" if index == 0 else "DuskSpawn"
+			marker.position = positions[index]
+			marker.rotation.y = 0.0 if index == 0 else PI
+			_spawn_points.add_child(marker)
+		return
 	if is_arena_blueprint():
 		var d := arena_half_width / 17.0
 		var blob_radius := 2.8875
@@ -780,6 +1154,30 @@ func _build_spawn_points() -> void:
 		for index in range(positions.size()):
 			var marker := Marker3D.new()
 			marker.name = "BlueSpawn" if index == 0 else "OrangeSpawn"
+			marker.position = positions[index]
+			marker.rotation.y = 0.0 if index == 0 else PI
+			_spawn_points.add_child(marker)
+		return
+	if is_backyard_blueprint():
+		var d := arena_half_width / 21.0
+		var blob_radius := 2.8875
+		var spawn_y := 1.2 * d + blob_radius + 0.16
+		var positions := [Vector3(0, spawn_y, 13.0 * d), Vector3(0, spawn_y, -13.0 * d)]
+		for index in range(positions.size()):
+			var marker := Marker3D.new()
+			marker.name = "RedSpawn" if index == 0 else "BlueSpawn"
+			marker.position = positions[index]
+			marker.rotation.y = 0.0 if index == 0 else PI
+			_spawn_points.add_child(marker)
+		return
+	if is_toybox_blueprint():
+		var gu := arena_half_width / 32.0
+		var blob_radius := 2.8875
+		var spawn_y := 4.0 * gu + blob_radius + 0.16
+		var positions := [Vector3(0, spawn_y, 59.0 * gu), Vector3(0, spawn_y, -59.0 * gu)]
+		for index in range(positions.size()):
+			var marker := Marker3D.new()
+			marker.name = "BlueSpawn" if index == 0 else "RedSpawn"
 			marker.position = positions[index]
 			marker.rotation.y = 0.0 if index == 0 else PI
 			_spawn_points.add_child(marker)
@@ -810,6 +1208,22 @@ func _register_core_duel_flow() -> void:
 			add_flow_anchor("NeonApproach", spec[0] as Vector3, "attack_route", spec[1] as String)
 		add_flow_anchor("NeonCenterContest", Vector3.ZERO, "center_contest", "center")
 		return
+	if is_backyard_blueprint():
+		var d := arena_half_width / 21.0
+		add_flow_anchor("RedGardenSpawnExit", Vector3(0, 0.4 * d, 10.0 * d), "spawn_exit", "center")
+		add_flow_anchor("BlueGardenSpawnExit", Vector3(0, 0.4 * d, -10.0 * d), "spawn_exit", "center")
+		add_flow_anchor("BackyardCenterContest", Vector3(0, 1.1 * d, 0), "center_contest", "center")
+		return
+	if is_toybox_blueprint():
+		# The literal builder already owns all named routes; only register the shared
+		# center so generic duel systems see the trampoline contest point once.
+		add_flow_anchor("ToyboxCoreContest", Vector3(0, 2.0 * (arena_half_width / 32.0), 0), "center_contest", "center")
+		return
+	if is_aether_citadel():
+		var gu := arena_half_width / 24.0
+		add_flow_anchor("DawnSanctumExit", Vector3(0, 0.5 * gu, 22.0 * gu), "spawn_exit", "center")
+		add_flow_anchor("DuskSanctumExit", Vector3(0, 0.5 * gu, -22.0 * gu), "spawn_exit", "center")
+		return
 	add_flow_anchor("BlueSpawnExit", Vector3(0, 1.0, -arena_half_length + 28.0), "spawn_exit", "center")
 	add_flow_anchor("RedSpawnExit", Vector3(0, 1.0, arena_half_length - 28.0), "spawn_exit", "center")
 	add_flow_anchor("CenterContest", Vector3(0, 1.0, 0), "center_contest", "center")
@@ -823,6 +1237,35 @@ func _add_boundary_identity() -> void:
 			light.light_color = _accent_color()
 			light.light_energy = 0.62
 			light.omni_range = 32.0
+			light.shadow_enabled = false
+			light.add_to_group("presentation_light")
+			_visuals.add_child(light)
+		return
+	if is_backyard_blueprint():
+		# The blueprint uses quiet daytime garden bulbs, not a floating map title.
+		for position in [Vector3(-16.0 * (arena_half_width / 21.0), 2.65 * (arena_half_width / 21.0), 0), Vector3(16.0 * (arena_half_width / 21.0), 2.65 * (arena_half_width / 21.0), 0)]:
+			var light := OmniLight3D.new()
+			light.position = position
+			light.light_color = Color(1.0, 0.78, 0.48)
+			light.light_energy = 0.18
+			light.omni_range = 7.0 * (arena_half_width / 21.0)
+			light.shadow_enabled = false
+			light.add_to_group("presentation_light")
+			_visuals.add_child(light)
+		return
+	if is_toybox_blueprint():
+		# No floating title or generic decorative props: the colored padded enclosure
+		# and central orange trampoline are the identity in the supplied image.
+		return
+	if is_aether_citadel():
+		# Identity lives in the literal masonry, crown, and restrained celestial light;
+		# no floating title or unrelated prop pass is allowed on this approved blueprint.
+		for position in [Vector3(-12.0 * (arena_half_width / 24.0), 8.5 * (arena_half_width / 24.0), 0), Vector3(12.0 * (arena_half_width / 24.0), 8.5 * (arena_half_width / 24.0), 0)]:
+			var light := OmniLight3D.new()
+			light.position = position
+			light.light_color = Color("48CDE8")
+			light.light_energy = 0.42
+			light.omni_range = 12.0 * (arena_half_width / 24.0)
 			light.shadow_enabled = false
 			light.add_to_group("presentation_light")
 			_visuals.add_child(light)

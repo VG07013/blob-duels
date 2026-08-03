@@ -35,7 +35,12 @@ func fan_unit(prefix: String, position: Vector3, yaw: float, frame: Material, bl
 
 func truss_bridge(prefix: String, position: Vector3, size: Vector3, material: Material, trim: Material) -> Node3D:
 	var root := _model_root(prefix, position, 0.0)
-	arena.add_box(prefix + "Deck", Vector3.ZERO, size, material, true, Vector3.ZERO, root)
+	var deck: MeshInstance3D = arena.add_box(prefix + "Deck", Vector3.ZERO, size, material, true, Vector3.ZERO, root)
+	var support_key := String(deck.name)
+	arena.mark_supported_structure(deck, support_key)
+	var support_top := maxf(0.25, position.y - size.y * 0.5)
+	for side in [-1.0, 1.0]:
+		arena.add_ground_support(prefix + "Tower", Vector3(position.x + side * size.x * 0.36, support_top * 0.5, position.z), Vector3(3.2, support_top, size.z * 0.72), trim, support_key)
 	for side in [-1.0, 1.0]:
 		var x: float = side * (size.x * 0.5 - 0.65)
 		arena.add_box(prefix + "Rail", Vector3(x, 3.1, 0), Vector3(1.1, 5.2, size.z), trim, false, Vector3.ZERO, root)

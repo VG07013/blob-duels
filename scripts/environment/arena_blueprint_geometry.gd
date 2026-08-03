@@ -32,8 +32,13 @@ static func add_curved_ramp(a, prefix: String, position: Vector3, width: float, 
 		_triangle(surface, left_a, Vector3(left_b.x, 0, left_b.z), Vector3(left_a.x, 0, left_a.z))
 		_triangle(surface, right_a, Vector3(right_b.x, 0, right_b.z), right_b)
 		_triangle(surface, right_a, Vector3(right_a.x, 0, right_a.z), Vector3(right_b.x, 0, right_b.z))
-	_triangle(surface, Vector3(-width * 0.5, 0, -length * 0.5), Vector3(width * 0.5, 0, -length * 0.5), vertices[1])
-	_triangle(surface, Vector3(-width * 0.5, 0, -length * 0.5), vertices[1], vertices[0])
+		# A real ramp is a closed wedge, so the underside is visible from every route below it.
+		_triangle(surface, Vector3(left_a.x, 0, left_a.z), Vector3(right_b.x, 0, right_b.z), Vector3(right_a.x, 0, right_a.z))
+		_triangle(surface, Vector3(left_a.x, 0, left_a.z), Vector3(left_b.x, 0, left_b.z), Vector3(right_b.x, 0, right_b.z))
+	var high_left := vertices[vertices.size() - 2]
+	var high_right := vertices[vertices.size() - 1]
+	_triangle(surface, Vector3(high_left.x, 0, high_left.z), high_right, high_left)
+	_triangle(surface, Vector3(high_left.x, 0, high_left.z), Vector3(high_right.x, 0, high_right.z), high_right)
 	surface.generate_normals()
 	var mesh := surface.commit()
 	mesh.surface_set_material(0, material)

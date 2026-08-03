@@ -6,4 +6,4 @@
 script = ExtResource("1_arena")
 theme_id = 1
 map_name = "Backyard"
-arena_half_width = 44.0
+arena_half_width = 121.275
