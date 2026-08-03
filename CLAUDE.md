@@ -32,9 +32,12 @@ PNGs, need a display, and are excluded from the suite. `debug_movement_probe.gd`
 only prints telemetry and is likewise excluded.
 
 Tests reach into private state with `game.set("_field", ...)` /
-`game.get("_field")`. That coupling is deliberate but it means renaming a
-private field in `game.gd` can silently break a test's setup without breaking
-its parse — grep `tests/` before renaming one.
+`game.get("_field")`. That coupling is deliberate, but `Object.set()` on an
+unknown property is a silent no-op: renaming a private field guts a test's
+setup while leaving it green. `scripts/check_test_introspection.py` fails the
+build on any `_`-prefixed `set`/`get` or `call` name in `tests/` that no longer
+exists under `scripts/`. It runs first in `run_tests.sh` and in CI, before
+Godot is even installed.
 
 ## Code conventions
 

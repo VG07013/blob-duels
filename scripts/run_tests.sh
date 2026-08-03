@@ -84,6 +84,16 @@ if [[ $list_only -eq 1 ]]; then
 	exit 0
 fi
 
+# Cheap static gate: a test that seeds a renamed private field still passes
+# while protecting nothing, and Godot cannot tell us that.
+if command -v python3 >/dev/null 2>&1; then
+	if ! python3 "$ROOT/scripts/check_test_introspection.py"; then
+		exit 1
+	fi
+else
+	echo "note: python3 not found, skipping the test-introspection check" >&2
+fi
+
 GODOT_BIN="$(find_godot)"
 if [[ -z "$GODOT_BIN" ]]; then
 	cat >&2 <<-'EOF'

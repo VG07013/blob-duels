@@ -39,6 +39,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
+      # Runs without Godot, so a stale test reference fails in seconds rather
+      # than after the whole suite has been installed and imported.
+      - name: Check test introspection
+        run: python3 scripts/check_test_introspection.py
+
       - name: Cache Godot binary
         id: godot-cache
         # TODO: pin to a SHA to match pages.yml once you can verify the digest.
