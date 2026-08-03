@@ -13,6 +13,8 @@ var dynamic_enabled := true
 var dynamic_amount := 5.0
 var rotation_degrees_value := 0.0
 var _dynamic_ratio := 0.0
+var _charge_ratio := 0.0
+var _hit_confirm_ratio := 0.0
 
 
 func _ready() -> void:
@@ -38,15 +40,31 @@ func apply_settings(settings: Dictionary) -> void:
 
 
 func set_dynamic_state(charge_ratio: float, speed_ratio: float) -> void:
+	_charge_ratio = clampf(charge_ratio, 0.0, 1.0)
 	var target := maxf(clampf(charge_ratio, 0.0, 1.0), clampf(speed_ratio, 0.0, 1.0) * 0.55) if dynamic_enabled else 0.0
 	_dynamic_ratio = move_toward(_dynamic_ratio, target, get_process_delta_time() * 7.0)
 	queue_redraw()
 
 
+func flash_hit_confirm() -> void:
+	_hit_confirm_ratio = 1.0
+	queue_redraw()
+
+
+func _process(delta: float) -> void:
+	if _hit_confirm_ratio > 0.0:
+		_hit_confirm_ratio = move_toward(_hit_confirm_ratio, 0.0, delta * 7.5)
+		queue_redraw()
+
+
 func _draw() -> void:
 	var center := size * 0.5
 	var spread := center_gap + dynamic_amount * _dynamic_ratio
-	var tint := Color(crosshair_color.r, crosshair_color.g, crosshair_color.b, crosshair_opacity)
+	var charge_tint := Color(0.3, 0.9, 1.0).lerp(Color(1.0, 0.72, 0.16), _charge_ratio)
+	var base_tint := crosshair_color.lerp(charge_tint, _charge_ratio * 0.62)
+	var tint := Color(base_tint.r, base_tint.g, base_tint.b, crosshair_opacity)
+	if _hit_confirm_ratio > 0.0:
+		tint = tint.lerp(Color(1.0, 0.82, 0.2, crosshair_opacity), _hit_confirm_ratio)
 	var directions := [Vector2.UP, Vector2.RIGHT, Vector2.DOWN, Vector2.LEFT]
 	var rotation_radians := deg_to_rad(rotation_degrees_value)
 	for direction in directions:
@@ -60,3 +78,6 @@ func _draw() -> void:
 		if outline_enabled:
 			draw_circle(center, dot_size + outline_thickness, Color(0.01, 0.015, 0.02, crosshair_opacity * 0.9), true)
 		draw_circle(center, dot_size, tint, true)
+	if _hit_confirm_ratio > 0.0:
+		var bloom_radius := lerpf(17.0, 8.0, _hit_confirm_ratio)
+		draw_arc(center, bloom_radius, 0.0, TAU, 32, Color(1.0, 0.74, 0.18, _hit_confirm_ratio * 0.85), 2.0, true)

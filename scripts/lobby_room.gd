@@ -1,9 +1,9 @@
 class_name LobbyRoom
 extends Node3D
 
-const ROOM_RADIUS := 26.0
-const WALL_HEIGHT := 21.0
-const WALL_SEGMENTS := 24
+const ROOM_RADIUS := 40.0
+const WALL_HEIGHT := 24.0
+const WALL_SEGMENTS := 32
 const CONCRETE_TEXTURE: Texture2D = preload("res://assets/textures/concrete.png")
 const WOOD_GRAIN_TEXTURE: Texture2D = preload("res://assets/environment/textures/wood_grain.svg")
 const PAINTED_PANELS_TEXTURE: Texture2D = preload("res://assets/environment/textures/painted_panels.svg")
@@ -109,13 +109,13 @@ func _build_interior_architecture() -> void:
 	for index in range(12):
 		var angle := TAU * float(index) / 12.0
 		var inward := Vector3(-sin(angle), 0, -cos(angle))
-		var position := Vector3(sin(angle) * 24.2, 10.0, cos(angle) * 24.2)
+		var position := Vector3(sin(angle) * 37.5, 11.5, cos(angle) * 37.5)
 		_add_box(_interior_shell, "InteriorPillar_%02d" % index, position, Vector3(1.5, 19.0, 1.5), _accent_materials[index % _accent_materials.size()], false, Vector3(0, angle, 0))
 		_add_box(_interior_shell, "WallSconce_%02d" % index, position + inward * 0.95 + Vector3(0, 2.8, 0), Vector3(1.1, 2.4, 0.38), _join_material, false, Vector3(0, angle, 0))
 	for index in range(6):
 		var angle := TAU * float(index) / 6.0
-		var beam_position := Vector3(sin(angle) * 10.5, WALL_HEIGHT - 1.1, cos(angle) * 10.5)
-		_add_box(_interior_shell, "CeilingBeam_%02d" % index, beam_position, Vector3(2.0, 1.0, 21.0), _wood_dark, false, Vector3(0, angle, 0))
+		var beam_position := Vector3(sin(angle) * 16.0, WALL_HEIGHT - 1.1, cos(angle) * 16.0)
+		_add_box(_interior_shell, "CeilingBeam_%02d" % index, beam_position, Vector3(2.0, 1.0, 32.0), _wood_dark, false, Vector3(0, angle, 0))
 
 
 func _build_furnished_bays() -> void:
@@ -135,7 +135,7 @@ func _build_furnished_bays() -> void:
 		if root == null:
 			continue
 		root.name = "LobbyProp_%02d_%s" % [index, model_id]
-		root.position = Vector3(sin(angle) * 19.2, 0.08, cos(angle) * 19.2)
+		root.position = Vector3(sin(angle) * 31.5, 0.08, cos(angle) * 31.5)
 		root.rotation.y = angle + PI
 		root.scale = Vector3.ONE * model_scale
 		_interior_shell.add_child(root)
@@ -149,11 +149,11 @@ func _build_furnished_bays() -> void:
 
 
 func _build_join_pad() -> void:
-	_add_cylinder(join_pad, "Pad", Vector3(0, 0.24, 0), 4.9, 0.48, _join_material, true)
-	_add_cylinder(join_pad, "PadCore", Vector3(0, 0.51, 0), 3.45, 0.08, _emissive_material(Color(0.32, 1.0, 0.72), 2.4), false)
+	_add_cylinder(join_pad, "Pad", Vector3(0, 0.24, 0), 6.2, 0.48, _join_material, true)
+	_add_cylinder(join_pad, "PadCore", Vector3(0, 0.51, 0), 4.7, 0.08, _emissive_material(Color(0.32, 1.0, 0.72), 2.4), false)
 	for index in range(12):
 		var angle := TAU * float(index) / 12.0
-		var marker_position := Vector3(sin(angle) * 4.15, 0.62, cos(angle) * 4.15)
+		var marker_position := Vector3(sin(angle) * 5.45, 0.62, cos(angle) * 5.45)
 		_add_sphere(join_pad, "PadMarker_%02d" % index, marker_position, 0.22, _accent_materials[index % _accent_materials.size()])
 
 
@@ -174,7 +174,7 @@ func _build_obstacles() -> void:
 
 	for index in range(6):
 		var angle := TAU * float(index) / 6.0 + 0.35
-		var position := Vector3(sin(angle) * 18.5, 1.2, cos(angle) * 18.5)
+		var position := Vector3(sin(angle) * 27.5, 1.2, cos(angle) * 27.5)
 		_add_cylinder(room, "ColorPost_%02d" % index, position, 0.9, 2.4, _accent_materials[(index + 2) % _accent_materials.size()], true)
 
 
@@ -183,7 +183,7 @@ func _build_signage() -> void:
 	join_label.name = "JoinLabel"
 	join_label.position = Vector3(0, 5.2, 0)
 	join_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	join_label.text = "JOIN GAME"
+	join_label.text = "PLAY"
 	join_label.font_size = 76
 	join_label.outline_size = 14
 	join_label.modulate = Color(0.64, 1.0, 0.84)
@@ -193,7 +193,7 @@ func _build_signage() -> void:
 	hint.name = "JoinHint"
 	hint.position = Vector3(0, 3.55, 0)
 	hint.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	hint.text = "ROLL ONTO THE PAD"
+	hint.text = "ROLL ONTO THE PAD TO CHOOSE A MODE"
 	hint.font_size = 34
 	hint.outline_size = 9
 	hint.modulate = Color(0.84, 0.91, 0.96)
@@ -215,7 +215,7 @@ func _build_lighting() -> void:
 		var angle := TAU * float(index) / 5.0
 		var light := OmniLight3D.new()
 		light.name = "AccentLight_%02d" % index
-		light.position = Vector3(sin(angle) * 17.0, 3.2, cos(angle) * 17.0)
+		light.position = Vector3(sin(angle) * 28.0, 3.2, cos(angle) * 28.0)
 		light.light_color = _accent_materials[index].albedo_color
 		light.light_energy = 1.8
 		light.omni_range = 12.0
@@ -234,7 +234,7 @@ func _build_ambient_motion() -> void:
 		var angle := TAU * float(index) / 8.0 + 0.2
 		var pendant := Node3D.new()
 		pendant.name = "ColorPendant_%02d" % index
-		pendant.position = Vector3(sin(angle) * 13.8, WALL_HEIGHT - 3.2, cos(angle) * 13.8)
+		pendant.position = Vector3(sin(angle) * 22.0, WALL_HEIGHT - 3.2, cos(angle) * 22.0)
 		pendant.set_meta("base_position", pendant.position)
 		pendant.set_meta("phase", float(index) * 0.78)
 		pendant.add_to_group("animated_lobby_prop")
