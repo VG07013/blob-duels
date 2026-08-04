@@ -32,11 +32,21 @@ func _run() -> void:
 		if fill != null:
 			var material := (fill.mesh as PrimitiveMesh).material as BaseMaterial3D
 			_check(material != null, "%s health fill must carry a material" % entry["label"])
-			if material != null and material.billboard_mode != BaseMaterial3D.BILLBOARD_DISABLED:
-				# The whole bug in one assertion.
+			# Two regressions live here. Billboarding without keep_scale made the
+			# GPU discard the fill's scale (the bar never moved); billboarding
+			# per-material at all made each quad rotate around its own origin, so
+			# fill and backing drifted apart at any viewing angle and read as two
+			# separate shapes. The bar quads must not self-billboard - the
+			# Nameplate node orients the whole assembly toward the camera.
+			var background := blob.get_node_or_null("Nameplate/HealthBackground") as MeshInstance3D
+			_check(background != null, "%s must keep the bar backing quad" % entry["label"])
+			for bar_part in [fill, background]:
+				if bar_part == null:
+					continue
+				var part_material := (bar_part.mesh as PrimitiveMesh).material as BaseMaterial3D
 				_check(
-					material.billboard_keep_scale,
-					"%s health fill billboards without billboard_keep_scale, so the shader discards the scale the script sets" % entry["label"]
+					part_material != null and part_material.billboard_mode == BaseMaterial3D.BILLBOARD_DISABLED,
+					"%s %s must not billboard per-material; the nameplate node orients the fused bar" % [entry["label"], bar_part.name]
 				)
 
 			var full_width := fill.scale.x

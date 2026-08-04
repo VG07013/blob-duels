@@ -62,6 +62,30 @@ func _run() -> void:
 		print("%6d   %.3f     %d" % [health_value, blob.get("health_fill").scale.x, width])
 		image.save_png("%s/health_bar_%03d.png" % [ProjectSettings.globalize_path(OUTPUT_DIR), health_value])
 
+	# Fused-bar check: from an oblique angle the two quads used to pivot apart.
+	# Render one angled shot at half health for eyeballing alongside the sweep.
+	blob.set("health", 75)
+	blob.call("_update_health_billboard")
+	camera.global_position = Vector3(9.0, 7.5, 9.0)
+	camera.look_at(Vector3(0, 4.65, 0), Vector3.UP)
+	for _settle in range(6):
+		await process_frame
+	await RenderingServer.frame_post_draw
+	var angled := root.get_texture().get_image()
+	angled.save_png("%s/health_bar_angled_075.png" % ProjectSettings.globalize_path(OUTPUT_DIR))
+	print("angled fill width: %d px" % _measure_fill_width(angled))
+
+	# Light backdrop makes the dark backing quad visible, so fill-inside-backing
+	# alignment can actually be judged in the PNG.
+	env.background_color = Color(0.82, 0.86, 0.9)
+	camera.global_position = Vector3(6.0, 6.2, 10.5)
+	camera.look_at(Vector3(0, 4.65, 0), Vector3.UP)
+	for _settle in range(6):
+		await process_frame
+	await RenderingServer.frame_post_draw
+	root.get_texture().get_image().save_png("%s/health_bar_fused_light.png" % ProjectSettings.globalize_path(OUTPUT_DIR))
+	env.background_color = Color(0.02, 0.03, 0.06)
+
 	var strictly_shrinking := true
 	for index in range(1, widths.size()):
 		if widths[index] >= widths[index - 1]:

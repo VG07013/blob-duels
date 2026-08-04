@@ -1185,7 +1185,16 @@ func _update_nameplate_transform() -> void:
 	if nameplate_root == null:
 		return
 	nameplate_root.global_position = global_position + Vector3.UP * 4.65
-	nameplate_root.global_rotation = Vector3.ZERO
+	# The fill and backing quads used to billboard per-material, which rotates
+	# each quad around its own origin - at any viewing angle the two pivoted
+	# apart and read as separate floating shapes. Orient the whole nameplate as
+	# one rigid assembly instead (same camera-basis alignment BILLBOARD_ENABLED
+	# uses), so the bar always stays fused.
+	var camera := get_viewport().get_camera_3d() if is_inside_tree() else null
+	if camera != null:
+		nameplate_root.global_basis = camera.global_basis
+	else:
+		nameplate_root.global_rotation = Vector3.ZERO
 	var active_camera := get_viewport().get_camera_3d() if is_inside_tree() else null
 	if active_camera != null:
 		update_nameplate_for_camera(active_camera.global_position)

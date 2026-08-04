@@ -123,7 +123,13 @@ func _update_nameplate_transform() -> void:
 	if nameplate_root == null:
 		return
 	nameplate_root.global_position = global_position + Vector3.UP * 5.35
-	nameplate_root.global_rotation = Vector3.ZERO
+	# Same node-level billboarding as BlobPlayer: the bar quads no longer
+	# billboard per-material, so the assembly must face the camera as one unit.
+	var camera := get_viewport().get_camera_3d() if is_inside_tree() else null
+	if camera != null:
+		nameplate_root.global_basis = camera.global_basis
+	else:
+		nameplate_root.global_rotation = Vector3.ZERO
 
 
 func _stable_funny_name() -> String:
