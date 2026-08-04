@@ -310,7 +310,16 @@ func _make_world() -> Node3D:
 	environment.sky = sky
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_energy = 0.86
-	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	# Mirror the shipped environment in scenes/main.tscn - captures that render
+	# through a different tonemap stop representing the game.
+	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
+	environment.tonemap_white = 6.0
+	environment.adjustment_enabled = true
+	environment.adjustment_saturation = 1.12
+	environment.adjustment_contrast = 1.06
+	environment.glow_enabled = true
+	environment.glow_intensity = 0.5
+	environment.glow_strength = 0.9
 	environment.fog_enabled = true
 	environment.fog_density = 0.00045
 	world_environment.environment = environment
@@ -347,6 +356,12 @@ func _apply_profile(world: Node3D, profile: Dictionary) -> void:
 	sun.rotation_degrees = profile.get("sun_rotation", Vector3(-52.0, -34.0, 0.0))
 	sky_material.sun_angle_max = float(profile.get("sun_size", 18.0))
 	sky_material.sun_curve = float(profile.get("sun_curve", 0.08))
+	# Same glow handling as game.gd _apply_lighting_profile, so a map's authored
+	# bloom (or its deliberate absence - Toybox) shows in its captures.
+	environment.glow_enabled = bool(profile.get("glow_enabled", true))
+	environment.glow_intensity = float(profile.get("glow_intensity", 0.5))
+	environment.glow_strength = float(profile.get("glow_strength", 0.9))
+	environment.glow_bloom = float(profile.get("glow_bloom", 0.0))
 
 
 func _settle_render() -> void:

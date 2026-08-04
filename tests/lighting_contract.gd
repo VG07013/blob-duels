@@ -25,6 +25,10 @@ func _run() -> void:
 		var label := str(arena.get("map_name"))
 		_expect(float(profile.get("ambient_energy", 2.0)) <= 0.72, "%s ambient energy avoids washed-out materials" % label)
 		_expect(float(profile.get("sun_energy", 2.0)) <= 1.2, "%s sun energy preserves surface detail" % label)
+		# Glow is opt-in per map with an explicit key: a profile that omits it
+		# inherits whatever the engine default happens to be, which is exactly
+		# how Toybox's deliberate no-bloom look would get silently overridden.
+		_expect(profile.has("glow_enabled"), "%s must declare glow_enabled explicitly" % label)
 		arena.queue_free()
 		await process_frame
 	var game := MAIN_SCENE.instantiate()

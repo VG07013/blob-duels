@@ -2011,9 +2011,11 @@ func _apply_lighting_profile(profile: Dictionary) -> void:
 	environment.fog_light_energy = float(profile.get("fog_energy", 0.82))
 	environment.fog_density = _effective_fog_density(profile)
 	environment.fog_sky_affect = float(profile.get("fog_sky_affect", 0.3))
-	environment.glow_enabled = bool(profile.get("glow_enabled", false)) and _graphics_quality > 0
-	environment.glow_intensity = float(profile.get("glow_intensity", 0.8))
-	environment.glow_strength = float(profile.get("glow_strength", 1.0)) * (0.74 if _graphics_quality == 1 else 1.0)
+	# Glow defaults on: every map profile now declares glow_enabled explicitly
+	# (lighting_contract enforces it), so this default only covers ad-hoc dicts.
+	environment.glow_enabled = bool(profile.get("glow_enabled", true)) and _graphics_quality > 0
+	environment.glow_intensity = float(profile.get("glow_intensity", 0.5))
+	environment.glow_strength = float(profile.get("glow_strength", 0.9)) * (0.74 if _graphics_quality == 1 else 1.0)
 	environment.glow_bloom = float(profile.get("glow_bloom", 0.0)) * (0.6 if _graphics_quality == 1 else 1.0)
 	sun.light_color = profile.get("sun_color", Color.WHITE)
 	sun.light_energy = float(profile.get("sun_energy", 1.4))
@@ -2037,6 +2039,10 @@ func _apply_settings(settings: Dictionary) -> void:
 	var quality := clampi(int(settings.get("graphics_quality", 1)), 0, 2)
 	_graphics_quality = quality
 	_effects_quality = clampi(int(settings.get("effects_quality", quality)), 0, 2)
+	# MSAA rides the existing quality tier: geometry edges are the game's whole
+	# look (primitives + emissive trim), and MSAA is cheap on Apple TBDR. Low
+	# keeps it off for weak Macs; render scale stays the escape hatch.
+	get_viewport().msaa_3d = ([Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X][quality]) as Viewport.MSAA
 	if player != null:
 		player.set_cosmetic_quality(quality)
 	var shadow_setting := clampi(int(settings.get("shadow_quality", 2)), 0, 2)

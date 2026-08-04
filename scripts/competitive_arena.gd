@@ -155,11 +155,11 @@ func get_spawn_points() -> Array[Marker3D]:
 
 func get_lighting_profile() -> Dictionary:
 	var profiles := [
-		{"sky_top": Color(0.012, 0.025, 0.095), "sky_horizon": Color(0.24, 0.075, 0.32), "ambient": Color(0.25, 0.38, 0.68), "ambient_energy": 0.48, "sun_color": Color(0.48, 0.68, 1.0), "sun_energy": 0.42, "sun_rotation": Vector3(-62, -28, 0), "sun_size": 12.0, "sun_curve": 0.06, "fog": Color(0.065, 0.04, 0.16), "fog_energy": 0.68, "fog_density": 0.00105, "fog_sky_affect": 0.42},
-		{"sky_top": Color(0.055, 0.42, 0.92), "sky_horizon": Color(0.79, 0.94, 1.0), "ambient": Color(0.74, 0.86, 0.95), "ambient_energy": 0.52, "sun_color": Color(1.0, 0.9, 0.68), "sun_energy": 1.12, "sun_rotation": Vector3(-48, -38, 0), "sun_size": 20.0, "sun_curve": 0.09, "fog": Color(0.64, 0.84, 0.92), "fog_energy": 0.82, "fog_density": 0.00048, "fog_sky_affect": 0.23},
-		{"sky_top": Color(0.1, 0.34, 0.7), "sky_horizon": Color(0.66, 0.82, 0.96), "ambient": Color(0.66, 0.76, 0.88), "ambient_energy": 0.5, "sun_color": Color(1.0, 0.78, 0.58), "sun_energy": 1.08, "sun_rotation": Vector3(-56, -58, 0), "sun_size": 15.0, "sun_curve": 0.065, "fog": Color(0.46, 0.62, 0.76), "fog_energy": 0.76, "fog_density": 0.00072, "fog_sky_affect": 0.3},
-		{"sky_top": Color(0.08, 0.38, 0.82), "sky_horizon": Color(0.74, 0.9, 0.99), "ambient": Color(0.72, 0.83, 0.94), "ambient_energy": 0.48, "sun_color": Color(1.0, 0.86, 0.62), "sun_energy": 1.0, "sun_rotation": Vector3(-44, -22, 0), "sun_size": 24.0, "sun_curve": 0.12, "fog": Color(0.62, 0.79, 0.92), "fog_energy": 0.88, "fog_density": 0.00082, "fog_sky_affect": 0.38},
-		{"sky_top": Color(0.07, 0.38, 0.84), "sky_horizon": Color(0.75, 0.91, 1.0), "ambient": Color(0.81, 0.79, 0.72), "ambient_energy": 0.54, "sun_color": Color(1.0, 0.78, 0.5), "sun_energy": 1.1, "sun_rotation": Vector3(-50, -46, 0), "sun_size": 21.0, "sun_curve": 0.1, "fog": Color(0.62, 0.81, 0.93), "fog_energy": 0.84, "fog_density": 0.0005, "fog_sky_affect": 0.24},
+		{"sky_top": Color(0.012, 0.025, 0.095), "sky_horizon": Color(0.24, 0.075, 0.32), "ambient": Color(0.25, 0.38, 0.68), "ambient_energy": 0.48, "sun_color": Color(0.48, 0.68, 1.0), "sun_energy": 0.42, "sun_rotation": Vector3(-62, -28, 0), "sun_size": 12.0, "sun_curve": 0.06, "fog": Color(0.065, 0.04, 0.16), "fog_energy": 0.68, "fog_density": 0.00105, "fog_sky_affect": 0.42, "glow_enabled": true, "glow_intensity": 1.08, "glow_strength": 1.0, "glow_bloom": 0.12},
+		{"sky_top": Color(0.055, 0.42, 0.92), "sky_horizon": Color(0.79, 0.94, 1.0), "ambient": Color(0.74, 0.86, 0.95), "ambient_energy": 0.52, "sun_color": Color(1.0, 0.9, 0.68), "sun_energy": 1.12, "sun_rotation": Vector3(-48, -38, 0), "sun_size": 20.0, "sun_curve": 0.09, "fog": Color(0.64, 0.84, 0.92), "fog_energy": 0.82, "fog_density": 0.00048, "fog_sky_affect": 0.23, "glow_enabled": true, "glow_intensity": 0.4, "glow_strength": 0.85, "glow_bloom": 0.0},
+		{"sky_top": Color(0.1, 0.34, 0.7), "sky_horizon": Color(0.66, 0.82, 0.96), "ambient": Color(0.66, 0.76, 0.88), "ambient_energy": 0.5, "sun_color": Color(1.0, 0.78, 0.58), "sun_energy": 1.08, "sun_rotation": Vector3(-56, -58, 0), "sun_size": 15.0, "sun_curve": 0.065, "fog": Color(0.46, 0.62, 0.76), "fog_energy": 0.76, "fog_density": 0.00072, "fog_sky_affect": 0.3, "glow_enabled": true, "glow_intensity": 0.45, "glow_strength": 0.9, "glow_bloom": 0.02},
+		{"sky_top": Color(0.08, 0.38, 0.82), "sky_horizon": Color(0.74, 0.9, 0.99), "ambient": Color(0.72, 0.83, 0.94), "ambient_energy": 0.48, "sun_color": Color(1.0, 0.86, 0.62), "sun_energy": 1.0, "sun_rotation": Vector3(-44, -22, 0), "sun_size": 24.0, "sun_curve": 0.12, "fog": Color(0.62, 0.79, 0.92), "fog_energy": 0.88, "fog_density": 0.00082, "fog_sky_affect": 0.38, "glow_enabled": true, "glow_intensity": 0.68, "glow_strength": 0.82, "glow_bloom": 0.08},
+		{"sky_top": Color(0.07, 0.38, 0.84), "sky_horizon": Color(0.75, 0.91, 1.0), "ambient": Color(0.81, 0.79, 0.72), "ambient_energy": 0.54, "sun_color": Color(1.0, 0.78, 0.5), "sun_energy": 1.1, "sun_rotation": Vector3(-50, -46, 0), "sun_size": 21.0, "sun_curve": 0.1, "fog": Color(0.62, 0.81, 0.93), "fog_energy": 0.84, "fog_density": 0.0005, "fog_sky_affect": 0.24, "glow_enabled": false},
 	]
 	var profile := (profiles[theme_id] as Dictionary).duplicate(true)
 	if is_arena_blueprint():
@@ -177,6 +177,11 @@ func get_lighting_profile() -> Dictionary:
 		profile["fog_energy"] = 0.16
 		profile["fog_density"] = 0.00016
 		profile["fog_sky_affect"] = 0.18
+		# Televised sheen: hazards and team emissives bloom softly.
+		profile["glow_enabled"] = true
+		profile["glow_intensity"] = 0.45
+		profile["glow_strength"] = 0.9
+		profile["glow_bloom"] = 0.02
 	if is_backyard_blueprint():
 		profile["sky_top"] = Color(0.20, 0.58, 0.92)
 		profile["sky_horizon"] = Color(0.82, 0.94, 1.0)
@@ -190,6 +195,11 @@ func get_lighting_profile() -> Dictionary:
 		profile["fog_energy"] = 0.28
 		profile["fog_density"] = 0.00018
 		profile["fog_sky_affect"] = 0.16
+		# Sun-kissed: only the brightest highlights bloom.
+		profile["glow_enabled"] = true
+		profile["glow_intensity"] = 0.4
+		profile["glow_strength"] = 0.85
+		profile["glow_bloom"] = 0.0
 	if is_toybox_blueprint():
 		# The reference is a bright indoor playroom: soft neutral daylight preserves
 		# all six foam colors without atmospheric haze or arcade-style bloom.
@@ -205,6 +215,8 @@ func get_lighting_profile() -> Dictionary:
 		profile["fog_energy"] = 0.0
 		profile["fog_density"] = 0.0
 		profile["fog_sky_affect"] = 0.0
+		# The playroom reference deliberately rejects arcade-style bloom.
+		profile["glow_enabled"] = false
 	if is_aether_citadel():
 		profile["sky_top"] = Color("3C77BE")
 		profile["sky_horizon"] = Color("D9F3FA")

@@ -88,5 +88,6 @@ use_ability={
 [rendering]
 
 rendering_device/driver.windows="d3d12"
+anti_aliasing/quality/use_debanding=true
 renderer/rendering_method="mobile"
 textures/vram_compression/import_etc2_astc=true
