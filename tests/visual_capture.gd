@@ -8,7 +8,7 @@ const MAPS := {
 	"sky_temple": preload("res://scenes/world/maps/sky_temple.tscn"),
 	"toybox": preload("res://scenes/world/maps/toybox.tscn"),
 }
-const PRACTICE_SCENE := preload("res://scenes/world/city_arena.tscn")
+const PRACTICE_SCENE := preload("res://scenes/world/practice_arena.tscn")
 const MAIN_SCENE := preload("res://scenes/main.tscn")
 const DETAIL_MODEL_IDS := {
 	"neon_arcade": "arcade_claw",
@@ -123,17 +123,23 @@ func _capture_practice_map() -> void:
 	world.add_child(practice)
 	await process_frame
 	await process_frame
+	_apply_profile(world, practice.call("get_lighting_profile") as Dictionary)
 	var camera := world.get_node("Camera") as Camera3D
-	camera.position = Vector3(650.0, 720.0, 790.0)
-	camera.look_at(Vector3(0.0, 22.0, 0.0), Vector3.UP)
-	camera.fov = 58.0
-	await _settle_render()
-	_save_viewport("practice_city_wide.png")
-	camera.position = Vector3(155.0, 95.0, 165.0)
-	camera.look_at(Vector3(0.0, 12.0, -38.0), Vector3.UP)
-	camera.fov = 59.0
-	await _settle_render()
-	_save_viewport("practice_city_landmark.png")
+	# Interior angles: the facility is an enclosed simulation room, so exterior
+	# shots would only show the shell.
+	var shots := [
+		{"file": "practice_facility_wide.png", "from": Vector3(118.0, 46.0, 132.0), "at": Vector3(-20.0, 4.0, -20.0), "fov": 62.0},
+		{"file": "practice_fling_range.png", "from": Vector3(-4.0, 7.0, -40.0), "at": Vector3(-100.0, 6.0, -40.0), "fov": 62.0},
+		{"file": "practice_bounce_towers.png", "from": Vector3(-62.0, 26.0, -62.0), "at": Vector3(0.0, 14.0, -112.0), "fov": 58.0},
+		{"file": "practice_ricochet_gallery.png", "from": Vector3(66.0, 20.0, 96.0), "at": Vector3(120.0, 4.0, 45.0), "fov": 58.0},
+		{"file": "practice_hub.png", "from": Vector3(30.0, 12.0, 42.0), "at": Vector3(0.0, 8.0, 0.0), "fov": 60.0},
+	]
+	for shot in shots:
+		camera.position = shot["from"] as Vector3
+		camera.look_at(shot["at"] as Vector3, Vector3.UP)
+		camera.fov = float(shot["fov"])
+		await _settle_render()
+		_save_viewport(str(shot["file"]))
 	world.queue_free()
 	await process_frame
 
@@ -186,7 +192,7 @@ func _capture_game_ui() -> void:
 	pause_menu.call("close_pause")
 	root.size = Vector2i(1280, 720)
 	game.get_node("Lobby").visible = false
-	game.get_node("CityArena").visible = true
+	game.get_node("PracticeArena").visible = true
 	game.get_node("HUD").call("set_lobby_mode", false)
 	game.get_node("HUD").call("set_duel_mode", false)
 	player.global_position = Vector3(0.0, 5.0, 56.0)

@@ -12,7 +12,7 @@ extends SceneTree
 ##   4. Nothing solid sits outside the playable bound, and the spawn points sit
 ##      inside it - the stale-bounds failure this bug was partly about.
 
-const PRACTICE := preload("res://scenes/world/city_arena.tscn")
+const PRACTICE := preload("res://scenes/world/practice_arena.tscn")
 const MAIN_SCENE := preload("res://scenes/main.tscn")
 
 const BLOB_DIAMETER := 5.776
@@ -21,18 +21,17 @@ const PLAY_HALF_EXTENT := 157.0
 ## sidewalk, a roof capping its tower - not the interpenetration this looks for.
 const OVERLAP_TOLERANCE := 0.75
 ## Heights the blob actually occupies while rolling on the ground plane.
-const PLAY_HEIGHTS := [2.9, 6.0]
-## The arena scene scales its authored geometry; gaps must be judged in the
-## same local space the shapes are defined in.
-const ARENA_SCALE := 0.32
+const PLAY_HEIGHTS := [2.9, 6.0, 9.0]
 ## A sphere cannot enter a slot narrower than its own diameter at all, so a very
 ## tight gap is just solid furniture - the back panel and bench of one bus stop,
 ## say. What actually misleads a player is a gap wide enough to read as a route
 ## but too narrow to take, so only that band is treated as a defect.
 const MISLEADING_GAP_MINIMUM := 1.5
-## Known authored debt, measured against the pre-rebuild arena (34 / 29).
-const MAX_KNOWN_OVERLAPS := 26
-const MAX_KNOWN_PINCHES := 22
+## The facility is table-authored from a single geometry module: zero
+## interpenetration and zero misleading channels, enforced absolutely. The old
+## city carried 34/29 as ratcheted debt - a from-scratch map has no excuse.
+const MAX_KNOWN_OVERLAPS := 0
+const MAX_KNOWN_PINCHES := 0
 
 var failures: Array[String] = []
 
@@ -47,9 +46,9 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 
-	var visuals := arena.get_node_or_null("CityVisuals")
-	var collision := arena.get_node_or_null("CityCollision")
-	_check(visuals != null and collision != null, "Practice arena must keep its visual and collision roots")
+	var visuals := arena.get_node_or_null("PracticeVisuals")
+	var collision := arena.get_node_or_null("PracticeCollision")
+	_check(visuals != null and collision != null, "Practice arena must expose PracticeVisuals and PracticeCollision roots")
 	if visuals == null or collision == null:
 		_finish()
 		return
@@ -87,7 +86,7 @@ func _run() -> void:
 			continue
 		# Only props the blob can actually reach can trap or clip it, so scope
 		# the check to anything intersecting the playable box grown by a radius.
-		var reach := (PLAY_HALF_EXTENT + BLOB_DIAMETER * 0.5) / ARENA_SCALE
+		var reach := PLAY_HALF_EXTENT + BLOB_DIAMETER * 0.5
 		if centre.x - half.x > reach or centre.x + half.x < -reach:
 			continue
 		if centre.z - half.z > reach or centre.z + half.z < -reach:
@@ -112,7 +111,7 @@ func _run() -> void:
 	# overlapping each other" in the bug report, and clearing it completely
 	# needs a hand-authored pass. These bounds lock in the improvement (28 / 20)
 	# so the count can only go down from here.
-	_check(overlaps <= MAX_KNOWN_OVERLAPS, "Solid prop interpenetration regressed: %d pairs, budget is %d" % [overlaps, MAX_KNOWN_OVERLAPS])
+	_check(overlaps <= MAX_KNOWN_OVERLAPS, "Solid props interpenetrate: %d pairs (budget %d)" % [overlaps, MAX_KNOWN_OVERLAPS])
 
 	var pinch_count := 0
 	for height in PLAY_HEIGHTS:
@@ -125,10 +124,10 @@ func _run() -> void:
 				var gap := _planar_gap(at_height[i], at_height[j])
 				# Only a gap that is a real corridor matters: if the pair is far
 				# apart on the other axis they do not form a channel at all.
-				if gap * ARENA_SCALE >= MISLEADING_GAP_MINIMUM and gap * ARENA_SCALE < BLOB_DIAMETER and _forms_channel(at_height[i], at_height[j]):
+				if gap >= MISLEADING_GAP_MINIMUM and gap < BLOB_DIAMETER and _forms_channel(at_height[i], at_height[j]):
 					pinch_count += 1
 	print("sub-blob-width channels found: %d" % pinch_count)
-	_check(pinch_count <= MAX_KNOWN_PINCHES, "Sub-blob-width channels regressed: %d, budget is %d" % [pinch_count, MAX_KNOWN_PINCHES])
+	_check(pinch_count <= MAX_KNOWN_PINCHES, "Misleading sub-blob channels: %d (budget %d)" % [pinch_count, MAX_KNOWN_PINCHES])
 
 	# --- 2: visual/collision pairing ----------------------------------------
 	var solid_props := _group_under(arena, "solid_visible_prop")

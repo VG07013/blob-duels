@@ -48,7 +48,7 @@ func _run() -> void:
 	_save("premium_join.png")
 
 	game.get_node("Lobby").visible = false
-	game.get_node("CityArena").visible = true
+	game.get_node("PracticeArena").visible = true
 	hud.call("set_lobby_mode", false)
 	hud.call("set_duel_mode", true)
 	hud.call("set_round_number", 4)

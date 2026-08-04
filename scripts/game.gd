@@ -58,7 +58,7 @@ const REMOTE_COLORS := [
 @onready var camera: Camera3D = $CameraRig/Camera3D
 @onready var hud: DuelHud = $HUD
 @onready var lobby: Node3D = $Lobby
-@onready var practice_arena: Node3D = $CityArena
+@onready var practice_arena: PracticeArena = $PracticeArena
 @onready var competitive_map_root: Node3D = $CompetitiveMapRoot
 @onready var lobby_room: StaticBody3D = $Lobby/Room
 @onready var join_pad: Area3D = $Lobby/JoinPad
@@ -1919,11 +1919,8 @@ func _activate_practice_map() -> void:
 	audio_manager.call("set_map_music_theme", &"", 0.0, false)
 	_set_practice_world_enabled(true)
 	spawn_manager.use_practice_map()
-	_apply_lighting_profile({
-		"sky_top": Color(0.12, 0.48, 0.92), "sky_horizon": Color(0.72, 0.9, 1.0),
-		"ambient": Color(0.84, 0.9, 0.96), "ambient_energy": 0.56,
-		"sun_color": Color(1.0, 0.93, 0.8), "sun_energy": 1.14, "fog": Color(0.62, 0.8, 0.93),
-	})
+	# The map owns its look, same as every competitive arena.
+	_apply_lighting_profile(practice_arena.get_lighting_profile())
 
 
 func _activate_competitive_map(map_id: String) -> void:
@@ -1954,9 +1951,9 @@ func _clear_competitive_map() -> void:
 
 func _set_practice_world_enabled(enabled: bool) -> void:
 	practice_arena.visible = enabled
-	var city_collision := practice_arena.get_node_or_null("CityCollision") as StaticBody3D
-	if city_collision != null:
-		city_collision.collision_layer = 1 if enabled else 0
+	var practice_collision := practice_arena.get_node_or_null("PracticeCollision") as StaticBody3D
+	if practice_collision != null:
+		practice_collision.collision_layer = 1 if enabled else 0
 	for node in get_tree().get_nodes_in_group("training_dummy"):
 		var dummy := node as RigidBody3D
 		if dummy == null:

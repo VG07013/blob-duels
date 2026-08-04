@@ -2,7 +2,7 @@ extends SceneTree
 
 const ARENA := preload("res://scenes/world/maps/arena.tscn")
 const NEON_ARCADE := preload("res://scenes/world/maps/neon_arcade.tscn")
-const PRACTICE := preload("res://scenes/world/city_arena.tscn")
+const PRACTICE := preload("res://scenes/world/practice_arena.tscn")
 
 var failures: Array[String] = []
 
@@ -80,12 +80,10 @@ func _check_practice_geometry() -> void:
 		_check(ramp != null and ramp.mesh != null and _mesh_is_closed(ramp.mesh), "%s must be a watertight wedge with a visible underside" % ramp_value.name)
 		if ramp != null and ramp.mesh != null:
 			var expected_landing_heights := {
-				"WestDeckRamp_": 21.6,
-				"EastDeckRamp_": 21.6,
-				"NorthDeckRamp_": 25.6,
-				"SouthDeckRamp_": 25.6,
-				"SkyBridgeWestRamp_": 40.0,
-				"SkyBridgeEastRamp_": 40.0,
+				"RangeRamp_": 8.0,
+				"GalleryRamp_": 8.0,
+				"SparRamp_": 8.0,
+				"TowerRamp_": 10.0,
 			}
 			for prefix in expected_landing_heights:
 				if not String(ramp.name).begins_with(prefix):
@@ -101,10 +99,10 @@ func _check_practice_geometry() -> void:
 	_check(solid_props.size() >= 10, "Practice tree canopies must be classified as reachable solid-looking props")
 	_check(solid_prop_collisions.size() == solid_props.size(), "Every reachable solid-looking practice prop must have matching collision")
 	var landing_pairs := {
-		"WestDeckRamp_": "WestDeckRoof_", "EastDeckRamp_": "EastDeckRoof_",
-		"NorthDeckRamp_": "NorthDeckRoof_", "SouthDeckRamp_": "SouthDeckRoof_",
-		"SkyBridgeWestRamp_": "SkyBridge_", "SkyBridgeEastRamp_": "SkyBridge_",
-		"OverpassWestRamp_": "SouthOverpass_", "OverpassEastRamp_": "SouthOverpass_",
+		"RangeRamp_": "RangeDeck_",
+		"GalleryRamp_": "GalleryDeck_",
+		"SparRamp_": "SparDeck_",
+		"TowerRamp_": "TowerADeck_",
 	}
 	for ramp_value in ramps:
 		var ramp := ramp_value as MeshInstance3D
@@ -113,17 +111,19 @@ func _check_practice_geometry() -> void:
 				continue
 			var landing := _mesh_with_prefix(practice, landing_pairs[ramp_prefix] as String)
 			_check(landing != null and absf(_mesh_top_y(ramp) - _box_top_y(landing)) < 0.05, "%s must meet the top of %s without a collision lip" % [ramp.name, landing_pairs[ramp_prefix]])
+	# Landing zones stay clean: no stand or pylon stands on a deck's footprint.
 	var deck_meshes: Array[MeshInstance3D] = []
 	for node in practice.find_children("*", "MeshInstance3D", true, false):
 		var mesh_node := node as MeshInstance3D
-		if ["WestDeck_", "EastDeck_", "NorthDeck_", "SouthDeck_"].any(func(prefix: String) -> bool: return String(mesh_node.name).begins_with(prefix)):
+		if ["RangeDeck_", "GalleryDeck_", "SparDeck_", "TowerADeck_", "TowerBDeck_", "TowerCDeck_"].any(func(prefix: String) -> bool: return String(mesh_node.name).begins_with(prefix)) and mesh_node.mesh is BoxMesh:
 			deck_meshes.append(mesh_node)
 	for node in practice.find_children("*", "MeshInstance3D", true, false):
-		var vent := node as MeshInstance3D
-		if not String(vent.name).begins_with("PlazaVent_"):
+		var furniture := node as MeshInstance3D
+		var is_stand := String(furniture.name).begins_with("SupportPylon_") or String(furniture.name).contains("RingStand")
+		if not is_stand:
 			continue
 		for deck in deck_meshes:
-			_check(not _circle_overlaps_box_xz(vent.position, 3.2, deck), "%s overlaps the playable rooftop %s" % [vent.name, deck.name])
+			_check(not _circle_overlaps_box_xz(furniture.position, 1.0, deck), "%s intrudes on the landing deck %s" % [furniture.name, deck.name])
 	practice.queue_free()
 	await process_frame
 

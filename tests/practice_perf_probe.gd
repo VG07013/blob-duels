@@ -66,7 +66,7 @@ func _run() -> void:
 	print("video memory (MB)      : %.1f" % (Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576.0))
 	print("orphan nodes           : %d" % int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)))
 
-	var arena := game.get_node_or_null("CityArena")
+	var arena := game.get_node_or_null("PracticeArena")
 	if arena != null:
 		var meshes := _count_of_type(arena, "MeshInstance3D")
 		var multimeshes := _count_of_type(arena, "MultiMeshInstance3D")

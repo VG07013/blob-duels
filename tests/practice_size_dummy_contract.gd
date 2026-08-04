@@ -1,6 +1,6 @@
 extends SceneTree
 
-const PRACTICE_SCENE := preload("res://scenes/world/city_arena.tscn")
+const PRACTICE_SCENE := preload("res://scenes/world/practice_arena.tscn")
 const DUMMY_SCENE := preload("res://scenes/player/dummy_blob.tscn")
 
 var _failures: Array[String] = []
@@ -18,7 +18,16 @@ func _run() -> void:
 	await physics_frame
 	await physics_frame
 
-	_check(practice.scale.x <= 0.65, "Practice arena must be meaningfully smaller than the original 1000-unit city")
+	# The "smaller map" rule, in world space: the old city's plate spanned
+	# +/-160 world units after its 0.32 scale trick; the facility is authored
+	# 1:1 and must stay in the same envelope while covering the +/-115 spawns.
+	var ground: MeshInstance3D = null
+	for node in practice.find_children("FacilityGround*", "MeshInstance3D", true, false):
+		ground = node as MeshInstance3D
+	_check(ground != null and ground.mesh is BoxMesh, "Practice needs its single ground plate")
+	if ground != null and ground.mesh is BoxMesh:
+		var world_half := (ground.mesh as BoxMesh).size.x * 0.5 * practice.scale.x
+		_check(world_half >= 140.0 and world_half <= 160.0, "Practice ground half-extent must stay within [140, 160] world units, got %.1f" % world_half)
 	var walls := _owned_group(practice, "practice_perimeter_wall")
 	var wall_collisions := _owned_group(practice, "practice_perimeter_wall_collision")
 	_check(walls.size() == 4, "Practice needs four visible perimeter walls")
@@ -26,7 +35,7 @@ func _run() -> void:
 	for wall_value in walls:
 		var wall := wall_value as MeshInstance3D
 		var wall_mesh := wall.mesh as BoxMesh
-		_check(wall_mesh != null and wall_mesh.size.y >= 200.0, "%s must close the arena from floor to roof" % wall.name)
+		_check(wall_mesh != null and wall_mesh.size.y * practice.scale.x >= 64.0, "%s must close the arena from floor to roof" % wall.name)
 
 	var names: Dictionary = {}
 	for index in range(5):

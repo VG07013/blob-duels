@@ -22,7 +22,7 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 	_check(game.get_node("Lobby").visible, "Lobby is not visible on project start")
-	_check(not game.get_node("CityArena").visible, "Practice city remains visible behind the lobby")
+	_check(not game.get_node("PracticeArena").visible, "Practice city remains visible behind the lobby")
 	_check(game.get_node("Lobby").has_node("InteriorShell"), "Lobby has no sealed InteriorShell")
 	_check(_model_roots(game.get_node("Lobby")).size() >= 12, "Lobby does not contain enough authored model props")
 	_check(game.get_node("Lobby/Room").collision_layer == 1, "Lobby collision is disabled on project start")
@@ -30,13 +30,13 @@ func _run() -> void:
 	await physics_frame
 	await process_frame
 	_check(not game.get_node("Lobby").visible, "Lobby remains visible after entering practice")
-	_check(game.get_node("CityArena").visible, "Practice city is hidden after entering practice")
+	_check(game.get_node("PracticeArena").visible, "Practice city is hidden after entering practice")
 	_check(game.get_node("Lobby/Room").collision_layer == 0, "Lobby collision remains active during practice")
 	game.call("_return_to_lobby")
 	await physics_frame
 	await process_frame
 	_check(game.get_node("Lobby").visible, "Lobby does not return after leaving practice")
-	_check(not game.get_node("CityArena").visible, "Practice city remains visible after returning to lobby")
+	_check(not game.get_node("PracticeArena").visible, "Practice city remains visible after returning to lobby")
 	_check(game.get_node("Lobby/Room").collision_layer == 1, "Lobby collision does not return with the lobby")
 	game.free()
 

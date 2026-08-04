@@ -47,8 +47,10 @@ func _build_shell() -> void:
 	var wall_specs := [
 		{"name": "NorthPerimeterWall", "center": Vector3(0, GEOMETRY.WALL_CENTER_Y, -GEOMETRY.WALL_INNER - 1.0), "size": GEOMETRY.WALL_SIZE},
 		{"name": "SouthPerimeterWall", "center": Vector3(0, GEOMETRY.WALL_CENTER_Y, GEOMETRY.WALL_INNER + 1.0), "size": GEOMETRY.WALL_SIZE},
-		{"name": "WestPerimeterWall", "center": Vector3(-GEOMETRY.WALL_INNER - 1.0, GEOMETRY.WALL_CENTER_Y, 0), "size": Vector3(GEOMETRY.WALL_SIZE.z, GEOMETRY.WALL_SIZE.y, GEOMETRY.WALL_SIZE.x)},
-		{"name": "EastPerimeterWall", "center": Vector3(GEOMETRY.WALL_INNER + 1.0, GEOMETRY.WALL_CENTER_Y, 0), "size": Vector3(GEOMETRY.WALL_SIZE.z, GEOMETRY.WALL_SIZE.y, GEOMETRY.WALL_SIZE.x)},
+		# E/W walls are 4 units shorter so they butt against the N/S walls'
+		# inner faces instead of interpenetrating at the corners.
+		{"name": "WestPerimeterWall", "center": Vector3(-GEOMETRY.WALL_INNER - 1.0, GEOMETRY.WALL_CENTER_Y, 0), "size": Vector3(GEOMETRY.WALL_SIZE.z, GEOMETRY.WALL_SIZE.y, GEOMETRY.WALL_SIZE.x - 4.0)},
+		{"name": "EastPerimeterWall", "center": Vector3(GEOMETRY.WALL_INNER + 1.0, GEOMETRY.WALL_CENTER_Y, 0), "size": Vector3(GEOMETRY.WALL_SIZE.z, GEOMETRY.WALL_SIZE.y, GEOMETRY.WALL_SIZE.x - 4.0)},
 	]
 	for spec in wall_specs:
 		# The hologram sheet is see-through; the collision is a plain solid box.
@@ -170,15 +172,6 @@ func _build_ricochet_gallery() -> void:
 func _build_bounce_towers() -> void:
 	for deck_spec in GEOMETRY.TOWER_DECKS:
 		_add_deck(str(deck_spec["prefix"]), deck_spec)
-		# Slim legs ground every floating deck (structural_support contract).
-		var center := deck_spec["center"] as Vector3
-		var size := deck_spec["size"] as Vector3
-		for corner in [Vector3(-1, 0, -1), Vector3(1, 0, 1)]:
-			var leg_position := Vector3(center.x + corner.x * (size.x * 0.5 - 1.0), (center.y - size.y * 0.5) * 0.5, center.z + corner.z * (size.z * 0.5 - 1.0))
-			var leg_size := Vector3(1.4, center.y - size.y * 0.5, 1.4)
-			var leg := _add_box(str(deck_spec["prefix"]) + "Leg", leg_position, leg_size, _deck_material, true, "structural_support")
-			leg.add_to_group("solid_visible_prop")
-			_last_collision.add_to_group("solid_visible_prop_collision")
 
 
 ## Zone 4 - spar ring ----------------------------------------------------------
@@ -332,6 +325,15 @@ func _add_deck(prefix: String, deck_spec: Dictionary) -> void:
 	_last_collision.add_to_group("solid_visible_prop_collision")
 	var rim := _add_box(prefix + "Rim", center + Vector3(0, size.y * 0.5 + 0.1, 0), Vector3(size.x + 0.4, 0.2, size.z + 0.4), _emissive(GEOMETRY.COLOR_MOVEMENT, 1.2), false)
 	rim.add_to_group("practice_environment_detail")
+	# Corner legs ground every deck: they touch the deck underside and the
+	# floor exactly (no interpenetration - the geometry contract ratchet is 0).
+	var leg_height := center.y - size.y * 0.5
+	if leg_height > 1.0:
+		for corner in [Vector3(-1, 0, -1), Vector3(1, 0, 1)]:
+			var leg_position := Vector3(center.x + corner.x * (size.x * 0.5 - 1.0), leg_height * 0.5, center.z + corner.z * (size.z * 0.5 - 1.0))
+			var leg := _add_box(prefix + "Leg", leg_position, Vector3(1.4, leg_height, 1.4), _deck_material, true, "structural_support")
+			leg.add_to_group("solid_visible_prop")
+			_last_collision.add_to_group("solid_visible_prop_collision")
 
 
 ## Primitive helpers ------------------------------------------------------------

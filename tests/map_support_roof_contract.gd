@@ -1,6 +1,6 @@
 extends SceneTree
 
-const PRACTICE := preload("res://scenes/world/city_arena.tscn")
+const PRACTICE := preload("res://scenes/world/practice_arena.tscn")
 const MAPS := {
 	"Arena": preload("res://scenes/world/maps/arena.tscn"),
 	"Backyard": preload("res://scenes/world/maps/backyard.tscn"),

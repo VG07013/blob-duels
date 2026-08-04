@@ -11,6 +11,8 @@ extends Node3D
 
 const BUILDER := preload("res://scripts/environment/practice_facility_builder.gd")
 
+var map_name := "Training Facility"
+
 var _next_index := 0
 var _spins: Array[Dictionary] = []
 var _bobs: Array[Dictionary] = []

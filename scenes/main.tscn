@@ -5,7 +5,7 @@
 [ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="3_hud"]
 [ext_resource type="PackedScene" path="res://scenes/player/dummy_blob.tscn" id="4_dummy"]
 [ext_resource type="Script" path="res://scripts/spawn_manager.gd" id="5_spawn_manager"]
-[ext_resource type="PackedScene" path="res://scenes/world/city_arena.tscn" id="6_city_arena"]
+[ext_resource type="PackedScene" path="res://scenes/world/practice_arena.tscn" id="6_practice_arena"]
 [ext_resource type="PackedScene" path="res://scenes/ui/pause_menu.tscn" id="7_pause_menu"]
 [ext_resource type="PackedScene" path="res://scenes/world/lobby_room.tscn" id="8_lobby"]
 
@@ -58,7 +58,7 @@ directional_shadow_fade_start = 0.82
 [node name="Lobby" parent="." instance=ExtResource("8_lobby")]
 position = Vector3(0, 0, 620)
 
-[node name="CityArena" parent="." instance=ExtResource("6_city_arena")]
+[node name="PracticeArena" parent="." instance=ExtResource("6_practice_arena")]
 
 [node name="CompetitiveMapRoot" type="Node3D" parent="."]
 
