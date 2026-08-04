@@ -72,10 +72,11 @@ const EXTRA_RINGS := [
 	{"center": Vector3(14, 21, -117), "radius": 3.5},
 	{"center": Vector3(82, 6, 50), "radius": 3.0},
 ]
-## TAP / FULL SEND arcs: positions are set from measured fling landings in the
-## calibration increment; these are the pre-measurement estimates.
-const RANGE_TAP_ARC_X := -53.0
-const RANGE_FULL_ARC_X := -138.0
+## TAP / FULL SEND arcs, from measured landings (practice_calibration_probe):
+## a tap from the tee rests ~48 units down-range; a full send crosses the whole
+## lane and splats on the west wall, so its arc marks the splat line.
+const RANGE_TAP_ARC_X := -66.0
+const RANGE_FULL_ARC_X := -152.0
 const RANGE_DECK := {"center": Vector3(-60, 7, -70), "size": Vector3(28, 2, 12)}
 
 ## Zone 2 - RICOCHET GALLERY (east; Violet sits in a pocket you can only bank
@@ -102,12 +103,14 @@ const TOWER_DECKS := [
 	{"prefix": "TowerCDeck", "center": Vector3(28, 25, -108), "size": Vector3(10, 2, 10)},
 ]
 ## impulse tuned during calibration so each arc lands centre-deck.
+## Impulses measured in-engine (practice_calibration_probe): 70 rises +12.9,
+## 60 rises +9.5, 55 ~ +8 - each clears its deck by about a blob radius.
 const BOUNCE_PADS := [
-	{"position": Vector3(-30, 0.7, -86), "impulse": 34.0},
-	{"position": Vector3(-30, 10.7, -108), "impulse": 36.0},
-	{"position": Vector3(0, 18.7, -126), "impulse": 38.0},
-	{"position": Vector3(-150, 0.7, -40), "impulse": 34.0},
-	{"position": Vector3(60, 0.7, 12), "impulse": 34.0},
+	{"position": Vector3(-30, 0.7, -86), "impulse": 70.0},
+	{"position": Vector3(-30, 10.7, -108), "impulse": 60.0},
+	{"position": Vector3(0, 18.7, -126), "impulse": 60.0},
+	{"position": Vector3(-150, 0.7, -40), "impulse": 55.0},
+	{"position": Vector3(60, 0.7, 12), "impulse": 55.0},
 ]
 
 ## Zone 4 - SPAR RING (south-east; Gold anchors a close-quarters circle) ---------

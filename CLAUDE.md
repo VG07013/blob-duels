@@ -28,8 +28,16 @@ behaviour and `<area>_integration.gd` for cross-system checks. Each is a
 - calls `quit(0)` on success and `quit(1)` after `push_error`-ing each failure.
 
 Scripts ending in `_visual_capture.gd` are not contracts: they render reference
-PNGs, need a display, and are excluded from the suite. `debug_movement_probe.gd`
-only prints telemetry and is likewise excluded.
+PNGs, need a display, and are excluded from the suite. Scripts ending in
+`_probe.gd` (and `debug_movement_probe.gd`) only print telemetry and are
+likewise excluded.
+
+Two rendering gotchas for capture/probe scripts, both learned the hard way:
+always `await RenderingServer.frame_post_draw` before `get_texture().get_image()`
+(process frames advance even when the compositor skips presenting, so a grab
+without it can save byte-identical stale frames), and never read
+`MultiMesh.get_instance_transform()` in a `--headless` test — the dummy
+rendering server does not round-trip transform data.
 
 Tests reach into private state with `game.set("_field", ...)` /
 `game.get("_field")`. That coupling is deliberate, but `Object.set()` on an
@@ -86,3 +94,15 @@ layout data) and a `*_builder.gd` (node construction), with shared primitives in
 `arena_blueprint_geometry.gd`. Keep that split when adding a map. Interactables
 (pads, bumpers, trampolines) are one script per behaviour in
 `scripts/interactables/`.
+
+The practice/offline map is the holo training facility:
+`scenes/world/practice_arena.tscn` + `scripts/practice_arena.gd` (thin host)
+with layout in `practice_facility_geometry.gd` and construction in
+`practice_facility_builder.gd`, authored 1:1 in world units. Its structural
+contract: `PracticeVisuals`/`PracticeCollision` roots with flat child
+hierarchies, groups per the practice contracts, and **zero** interpenetration /
+sub-blob-gap budget (`practice_arena_geometry_contract`). Layout must respect
+the fixed main.tscn constraints: SpawnManager bound 157, spawn markers at
+±115, the five dummy positions, and a safe fallback drop at the origin. Every
+map (practice included) owns its `get_lighting_profile()` and must declare
+`glow_enabled` explicitly — `lighting_contract` enforces both.

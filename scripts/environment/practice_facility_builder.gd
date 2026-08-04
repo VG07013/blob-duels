@@ -302,19 +302,13 @@ func _build_bounce_pads() -> void:
 
 ## Shared pieces ----------------------------------------------------------------
 
-## An upright neon ring on a slim collidable stand. Rings themselves have no
-## collision - shots and blobs pass through the hoop.
+## A free-floating upright neon hologram ring. No collision and no stand:
+## calibration showed a stand post dead-centre in the fling lane deflected
+## mid-charge flings, and a hologram needs no support anyway.
 func _add_target_ring(prefix: String, center: Vector3, radius: float) -> void:
 	var ring := _add_torus(prefix, center, radius, 0.25, _emissive(GEOMETRY.COLOR_TARGET, 2.0), false, true)
 	ring.add_to_group("training_target_ring")
 	ring.add_to_group("practice_environment_detail")
-	var stand_height := center.y - radius
-	if stand_height > 0.5:
-		var stand_center := Vector3(center.x, stand_height * 0.5, center.z)
-		var stand_size := Vector3(0.5, stand_height, 0.5)
-		var stand := _add_box(prefix + "Stand", stand_center, stand_size, _deck_material, true)
-		stand.add_to_group("solid_visible_prop")
-		_last_collision.add_to_group("solid_visible_prop_collision")
 
 
 func _add_deck(prefix: String, deck_spec: Dictionary) -> void:

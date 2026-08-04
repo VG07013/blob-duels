@@ -375,6 +375,11 @@ func _settle_render() -> void:
 	await process_frame
 	await process_frame
 	await create_timer(0.05).timeout
+	# Process frames advance even when the compositor skips presenting (occluded
+	# window, throttling), so a grab right after them can read a stale buffer -
+	# entire capture sections came out as byte-identical repeats of one frame.
+	# frame_post_draw blocks until a frame is genuinely drawn.
+	await RenderingServer.frame_post_draw
 
 
 func _physics_frames(count: int) -> void:
