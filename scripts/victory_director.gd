@@ -125,9 +125,9 @@ func cancel() -> void:
 ## Hands the winner's look back to physics (rematch, lobby).
 func end_pose() -> void:
 	if _blob != null and is_instance_valid(_blob):
-		var visual := _blob.get_node_or_null("VisualRoot")
-		if visual != null and visual.has_method("set_celebration_pose"):
-			visual.call("set_celebration_pose", 0.0, 0.0)
+		var visual := _blob.get_node_or_null("VisualRoot") as BlobVisual
+		if visual != null:
+			visual.set_celebration_pose(0.0, 0.0)
 	_blob = null
 
 
@@ -172,9 +172,9 @@ func _update_pose() -> void:
 		return
 	var pose := pose_at(elapsed)
 	_blob.global_position = _stage + Vector3.UP * pose.x
-	var visual := _blob.get_node_or_null("VisualRoot")
-	if visual != null and visual.has_method("set_celebration_pose"):
-		visual.call("set_celebration_pose", pose.y, pose.z)
+	var visual := _blob.get_node_or_null("VisualRoot") as BlobVisual
+	if visual != null:
+		visual.set_celebration_pose(pose.y, pose.z)
 
 
 ## Height above the stage (x), squash (y, negative = stretch) and spin (z) at

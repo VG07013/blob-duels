@@ -1,3 +1,4 @@
+class_name DuelCrosshair
 extends Control
 
 var line_length := 8.0

@@ -1,3 +1,4 @@
+class_name BlobVisual
 extends Node3D
 
 const COMBAT_TUNING := preload("res://scripts/combat_tuning.gd")

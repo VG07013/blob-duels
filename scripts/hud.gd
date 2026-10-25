@@ -79,7 +79,7 @@ const COMPETITIVE_MAPS := [
 @onready var health_bar: ProgressBar = $HealthPanel/HealthBar
 @onready var health_value: Label = $HealthPanel/HealthBar/HealthValue
 @onready var health_panel: PanelContainer = $HealthPanel
-@onready var crosshair: Control = $Crosshair
+@onready var crosshair: DuelCrosshair = $Crosshair
 @onready var hit_marker: Control = $HitMarker
 @onready var damage_flash: ColorRect = $DamageFlash
 @onready var charge_panel: PanelContainer = $ChargePanel
@@ -105,7 +105,7 @@ const COMPETITIVE_MAPS := [
 @onready var roster_panel: PanelContainer = $VictoryOverlay/RosterPanel
 @onready var roster_players: VBoxContainer = $VictoryOverlay/RosterPanel/Stack/Players
 
-var player = null
+var player: BlobPlayer = null
 var _shown_health := 150.0
 var _fill_style := StyleBoxFlat.new()
 var _charge_fill_style := StyleBoxFlat.new()
@@ -166,7 +166,7 @@ var _fling_meter: FlingMeter
 var _fling_charge_ratio := 0.0
 var _fling_cooldown_remaining := 0.0
 var _fling_cooldown_duration := 3.0
-@onready var _ability_panel: Control = $AbilityHUD
+@onready var _ability_panel: AbilityHud = $AbilityHUD
 
 
 func _ready() -> void:
@@ -216,7 +216,7 @@ func set_ability_state(ability_id: String, cooldown_remaining_msec: int, loaded:
 	if _ability_panel == null:
 		return
 	_current_ability_id = ability_id
-	_ability_panel.call("set_ability_state", ability_id, cooldown_remaining_msec, loaded, active, active_remaining_msec, deployed)
+	_ability_panel.set_ability_state(ability_id, cooldown_remaining_msec, loaded, active, active_remaining_msec, deployed)
 	_ability_panel.visible = not main_menu.visible and not ability_id.is_empty()
 
 
@@ -224,8 +224,8 @@ func apply_ui_settings(settings: Dictionary) -> void:
 	_reduced_motion = bool(settings.get("reduced_motion", false))
 	if _feedback != null:
 		_feedback.set_reduced_motion(_reduced_motion)
-	if _ability_panel != null and _ability_panel.has_method("set_reduced_motion"):
-		_ability_panel.call("set_reduced_motion", _reduced_motion)
+	if _ability_panel != null:
+		_ability_panel.set_reduced_motion(_reduced_motion)
 	main_menu.set_reduced_motion(_reduced_motion)
 	PROGRESSION_FX.reduced_motion = _reduced_motion
 	set_fps_counter_visible(bool(settings.get("show_fps", false)))
@@ -274,7 +274,7 @@ func set_fps_counter_visible(enabled: bool) -> void:
 		_fps_accumulator = 0.0
 
 
-func bind_player(new_player) -> void:
+func bind_player(new_player: BlobPlayer) -> void:
 	player = new_player
 	if _hotbar != null:
 		_hotbar.bind_player(new_player)
@@ -580,8 +580,7 @@ func show_hit_marker(kind := "hit") -> void:
 	hit_marker.visible = true
 	hit_marker.pivot_offset = hit_marker.size * 0.5
 	hit_marker.scale = Vector2.ONE * target_scale if _reduced_motion else Vector2.ONE * target_scale * 0.62
-	if crosshair.has_method("flash_hit_confirm"):
-		crosshair.call("flash_hit_confirm")
+	crosshair.flash_hit_confirm()
 	if not _reduced_motion:
 		var tween := create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 		tween.tween_property(hit_marker, "scale", Vector2.ONE * target_scale, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -746,8 +745,7 @@ func _pulse_match_timer() -> void:
 
 
 func apply_crosshair_settings(settings: Dictionary) -> void:
-	if crosshair.has_method("apply_settings"):
-		crosshair.call("apply_settings", settings)
+	crosshair.apply_settings(settings)
 
 
 func show_victory(is_winner: bool, winning_team: int, players: Array) -> void:
@@ -1467,9 +1465,9 @@ func _create_main_menu() -> void:
 
 ## Join doubles as Cancel while a connection attempt is in flight.
 func _submit_join() -> void:
-	var network_session := get_node_or_null("/root/NetworkSession")
-	if network_session != null and network_session.has_method("is_joining") and bool(network_session.call("is_joining")):
-		network_session.call("close_session")
+	var network_session := get_node_or_null("/root/NetworkSession") as DuelNetworkSession
+	if network_session != null and network_session.is_joining():
+		network_session.close_session()
 		set_join_status("Join cancelled", false)
 		return
 	if join_button.disabled:
@@ -1533,11 +1531,7 @@ func _process(delta: float) -> void:
 
 	if player == null:
 		return
-	if player.has_method("get_fling_cooldown_remaining") and player.has_method("get_fling_cooldown_duration"):
-		set_fling_cooldown(
-			float(player.call("get_fling_cooldown_remaining")),
-			float(player.call("get_fling_cooldown_duration"))
-		)
+	set_fling_cooldown(player.get_fling_cooldown_remaining(), player.get_fling_cooldown_duration())
 
 	_shown_health = move_toward(_shown_health, player.health, 420.0 * delta)
 	if _last_observed_health >= 0 and player.health < _last_observed_health:
@@ -1568,8 +1562,7 @@ func _process(delta: float) -> void:
 		charge_color = Color(0.22, 0.88, 0.88)
 	_charge_fill_style.bg_color = charge_color
 	charge_value.add_theme_color_override("font_color", charge_color.lightened(0.45))
-	if crosshair.has_method("set_dynamic_state"):
-		crosshair.call("set_dynamic_state", charge_ratio, player.linear_velocity.length() / maxf(player.ground_control_speed, 1.0))
+	crosshair.set_dynamic_state(charge_ratio, player.linear_velocity.length() / maxf(player.ground_control_speed, 1.0))
 
 	var ratio: float = float(player.health) / float(player.max_health)
 	var health_color: Color

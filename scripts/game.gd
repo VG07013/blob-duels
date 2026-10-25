@@ -495,8 +495,8 @@ func _process_bot() -> void:
 func _on_bot_shot_requested(origin: Vector3, direction: Vector3) -> void:
 	if not _is_bot_round_live() or not origin.is_finite() or not direction.is_finite():
 		return
-	var bot_body := remote_players.get_node_or_null(_remote_player_name(BOT_PEER_ID))
-	if bot_body != null and bot_body.has_method("is_blob_mode") and bool(bot_body.call("is_blob_mode")):
+	var bot_body := remote_players.get_node_or_null(_remote_player_name(BOT_PEER_ID)) as BlobPlayer
+	if bot_body != null and bot_body.is_blob_mode():
 		return
 	var now := Time.get_ticks_msec()
 	var state := _server_peers.state_for(BOT_PEER_ID)

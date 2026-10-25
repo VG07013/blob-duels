@@ -1,3 +1,4 @@
+class_name AbilityHud
 extends Control
 
 const ICONS := {

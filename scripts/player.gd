@@ -1619,9 +1619,9 @@ func _input_world_direction() -> Vector3:
 ## Visual-only dent/lean in the direction a hit pushes this blob. Safe to call
 ## on remote blobs, whose physics the host owns.
 func play_hit_flex(push: Vector3, strength: float) -> void:
-	var visual := get_node_or_null("VisualRoot")
-	if visual != null and visual.has_method("hit_flex"):
-		visual.call("hit_flex", push, strength)
+	var visual := get_node_or_null("VisualRoot") as BlobVisual
+	if visual != null:
+		visual.hit_flex(push, strength)
 
 
 func is_adrenaline_active() -> bool:
@@ -1756,9 +1756,9 @@ func _update_remote_transform(_delta: float) -> void:
 func _remote_render_time_msec() -> int:
 	var local_now := Time.get_ticks_msec()
 	var host_now := local_now
-	var session := get_node_or_null("/root/NetworkSession")
-	if session != null and session.has_method("has_clock_sync") and bool(session.call("has_clock_sync")):
-		host_now = int(session.call("get_host_time_msec"))
+	var session := get_node_or_null("/root/NetworkSession") as DuelNetworkSession
+	if session != null and session.has_clock_sync():
+		host_now = session.get_host_time_msec()
 	else:
 		host_now = _remote_snapshots.estimate_host_time_msec(local_now)
 	return host_now - NETWORK_TUNING.INTERPOLATION_DELAY_MSEC
@@ -1899,14 +1899,14 @@ func _on_contact_area_entered(area: Area3D) -> void:
 
 
 func _hit_visual(amount: float) -> void:
-	var visual := get_node_or_null("VisualRoot")
-	if visual != null and visual.has_method("hit_reaction"):
+	var visual := get_node_or_null("VisualRoot") as BlobVisual
+	if visual != null:
 		visual.hit_reaction(amount)
 
 
 func _launch_visual(amount: float) -> void:
-	var visual := get_node_or_null("VisualRoot")
-	if visual != null and visual.has_method("set_launch_energy"):
+	var visual := get_node_or_null("VisualRoot") as BlobVisual
+	if visual != null:
 		visual.set_launch_energy(amount)
 
 
@@ -1944,9 +1944,9 @@ func _update_face() -> void:
 	# scale, so layering the flex onto the previous frame's basis compounded it
 	# into a smeared face. Orientation first, then this frame's flex only.
 	var face_basis := Basis.looking_at(direction, up)
-	var visual := get_node_or_null("VisualRoot")
-	if visual != null and visual.has_method("get_flex_basis"):
-		face_basis = (visual.call("get_flex_basis") as Basis) * face_basis
+	var visual := get_node_or_null("VisualRoot") as BlobVisual
+	if visual != null:
+		face_basis = visual.get_flex_basis() * face_basis
 	face_root.global_transform = Transform3D(face_basis, global_position)
 
 

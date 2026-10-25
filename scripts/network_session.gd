@@ -1,3 +1,6 @@
+## The NetworkSession autoload. The class name differs from the autoload so
+## fixed callers can type it (a class_name equal to an autoload is an error).
+class_name DuelNetworkSession
 extends Node
 
 signal state_changed(state: int, message: String)

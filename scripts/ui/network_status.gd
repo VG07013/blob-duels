@@ -9,6 +9,8 @@ extends Node
 const NETWORK_TUNING := preload("res://scripts/net/network_tuning.gd")
 
 var hud: DuelHud
+## The NetworkSession autoload, typed; null only in a tree without autoloads.
+var _session: DuelNetworkSession
 var _ping_label: Label = null
 var _formatting_room_code := false
 
@@ -16,11 +18,11 @@ var _formatting_room_code := false
 func setup(owner_hud: DuelHud) -> void:
 
 	hud = owner_hud
+	_session = get_node_or_null("/root/NetworkSession") as DuelNetworkSession
 	hud.code_input.text_changed.connect(_format_room_code_input)
 	hud.main_menu.copy_button.pressed.connect(_copy_room_code)
-	var network_session := get_node_or_null("/root/NetworkSession")
-	if network_session != null and network_session.has_signal("public_address_ready"):
-		network_session.connect("public_address_ready", func(_code: String) -> void: _refresh_room_code())
+	if _session != null:
+		_session.public_address_ready.connect(func(_code: String) -> void: _refresh_room_code())
 	_create_ping_label()
 	_refresh_room_code()
 
@@ -29,13 +31,11 @@ func setup(owner_hud: DuelHud) -> void:
 ## NetworkSession's UPnP mapping has produced a public address; the LAN code
 ## is always listed as the fallback for players on the same network.
 func _refresh_room_code() -> void:
-	var network_session := get_node_or_null("/root/NetworkSession")
 	var lan_code := "LOCAL"
 	var internet_code := ""
-	if network_session != null and network_session.has_method("get_host_room_code"):
-		lan_code = str(network_session.call("get_host_room_code"))
-	if network_session != null and network_session.has_method("get_public_room_code"):
-		internet_code = str(network_session.call("get_public_room_code"))
+	if _session != null:
+		lan_code = _session.get_host_room_code()
+		internet_code = _session.get_public_room_code()
 	var copy_button := hud.main_menu.copy_button
 	if internet_code.is_empty():
 		hud.room_code.text = "LAN CODE  %s" % lan_code
@@ -48,11 +48,10 @@ func _refresh_room_code() -> void:
 
 
 func _copy_room_code() -> void:
-	var network_session := get_node_or_null("/root/NetworkSession")
-	var has_internet_code := network_session != null and network_session.has_method("has_public_address") and bool(network_session.call("has_public_address"))
+	var has_internet_code := _session != null and _session.has_public_address()
 	var code := ""
-	if network_session != null and network_session.has_method("get_share_room_code"):
-		code = str(network_session.call("get_share_room_code"))
+	if _session != null:
+		code = _session.get_share_room_code()
 	else:
 		code = hud.room_code.text.trim_prefix("LAN CODE").strip_edges()
 	DisplayServer.clipboard_set(code)
@@ -85,12 +84,9 @@ func _create_ping_label() -> void:
 	_ping_label.z_index = 128
 	_ping_label.visible = false
 	hud.add_child(_ping_label)
-	var network_session := get_node_or_null("/root/NetworkSession")
-	if network_session != null:
-		if network_session.has_signal("ping_updated"):
-			network_session.connect("ping_updated", _update_ping_label)
-		if network_session.has_signal("state_changed"):
-			network_session.connect("state_changed", func(_state: int, _message: String) -> void: _refresh_ping_visibility())
+	if _session != null:
+		_session.ping_updated.connect(_update_ping_label)
+		_session.state_changed.connect(func(_state: int, _message: String) -> void: _refresh_ping_visibility())
 	hud.main_menu.visibility_changed.connect(_refresh_ping_visibility)
 
 
@@ -105,9 +101,8 @@ func _update_ping_label(msec: int) -> void:
 func _refresh_ping_visibility() -> void:
 	if _ping_label == null:
 		return
-	var network_session := get_node_or_null("/root/NetworkSession")
-	var online := network_session != null and network_session.has_method("is_online") and bool(network_session.call("is_online"))
-	var has_reading := network_session != null and network_session.has_method("get_ping_msec") and int(network_session.call("get_ping_msec")) >= 0
+	var online := _session != null and _session.is_online()
+	var has_reading := _session != null and _session.get_ping_msec() >= 0
 	_ping_label.visible = online and has_reading and not hud.main_menu.visible
 
 

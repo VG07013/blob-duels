@@ -75,7 +75,7 @@ func set_world_enabled(enabled: bool) -> void:
 	if practice_collision != null:
 		practice_collision.collision_layer = 1 if enabled else 0
 	for node in game.get_tree().get_nodes_in_group("training_dummy"):
-		var dummy := node as RigidBody3D
+		var dummy := node as DummyBlob
 		if dummy == null:
 			continue
 		dummy.visible = enabled
@@ -88,8 +88,8 @@ func set_world_enabled(enabled: bool) -> void:
 		if contact_area != null:
 			contact_area.collision_layer = 16 if enabled else 0
 			contact_area.collision_mask = 16 if enabled else 0
-		if enabled and dummy.has_method("respawn"):
-			dummy.call("respawn")
+		if enabled:
+			dummy.respawn()
 
 
 func _weapon_label() -> String:
