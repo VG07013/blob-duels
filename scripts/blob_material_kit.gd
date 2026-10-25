@@ -61,7 +61,8 @@ static func apply_outline(body_mesh: MeshInstance3D, base_color: Color) -> void:
 static func flash_hit(body_mesh: MeshInstance3D) -> void:
 	if body_mesh == null or not body_mesh.is_inside_tree():
 		return
-	var tint := body_mesh.get_meta("hit_flash_tint", null) as StandardMaterial3D
+	# get_meta() with a null default still reports a missing key, so test the key.
+	var tint := body_mesh.get_meta("hit_flash_tint") as StandardMaterial3D if body_mesh.has_meta("hit_flash_tint") else null
 	if tint == null:
 		tint = StandardMaterial3D.new()
 		tint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -81,7 +82,7 @@ static func flash_hit(body_mesh: MeshInstance3D) -> void:
 		outline.material_override = shell_material
 		body_mesh.add_child(outline)
 	var outline_material := outline.material_override as StandardMaterial3D
-	var previous := body_mesh.get_meta("hit_flash_tween", null) as Tween
+	var previous := body_mesh.get_meta("hit_flash_tween") as Tween if body_mesh.has_meta("hit_flash_tween") else null
 	if previous != null and previous.is_valid():
 		previous.kill()
 	var color := COMBAT_TUNING.HIT_FLASH_COLOR

@@ -317,7 +317,14 @@ var _was_grounded := true
 var _airtime := 0.0
 var _peak_fall_speed := 0.0
 var _collision_ready_at: Dictionary = {}
+## Per-surface debounce for quest bounces, keyed by the body hit and stamped
+## in physics time (`_physics_clock`), not wall-clock: headless runs step the
+## simulation faster than real time, so a wall-clock window counted differently
+## on every machine (physics_integration).
 var _bounce_count_ready_at: Dictionary = {}
+## Seconds of simulated physics since spawn; the clock every debounce reads.
+var _physics_clock := 0.0
+const BOUNCE_COUNT_DEBOUNCE_SECONDS := 0.1
 var _network_target_position := Vector3.ZERO
 var _network_target_rotation := Vector3.ZERO
 ## Host-stamped state history for a remote blob; see _update_remote_transform.
@@ -939,6 +946,7 @@ func cancel_active_charge() -> void:
 
 
 func _tick_timers(delta: float) -> void:
+	_physics_clock += delta
 	_tick_quick_blob(delta)
 	_hit_chain_timer = maxf(_hit_chain_timer - delta, 0.0)
 	_bounce_buffer_timer = maxf(_bounce_buffer_timer - delta, 0.0)
@@ -1809,10 +1817,9 @@ func _on_body_entered(body: Node) -> void:
 		impact_event.emit(global_position, impact_strength, impact_severity)
 	if impact_strength < surface_bounce_min_speed:
 		return
-	var now := Time.get_ticks_msec()
 	var body_id := body.get_instance_id()
-	if now >= int(_bounce_count_ready_at.get(body_id, 0)):
-		_bounce_count_ready_at[body_id] = now + 100
+	if _physics_clock >= float(_bounce_count_ready_at.get(body_id, 0.0)):
+		_bounce_count_ready_at[body_id] = _physics_clock + BOUNCE_COUNT_DEBOUNCE_SECONDS
 		bounce_counted.emit(impact_strength)
 
 
