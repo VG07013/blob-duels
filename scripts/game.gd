@@ -438,7 +438,7 @@ func _start_bot_match(difficulty: int = BOT_TUNING.DEFAULT_DIFFICULTY) -> void:
 	bot_state.note_position(spawn_manager.get_spawn_for_slot(_spawn_slot_for_peer(BOT_PEER_ID)), Time.get_ticks_msec())
 	_activate_competitive_map(_selected_map_id)
 	_start_arena_for_peer(local_peer_id)
-	var body := _ensure_remote_player(BOT_PEER_ID) as RigidBody3D
+	var body := _ensure_remote_player(BOT_PEER_ID) as BlobPlayer
 	body.configure_local(BOT_PEER_ID)
 	body.set_input_enabled(false)
 	body.set_shooting_enabled(false)
@@ -450,7 +450,7 @@ func _start_bot_match(difficulty: int = BOT_TUNING.DEFAULT_DIFFICULTY) -> void:
 	_bot = BOT_OPPONENT.new()
 	_bot.name = "BotOpponent"
 	add_child(_bot)
-	_bot.configure(body, player, difficulty, spawn_manager.is_outside_arena, Vector3.ZERO)
+	_bot.configure(body, player, difficulty, spawn_manager.is_outside_arena, Vector3.ZERO, projectiles)
 	_bot.shot_requested.connect(_on_bot_shot_requested)
 	call_deferred("_begin_synchronized_round_countdown")
 

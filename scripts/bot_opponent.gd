@@ -6,8 +6,16 @@ extends Node
 ## The bot is a real duel participant: game.gd registers it as peer
 ## BOT_PEER_ID with its own ServerPeerState, so hits, deaths and rounds run
 ## through the same host-authoritative paths a connected player uses. This
-## node only decides where the body goes and when it asks to shoot; game.gd
-## spawns the projectile and applies every consequence.
+## node only decides what a player would do and feeds it to the body as
+## controls (BlobVirtualInput): a movement stick, hops, brake, power slide and
+## fling charge all run the body's own movement code, so the bot rolls, ramps
+## up, buffers bounces and flings exactly like a human. game.gd spawns its
+## projectiles and applies every consequence.
+##
+## Each physics step it perceives (distance, line of sight, incoming shots,
+## walls and drops ahead), picks a heading - ram, kite, chase or orbit - then
+## layers a dodge on top, and finally decides on hops, slams, slides, flings
+## and shots. Difficulty only changes the numbers in BotTuning.
 
 const TUNING := preload("res://scripts/bot_tuning.gd")
 const COMBAT_TUNING := preload("res://scripts/combat_tuning.gd")
@@ -15,42 +23,64 @@ const PROJECTILE_SCRIPT := preload("res://scripts/projectile.gd")
 
 signal shot_requested(origin: Vector3, direction: Vector3)
 
-var body: RigidBody3D
+var body: BlobPlayer
 var target: Node3D
 var difficulty := TUNING.DEFAULT_DIFFICULTY
+## The stick and buttons the body reads instead of the Input singleton.
+var controls := BlobVirtualInput.new()
+## Where live projectiles are parented; null means the bot cannot see shots.
+var projectiles_root: Node
 
 var _preset: Dictionary = {}
 var _round_active := false
 var _outside_arena: Callable
 var _arena_center := Vector3.ZERO
+var _rng := RandomNumberGenerator.new()
 var _fire_timer := 0.0
 var _fling_timer := 0.0
 var _strafe_time := 0.0
 var _strafe_sign := 1.0
 var _sight_time := 0.0
-var _rng := RandomNumberGenerator.new()
+var _lost_sight_time := 0.0
+var _last_seen_position := Vector3.ZERO
+var _facing_yaw := 0.0
 ## Blob-slot ram state: seconds left in the current charge, seconds until the
 ## bot may start another, and how long it has been airborne this flight.
 var _blob_time_left := 0.0
 var _blob_cooldown := 0.0
 var _airtime := 0.0
 var _air_jump_considered := false
+var _slam_considered := false
+var _wall_kick_considered := false
+## Committed short actions, in seconds left.
+var _dodge_timer := 0.0
+var _dodge_direction := Vector3.ZERO
+var _fling_charge_left := 0.0
+var _slide_hold_left := 0.0
+var _brake_hold_left := 0.0
+var _hop_cooldown := 0.0
+var _threat_id := 0
 
 
-func configure(blob: RigidBody3D, duel_target: Node3D, level: int, outside_arena: Callable, arena_center: Vector3) -> void:
+func configure(blob: BlobPlayer, duel_target: Node3D, level: int, outside_arena: Callable, arena_center: Vector3, projectiles: Node = null) -> void:
 	body = blob
 	target = duel_target
 	difficulty = clampi(level, TUNING.DIFFICULTY_EASY, TUNING.DIFFICULTY_HARD)
 	_preset = TUNING.preset_for(difficulty)
 	_outside_arena = outside_arena
 	_arena_center = arena_center
+	projectiles_root = projectiles
 	_rng.randomize()
+	if body != null:
+		body.virtual_input = controls
+		_facing_yaw = body.aim_yaw
 	_reset_timers()
 
 
 ## Rounds start frozen at spawn and thaw on GO, exactly like the local blob.
 func set_round_active(active: bool) -> void:
 	_round_active = active
+	controls.clear()
 	if body == null or not is_instance_valid(body):
 		return
 	body.freeze = not active
@@ -72,10 +102,18 @@ func _reset_timers() -> void:
 	_strafe_time = 0.0
 	_strafe_sign = 1.0 if _rng.randf() < 0.5 else -1.0
 	_sight_time = 0.0
+	_lost_sight_time = 0.0
 	_blob_time_left = 0.0
 	_blob_cooldown = float(_preset.get("blob_cooldown_seconds", 3.0)) * 0.5
 	_airtime = 0.0
 	_air_jump_considered = false
+	_slam_considered = false
+	_wall_kick_considered = false
+	_dodge_timer = 0.0
+	_fling_charge_left = 0.0
+	_slide_hold_left = 0.0
+	_brake_hold_left = 0.0
+	_hop_cooldown = 0.0
 	_set_slot(COMBAT_TUNING.SLOT_BLASTER)
 
 
@@ -86,29 +124,58 @@ func _physics_process(delta: float) -> void:
 	var flat_to_target := Vector3(to_target.x, 0.0, to_target.z)
 	var distance := flat_to_target.length()
 	var toward := flat_to_target.normalized() if distance > 0.001 else Vector3.FORWARD
-	body.set("aim_direction", to_target.normalized() if to_target.length_squared() > 0.001 else toward)
 	var has_sight := _has_line_of_sight()
-	_sight_time = _sight_time + delta if has_sight else 0.0
-
+	if has_sight:
+		_sight_time += delta
+		_lost_sight_time = 0.0
+		_last_seen_position = target.global_position
+	else:
+		_sight_time = 0.0
+		_lost_sight_time += delta
+	_tick_timers(delta)
+	_update_facing(to_target, toward, delta)
 	_update_slot(distance, has_sight, delta)
-	_move(toward, distance, delta)
-	_avoid_edge()
-	_maybe_bounce(delta)
-	_maybe_fling(toward, distance, has_sight, delta)
+	var heading := _choose_heading(toward, distance, has_sight, delta)
+	heading = _avoid_edge(heading)
+	heading = _apply_dodge(heading, delta)
+	_apply_heading(heading)
+	_update_jumps(heading, flat_to_target, to_target, delta)
+	_update_fling(distance, has_sight, delta)
+	_update_slide(distance, has_sight, heading)
 	_maybe_air_jump(flat_to_target, delta)
-	_maybe_shoot(to_target, has_sight, distance, delta)
+	_maybe_shoot(to_target, has_sight, distance)
+	controls.set_held("brake", _brake_hold_left > 0.0)
 
 
 func is_blob_mode() -> bool:
-	return body != null and body.has_method("is_blob_mode") and bool(body.call("is_blob_mode"))
+	return body != null and body.is_blob_mode()
+
+
+func _tick_timers(delta: float) -> void:
+	_fire_timer -= delta
+	_fling_timer -= delta
+	_blob_cooldown = maxf(_blob_cooldown - delta, 0.0)
+	_dodge_timer = maxf(_dodge_timer - delta, 0.0)
+	_slide_hold_left = maxf(_slide_hold_left - delta, 0.0)
+	_brake_hold_left = maxf(_brake_hold_left - delta, 0.0)
+	_hop_cooldown = maxf(_hop_cooldown - delta, 0.0)
+
+
+## Swings the facing onto the target at the preset's turn speed; movement is
+## read in this frame, so a slow turn also means a slow course correction.
+func _update_facing(to_target: Vector3, toward: Vector3, delta: float) -> void:
+	var target_yaw := atan2(-toward.x, -toward.z)
+	var blend := 1.0 - exp(-float(_preset.get("turn_speed", 7.0)) * delta)
+	_facing_yaw = lerp_angle(_facing_yaw, target_yaw, blend)
+	body.aim_yaw = _facing_yaw
+	body.aim_direction = to_target.normalized() if to_target.length_squared() > 0.001 else toward
 
 
 ## Swaps to the Blob to ram when the target is close, and back to the Blaster
 ## once the charge has run its course.
-func _update_slot(distance: float, has_sight: bool, delta: float) -> void:
-	_blob_cooldown = maxf(_blob_cooldown - delta, 0.0)
+func _update_slot(distance: float, has_sight: bool, _delta: float) -> void:
 	if is_blob_mode():
-		_blob_time_left -= delta
+		_blob_time_left -= _delta
 		if _blob_time_left <= 0.0:
 			_end_blob_charge()
 		return
@@ -128,15 +195,197 @@ func _end_blob_charge() -> void:
 
 
 func _set_slot(slot: int) -> void:
-	if body != null and body.has_method("set_hotbar_slot"):
-		body.call("set_hotbar_slot", slot)
+	if body != null:
+		body.set_hotbar_slot(slot)
+
+
+## Where to go this step, as a flat world direction (or zero to hold still):
+## ram through the target in the Blob, kite when hurt, chase a target it has
+## lost or that is out of range, otherwise orbit at its preferred range.
+func _choose_heading(toward: Vector3, distance: float, has_sight: bool, delta: float) -> Vector3:
+	_strafe_time += delta
+	if _strafe_time >= float(_preset.get("strafe_period", 1.6)):
+		_strafe_time = -_rng.randf_range(0.0, 0.4)
+		_strafe_sign = -_strafe_sign
+	var lateral := Vector3.UP.cross(toward).normalized() * _strafe_sign * float(_preset.get("strafe_weight", 0.8))
+	if is_blob_mode():
+		return (toward + lateral * 0.2).normalized()
+	var health_ratio := float(body.health) / maxf(float(body.max_health), 1.0)
+	if health_ratio <= float(_preset.get("retreat_health_ratio", 0.3)):
+		return (-toward + lateral * 0.6).normalized()
+	if not has_sight and _lost_sight_time >= TUNING.LOST_SIGHT_CHASE_SECONDS:
+		var to_seen := _last_seen_position - body.global_position
+		to_seen.y = 0.0
+		return to_seen.normalized() if to_seen.length_squared() > 1.0 else toward
+	if distance > float(_preset.get("engage_range", 32.0)):
+		return (toward + lateral * 0.25).normalized()
+	var preferred := float(_preset.get("preferred_range", 10.0))
+	var slack := float(_preset.get("range_slack", 2.5))
+	var radial := Vector3.ZERO
+	if distance > preferred + slack:
+		radial = toward
+	elif distance < preferred - slack:
+		radial = -toward
+	var heading := radial + lateral
+	return heading.normalized() if heading.length_squared() > 0.001 else Vector3.ZERO
+
+
+## A heading that would carry the bot off the arena is replaced by the way
+## back to the centre, with a brake tap when it is already moving fast.
+func _avoid_edge(heading: Vector3) -> Vector3:
+	if not _outside_arena.is_valid():
+		return heading
+	var predicted: Vector3 = body.global_position + body.linear_velocity * TUNING.EDGE_LOOKAHEAD_SECONDS
+	if not bool(_outside_arena.call(predicted)):
+		return heading
+	var to_center := _arena_center - body.global_position
+	to_center.y = 0.0
+	if body.linear_velocity.length() > TUNING.EDGE_BRAKE_SPEED and body.is_grounded():
+		_brake_hold_left = maxf(_brake_hold_left, 0.15)
+	return to_center.normalized() if to_center.length_squared() > 0.001 else heading
+
+
+## Watches live shots: one that will pass close triggers a committed sidestep
+## (and sometimes a hop) across its line, with a skill roll per threat.
+func _apply_dodge(heading: Vector3, _delta: float) -> Vector3:
+	if _dodge_timer <= 0.0:
+		var threat := _incoming_threat()
+		if not threat.is_empty() and int(threat["id"]) != _threat_id:
+			_threat_id = int(threat["id"])
+			if _rng.randf() <= float(_preset.get("dodge_skill", 0.5)):
+				var shot_direction := (threat["velocity"] as Vector3).normalized()
+				var side := Vector3.UP.cross(shot_direction).normalized()
+				var offset := body.global_position - (threat["closest"] as Vector3)
+				if offset.dot(side) < 0.0:
+					side = -side
+				_dodge_direction = side
+				_dodge_timer = TUNING.DODGE_SECONDS
+				if body.is_grounded() and _rng.randf() < TUNING.DODGE_HOP_CHANCE:
+					_hop()
+	if _dodge_timer > 0.0:
+		return (heading * 0.3 + _dodge_direction).normalized()
+	return heading
+
+
+## The nearest projectile from someone else whose path passes within
+## THREAT_MISS_DISTANCE in the next THREAT_LOOKAHEAD_SECONDS.
+func _incoming_threat() -> Dictionary:
+	if projectiles_root == null or not is_instance_valid(projectiles_root):
+		return {}
+	var best: Dictionary = {}
+	var best_time := INF
+	for child in projectiles_root.get_children():
+		var projectile := child as Node3D
+		if projectile == null or projectile.get("source") == body:
+			continue
+		var velocity: Vector3 = projectile.get("velocity") if projectile.get("velocity") != null else Vector3.ZERO
+		var speed := velocity.length()
+		if speed < 0.01:
+			continue
+		var relative := body.global_position - projectile.global_position
+		var time_to_pass := relative.dot(velocity) / (speed * speed)
+		if time_to_pass < 0.0 or time_to_pass > TUNING.THREAT_LOOKAHEAD_SECONDS:
+			continue
+		var closest := projectile.global_position + velocity * time_to_pass
+		if closest.distance_to(body.global_position) > TUNING.THREAT_MISS_DISTANCE:
+			continue
+		if time_to_pass < best_time:
+			best_time = time_to_pass
+			best = {"id": projectile.get_instance_id(), "velocity": velocity, "closest": closest}
+	return best
+
+
+## Turns a world heading into the stick the body reads in its aim frame.
+func _apply_heading(heading: Vector3) -> void:
+	if heading.length_squared() < 0.001:
+		controls.move = Vector2.ZERO
+		return
+	var aim_basis := Basis(Vector3.UP, body.aim_yaw)
+	var forward := -aim_basis.z
+	var right := aim_basis.x
+	controls.move = Vector2(heading.dot(right), -heading.dot(forward)).limit_length(1.0)
+
+
+## Hops over what is in the way and now and then for the fun of it; in the
+## air, kicks off a wall it is about to hit or drops a slam onto a target
+## below. Slam and wall kick are each rolled once per flight.
+func _update_jumps(heading: Vector3, flat_to_target: Vector3, to_target: Vector3, _delta: float) -> void:
+	if body.is_grounded():
+		_slam_considered = false
+		_wall_kick_considered = false
+		if _hop_cooldown > 0.0:
+			return
+		if heading.length_squared() > 0.001 and _probe_blocked(heading, TUNING.OBSTACLE_PROBE_DISTANCE):
+			_hop()
+		elif _rng.randf() < float(_preset.get("bounce_chance_per_second", 0.6)) * _delta:
+			_hop()
+		return
+	if is_blob_mode() or _fling_charge_left > 0.0:
+		return
+	if not _slam_considered and -to_target.y >= TUNING.SLAM_MIN_HEIGHT_ABOVE and flat_to_target.length() <= TUNING.SLAM_MAX_FLAT_DISTANCE:
+		_slam_considered = true
+		if _rng.randf() <= float(_preset.get("slam_skill", 0.3)):
+			_brake_hold_left = TUNING.SLAM_BRAKE_HOLD_SECONDS
+			controls.set_held("brake", true)
+			controls.tap("bounce")
+			return
+	var planar_velocity := Vector3(body.linear_velocity.x, 0.0, body.linear_velocity.z)
+	if not _wall_kick_considered and planar_velocity.length_squared() > 25.0 and _probe_blocked(planar_velocity.normalized(), TUNING.WALL_KICK_PROBE_DISTANCE):
+		_wall_kick_considered = true
+		if _rng.randf() <= float(_preset.get("dodge_skill", 0.5)):
+			controls.tap("bounce")
+
+
+func _hop() -> void:
+	controls.tap("bounce")
+	_hop_cooldown = TUNING.HOP_COOLDOWN_SECONDS
+
+
+## A horizontal probe at body height along `direction`.
+func _probe_blocked(direction: Vector3, distance: float) -> bool:
+	if not body.is_inside_tree():
+		return false
+	var from := body.global_position + Vector3.UP * 0.5
+	var query := PhysicsRayQueryParameters3D.create(from, from + direction * distance, TUNING.LINE_OF_SIGHT_MASK)
+	query.exclude = [body.get_rid()]
+	var hit := body.get_world_3d().direct_space_state.intersect_ray(query)
+	# A floor or gentle ramp under the probe is not an obstacle.
+	return not hit.is_empty() and absf((hit["normal"] as Vector3).y) < 0.6
+
+
+## Charges a real fling at a distant target: swaps to the Blob so the ram
+## lands harder and the air jump can correct the flight, holds the charge for
+## the preset's time, then releases through the body's own fling path.
+func _update_fling(distance: float, has_sight: bool, delta: float) -> void:
+	if _fling_charge_left > 0.0:
+		_fling_charge_left -= delta
+		if _fling_charge_left <= 0.0:
+			controls.release("charge_fling")
+		return
+	if _fling_timer > 0.0 or not has_sight or distance < float(_preset.get("fling_min_distance", 11.0)):
+		return
+	if not body.can_fling() or not body.is_grounded():
+		return
+	_fling_timer = float(_preset.get("fling_interval", 4.0)) * _rng.randf_range(0.8, 1.2)
+	if not is_blob_mode():
+		_start_blob_charge()
+	_fling_charge_left = float(_preset.get("fling_charge_seconds", 0.6))
+	controls.press("charge_fling")
+
+
+## Power slides to close a long gap on the ground, the way a player holds C.
+func _update_slide(distance: float, has_sight: bool, heading: Vector3) -> void:
+	if _slide_hold_left <= 0.0 and body.is_grounded() and not is_blob_mode() and _fling_charge_left <= 0.0 \
+			and heading.length_squared() > 0.001 and (distance >= TUNING.SLIDE_MIN_DISTANCE or not has_sight) \
+			and _rng.randf() < float(_preset.get("slide_skill", 0.5)) * get_physics_process_delta_time():
+		_slide_hold_left = TUNING.SLIDE_HOLD_SECONDS
+	controls.set_held("slide", _slide_hold_left > 0.0)
 
 
 ## Mid-flight in the Blob, a skilled bot spends its air jump to swing its
 ## momentum back onto the target when the flight is carrying it wide.
 func _maybe_air_jump(flat_to_target: Vector3, delta: float) -> void:
-	var grounded := body.has_method("is_grounded") and bool(body.call("is_grounded"))
-	if grounded:
+	if body.is_grounded():
 		_airtime = 0.0
 		_air_jump_considered = false
 		return
@@ -150,91 +399,12 @@ func _maybe_air_jump(flat_to_target: Vector3, delta: float) -> void:
 		return
 	# One roll per flight: a clumsy bot misses its window, a sharp one never does.
 	_air_jump_considered = true
-	if _rng.randf() <= float(_preset.get("air_jump_skill", 0.5)) and body.has_method("blob_air_jump_toward"):
-		body.call("blob_air_jump_toward", flat_to_target.normalized())
+	if _rng.randf() <= float(_preset.get("air_jump_skill", 0.5)):
+		body.blob_air_jump_toward(flat_to_target.normalized())
 
 
-## Circles the target at its preferred range, backing off when hurt.
-func _move(toward: Vector3, distance: float, delta: float) -> void:
-	_strafe_time += delta
-	if _strafe_time >= float(_preset.get("strafe_period", 1.6)):
-		_strafe_time = 0.0
-		_strafe_sign = -_strafe_sign
-	var lateral := Vector3.UP.cross(toward).normalized() * _strafe_sign * float(_preset.get("strafe_weight", 0.8))
-	var preferred := float(_preset.get("preferred_range", 10.0))
-	var slack := float(_preset.get("range_slack", 2.5))
-	var radial := Vector3.ZERO
-	var health_ratio := float(body.get("health")) / maxf(float(body.get("max_health")), 1.0)
-	if is_blob_mode():
-		# Ramming: drive straight through the target, barely weaving.
-		var charge := toward + lateral * 0.2
-		_steer_toward(body.global_position + charge.normalized() * TUNING.STEER_POINT_DISTANCE * COMBAT_TUNING.BLOB_SPEED_MULTIPLIER * 1.6, float(_preset.get("max_accel", 48.0)) * COMBAT_TUNING.BLOB_SPEED_MULTIPLIER)
-		return
-	if health_ratio <= float(_preset.get("retreat_health_ratio", 0.3)):
-		radial = -toward
-	elif distance > preferred + slack:
-		radial = toward
-	elif distance < preferred - slack:
-		radial = -toward
-	var heading := radial + lateral
-	if heading.length_squared() < 0.001:
-		return
-	_steer_toward(body.global_position + heading.normalized() * TUNING.STEER_POINT_DISTANCE, float(_preset.get("max_accel", 48.0)))
-
-
-## Horizontal proportional steering, capped as an acceleration so mass never
-## turns a nudge into a launch (mirrors the practice dummy).
-func _steer_toward(point: Vector3, max_accel: float) -> void:
-	var to_point := point - body.global_position
-	to_point.y = 0.0
-	var desired := to_point * 2.6
-	var current := Vector3(body.linear_velocity.x, 0.0, body.linear_velocity.z)
-	var accel := (desired - current) * 4.0
-	if accel.length_squared() < 0.0001:
-		return
-	body.sleeping = false
-	body.apply_central_force(accel.limit_length(max_accel) * body.mass)
-
-
-func _avoid_edge() -> void:
-	if not _outside_arena.is_valid():
-		return
-	var predicted: Vector3 = body.global_position + body.linear_velocity * TUNING.EDGE_LOOKAHEAD_SECONDS
-	if bool(_outside_arena.call(predicted)):
-		_steer_toward(_arena_center, float(_preset.get("max_accel", 48.0)) * TUNING.EDGE_ESCAPE_ACCEL_MULTIPLIER)
-
-
-func _maybe_bounce(delta: float) -> void:
-	if not body.has_method("is_grounded") or not bool(body.call("is_grounded")):
-		return
-	if _rng.randf() < float(_preset.get("bounce_chance_per_second", 0.6)) * delta:
-		body.sleeping = false
-		body.apply_central_impulse(Vector3.UP * float(_preset.get("bounce_impulse", 48.0)))
-		if body.has_method("trigger_launch_visual"):
-			body.call("trigger_launch_visual", 0.4)
-
-
-func _maybe_fling(toward: Vector3, distance: float, has_sight: bool, delta: float) -> void:
-	_fling_timer -= delta
-	if _fling_timer > 0.0:
-		return
-	if not has_sight or distance < float(_preset.get("fling_min_distance", 11.0)):
-		return
-	_fling_timer = float(_preset.get("fling_interval", 4.0)) * _rng.randf_range(0.8, 1.2)
-	# A fling is a ram: swap to the Blob first so the hit lands harder and the
-	# air jump is available to correct the flight.
-	if not is_blob_mode():
-		_start_blob_charge()
-	var direction := (toward + Vector3.UP * TUNING.FLING_UPWARD_ASSIST).normalized()
-	body.sleeping = false
-	body.apply_central_impulse(direction * float(_preset.get("fling_strength", 150.0)))
-	if body.has_method("trigger_launch_visual"):
-		body.call("trigger_launch_visual", 0.9)
-
-
-func _maybe_shoot(to_target: Vector3, has_sight: bool, distance: float, delta: float) -> void:
-	_fire_timer -= delta
-	if _fire_timer > 0.0 or not has_sight or is_blob_mode():
+func _maybe_shoot(to_target: Vector3, has_sight: bool, distance: float) -> void:
+	if _fire_timer > 0.0 or not has_sight or is_blob_mode() or _fling_charge_left > 0.0:
 		return
 	if distance > float(_preset.get("engage_range", 32.0)) or _sight_time < float(_preset.get("reaction_seconds", 0.5)):
 		return

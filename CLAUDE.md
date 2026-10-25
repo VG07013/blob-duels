@@ -121,8 +121,17 @@ as peer `BOT_PEER_ID` (2) with its own `ServerPeerState`, so hits, deaths,
 rounds and rewards run through the same host-authoritative code a client
 uses; `_is_duel_participant()` is the check to use where a handler used to
 ask `multiplayer.get_peers().has()`. The bot body is a `BlobPlayer` configured
-local with input disabled; `BotOpponent` steers it and emits `shot_requested`,
-and game.gd applies the host fire-rate cap before spawning the projectile.
+local with human input disabled; `BotOpponent` drives it through a
+`BlobVirtualInput` (`scripts/blob_virtual_input.gd`, the body's
+`virtual_input`): every `Input` read in `player.gd` goes through
+`_action_pressed` / `_action_just_pressed` / `get_movement_input`, so the bot
+runs the same ramp-up, bounce buffer, fling charge and power slide a player
+does - never raw forces. Each physics step it perceives (sight, incoming shots
+from `projectiles`, walls and drops ahead), picks a heading (ram, kite, chase,
+orbit), layers a dodge, then decides hops, slams, slides, flings and shots;
+it emits `shot_requested` and game.gd applies the host fire-rate cap before
+spawning the projectile. Difficulty is only data (`bot_tuning.gd` PRESETS);
+`bot_behaviour_contract` pins the behaviour, `bot_duel_contract` the presets.
 Match format (`set_match_format`, first-to and round seconds) is host-only and
 travels with `_receive_match_setup`; rematch (`_on_rematch_requested`) keeps
 peers, loadouts and map, resets only the scoreboard, and `hide_victory()`

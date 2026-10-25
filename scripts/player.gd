@@ -245,6 +245,11 @@ const BLOB_RADIUS_FALLBACK := 2.8875
 @export var collision_pair_cooldown := 0.16
 
 var aim_yaw := 0.0
+## Code-driven controls (scripts/blob_virtual_input.gd). While set, every
+## action and axis read below comes from here instead of the Input singleton,
+## so a bot runs the same movement code a human does. `input_enabled` keeps
+## meaning "the human may drive this body".
+var virtual_input: BlobVirtualInput
 var aim_direction := Vector3.FORWARD
 var health := 150
 var fling_charge := 0.0
@@ -393,8 +398,7 @@ func _physics_process(delta: float) -> void:
 	_update_ground_state(delta)
 	# A slam already in flight lands even if control was pulled mid-dive.
 	_update_slam_state()
-	if not input_enabled:
-		_end_slide(false)
+	if not _accepts_input():
 		_end_slide(false)
 		_end_power_slide(false)
 		_end_fling_thrust()
@@ -415,6 +419,25 @@ func _physics_process(delta: float) -> void:
 	_apply_momentum_decay(delta)
 	_apply_bounce_height_cap()
 	_apply_emergency_speed_guard()
+	if virtual_input != null:
+		virtual_input.end_frame()
+
+
+## Human input on, or a controller script attached.
+func _accepts_input() -> bool:
+	return input_enabled or virtual_input != null
+
+
+func _action_pressed(action: StringName) -> bool:
+	return virtual_input.is_pressed(action) if virtual_input != null else Input.is_action_pressed(action)
+
+
+func _action_just_pressed(action: StringName) -> bool:
+	return virtual_input.is_just_pressed(action) if virtual_input != null else Input.is_action_just_pressed(action)
+
+
+func _action_just_released(action: StringName) -> bool:
+	return virtual_input.is_just_released(action) if virtual_input != null else Input.is_action_just_released(action)
 
 
 func configure_local(peer_id: int) -> void:
@@ -757,6 +780,8 @@ func _update_cosmetic_animation(delta: float) -> void:
 
 
 func get_movement_input() -> Vector2:
+	if virtual_input != null:
+		return virtual_input.move.limit_length(1.0)
 	return Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 
 
@@ -781,7 +806,7 @@ func is_fling_ready() -> bool:
 
 
 func can_fling() -> bool:
-	return is_fling_ready() and input_enabled and local_controlled
+	return is_fling_ready() and _accepts_input() and local_controlled
 
 
 func trigger_launch_visual(amount: float = 0.5) -> void:
@@ -1004,7 +1029,7 @@ func _track_landing(delta: float) -> void:
 
 
 func _update_bounce_input() -> void:
-	if Input.is_action_just_pressed("bounce"):
+	if _action_just_pressed("bounce"):
 		_bounce_buffer_timer = input_buffer_time
 		_update_ground_state(0.0)
 	if _bounce_buffer_timer <= 0.0:
@@ -1017,7 +1042,7 @@ func _update_bounce_input() -> void:
 			return
 		if _try_wall_kick():
 			return
-		if is_blob_mode() and Input.is_action_just_pressed("bounce"):
+		if is_blob_mode() and _action_just_pressed("bounce"):
 			_try_blob_air_jump()
 		return
 	if _bounce_cooldown_timer > 0.0 or _coyote_timer <= 0.0:
@@ -1130,7 +1155,7 @@ func _movement_build_up_factor() -> float:
 
 
 func _apply_brake(delta: float) -> void:
-	if not Input.is_action_pressed("brake") or _is_charging_fling:
+	if not _action_pressed("brake") or _is_charging_fling:
 		_end_slide(false)
 		return
 	var planar_velocity := Vector3(linear_velocity.x, 0.0, linear_velocity.z)
@@ -1185,8 +1210,8 @@ func is_sliding() -> bool:
 ## Power slide: hold slide on the ground for a burst of speed along a
 ## committed line. Brake, a fling charge or a slam cut it with no hop.
 func _update_power_slide(delta: float) -> void:
-	var held := Input.is_action_pressed("slide")
-	if _is_charging_fling or _slamming or Input.is_action_pressed("brake"):
+	var held := _action_pressed("slide")
+	if _is_charging_fling or _slamming or _action_pressed("brake"):
 		_end_power_slide(held)
 		return
 	if not held:
@@ -1275,9 +1300,9 @@ func get_movement_state() -> StringName:
 ## Slam is Space with brake held while airborne, or a dedicated `slam` action
 ## when the project binds one. This is the single input read the slam needs.
 func _is_slam_requested() -> bool:
-	if Input.is_action_pressed("brake"):
+	if _action_pressed("brake"):
 		return true
-	return InputMap.has_action("slam") and Input.is_action_pressed("slam")
+	return InputMap.has_action("slam") and _action_pressed("slam")
 
 
 ## Drives the blob straight down. Only valid while truly airborne (caller
@@ -1398,19 +1423,19 @@ func _apply_fling_charge_drag() -> void:
 
 
 func _update_fling_charge(delta: float) -> void:
-	if Input.is_action_just_pressed("charge_fling") and can_fling():
+	if _action_just_pressed("charge_fling") and can_fling():
 		_is_charging_fling = true
 		_maximum_charge_announced = false
 		fling_charge = 0.0
 		fling_charge_started.emit()
-	if _is_charging_fling and Input.is_action_pressed("charge_fling"):
+	if _is_charging_fling and _action_pressed("charge_fling"):
 		fling_charge = minf(fling_charge + delta * get_charge_rate_multiplier(), maximum_charge_time)
 		var ratio := get_charge_ratio()
 		fling_charge_updated.emit(ratio)
 		if ratio >= 1.0 and not _maximum_charge_announced:
 			_maximum_charge_announced = true
 			fling_maximum_reached.emit()
-	if Input.is_action_just_released("charge_fling") and _is_charging_fling:
+	if _action_just_released("charge_fling") and _is_charging_fling:
 		_release_fling(get_charge_ratio())
 
 
@@ -1419,7 +1444,7 @@ func _release_fling(charge_ratio: float) -> void:
 	# the cooldown is this function - so re-checking is_fling_ready() here could
 	# only ever swallow a charge the player legitimately built, with no
 	# feedback. Void the charge on a real loss of control, nothing else.
-	if not input_enabled or not local_controlled:
+	if not _accepts_input() or not local_controlled:
 		cancel_active_charge()
 		return
 	var direction := aim_direction.normalized()
@@ -1476,7 +1501,7 @@ func _end_fling_thrust() -> void:
 func _update_shooting() -> void:
 	if is_blob_mode():
 		return
-	if Input.is_action_just_pressed("shoot") and _shot_cooldown_timer <= 0.0:
+	if _action_just_pressed("shoot") and _shot_cooldown_timer <= 0.0:
 		_emit_shot_request()
 
 
@@ -1565,11 +1590,11 @@ func get_air_jumps_left() -> int:
 
 
 func _update_hotbar_input() -> void:
-	if Input.is_action_just_pressed("slot_blaster"):
+	if _action_just_pressed("slot_blaster"):
 		set_hotbar_slot(COMBAT_TUNING.SLOT_BLASTER)
-	elif Input.is_action_just_pressed("slot_blob"):
+	elif _action_just_pressed("slot_blob"):
 		set_hotbar_slot(COMBAT_TUNING.SLOT_BLOB)
-	elif Input.is_action_just_pressed("quick_blob"):
+	elif _action_just_pressed("quick_blob"):
 		start_quick_blob()
 
 

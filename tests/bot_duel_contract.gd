@@ -29,7 +29,7 @@ func _run() -> void:
 
 
 func _test_presets() -> void:
-	var required := ["reaction_seconds", "aim_error_radians", "fire_interval", "prediction", "engage_range", "preferred_range", "range_slack", "max_accel", "strafe_period", "strafe_weight", "bounce_chance_per_second", "bounce_impulse", "fling_interval", "fling_strength", "fling_min_distance", "retreat_health_ratio", "blob_ram_range", "blob_commit_seconds", "blob_cooldown_seconds", "air_jump_skill"]
+	var required := ["reaction_seconds", "aim_error_radians", "fire_interval", "prediction", "engage_range", "preferred_range", "range_slack", "turn_speed", "strafe_period", "strafe_weight", "bounce_chance_per_second", "fling_interval", "fling_charge_seconds", "fling_min_distance", "retreat_health_ratio", "blob_ram_range", "blob_commit_seconds", "blob_cooldown_seconds", "air_jump_skill", "dodge_skill", "slide_skill", "slam_skill"]
 	for difficulty in [BOT_TUNING.DIFFICULTY_EASY, BOT_TUNING.DIFFICULTY_NORMAL, BOT_TUNING.DIFFICULTY_HARD]:
 		var preset := BOT_TUNING.preset_for(difficulty)
 		for key in required:
@@ -42,6 +42,8 @@ func _test_presets() -> void:
 	_expect(float(easy["fire_interval"]) > float(normal["fire_interval"]) and float(normal["fire_interval"]) > float(hard["fire_interval"]), "Harder bots must fire more often")
 	_expect(float(easy["air_jump_skill"]) < float(normal["air_jump_skill"]) and float(normal["air_jump_skill"]) <= float(hard["air_jump_skill"]), "Harder bots must use Blob air jumps more reliably")
 	_expect(float(easy["prediction"]) < float(normal["prediction"]) and float(normal["prediction"]) <= float(hard["prediction"]), "Harder bots must lead a moving target more accurately")
+	_expect(float(easy["dodge_skill"]) < float(normal["dodge_skill"]) and float(normal["dodge_skill"]) < float(hard["dodge_skill"]), "Harder bots must dodge incoming shots more often")
+	_expect(float(easy["turn_speed"]) < float(normal["turn_speed"]) and float(normal["turn_speed"]) < float(hard["turn_speed"]), "Harder bots must turn onto the target faster")
 	_expect(BOT_TUNING.difficulty_from_id("hard") == BOT_TUNING.DIFFICULTY_HARD and BOT_TUNING.difficulty_from_id("nope") == BOT_TUNING.DEFAULT_DIFFICULTY, "Unknown difficulty ids must fall back to the default")
 	_expect(BOT_TUNING.preset_for(99) == BOT_TUNING.preset_for(BOT_TUNING.DIFFICULTY_HARD), "Out-of-range difficulties must clamp to the nearest preset")
 
