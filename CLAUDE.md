@@ -229,11 +229,11 @@ the quest rings. Every effect honours reduced motion through
 the model `SubViewport`. Claims and purchases fly coins to or from the header
 balance, which counts on landing (`progression_drawer_contract`).
 `tests/progression_drawer_visual_capture.gd` renders it (needs a display).
-The shop is currently **emptied to the starter loadout**: `get_items` lists
-only each category's `STARTER_LOADOUT` item (Dash, Classic Blue, Bubble,
-Bubble Pop, Happy). The full ability / cosmetic tables stay authored;
-`Progression.stock_full_catalog = true` restores them, and catalog-data tests
-set it (`progression_quests_contract` guards the starter-only rule).
+The shop stocks the **full catalog** (12 abilities + 78 cosmetics, 90 items:
+`shop_catalog_integrity_contract` pins the count). Every account owns and
+wears `STARTER_LOADOUT` (Dash, Classic Blue, Bubble, Bubble Pop, Happy) from
+the start; `Progression.stock_full_catalog = false` cuts the shop back to just
+those items (`progression_quests_contract` guards both states).
 
 ## Progression
 

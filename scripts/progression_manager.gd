@@ -89,9 +89,9 @@ const ARCHIVED_MAP_NAMES := {
 const LIVE_MAP_ID := "bounceground"
 const LIVE_MAP_NAME := "Bounceground"
 const COSMETIC_CATEGORIES := ["skins", "trails", "kill_effects", "faces"]
-# The shop is emptied down to the starter loadout: every category lists only
-# its default item. The full tables above and in CosmeticLibrary stay intact so
-# the renderer keeps its profiles; set `stock_full_catalog` to restore them.
+# Every account starts owning and wearing this loadout, so the shop always has
+# something equipped to compare against. Clearing `stock_full_catalog` cuts the
+# shop down to just these items (the alpha ran that way for a while).
 const STARTER_LOADOUT := {"abilities": "dash", "skins": "classic_blue", "trails": "bubble", "kill_effects": "bubble_pop", "faces": "happy"}
 
 var coins := 0
@@ -102,7 +102,7 @@ var weekly_quests: Array = []
 var _daily_key := ""
 var _weekly_key := ""
 var persistence_enabled := true
-var stock_full_catalog := false
+var stock_full_catalog := true
 
 var _dirty := false
 var _dirty_seconds := 0.0

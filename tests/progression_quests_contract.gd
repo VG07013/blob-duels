@@ -17,7 +17,7 @@ func _initialize() -> void:
 	_test_per_map_wins_and_ticks()
 	_test_archived_map_quests_retarget()
 	_test_next_unlock()
-	_test_starter_only_shop()
+	_test_shop_is_stocked()
 	if failures.is_empty():
 		print("PROGRESSION QUESTS CONTRACT PASS")
 		quit(0)
@@ -155,20 +155,25 @@ func _test_archived_map_quests_retarget() -> void:
 	economy.free()
 
 
-func _test_starter_only_shop() -> void:
+func _test_shop_is_stocked() -> void:
 	var economy := PROGRESSION_SCRIPT.new()
 	economy.set("persistence_enabled", false)
 	economy.call("_ensure_starter_loadout")
 	var starters := PROGRESSION_SCRIPT.STARTER_LOADOUT as Dictionary
 	for category in starters:
 		var items := economy.call("get_items", category) as Array
-		_check(items.size() == 1 and str((items[0] as Dictionary).get("id", "")) == str(starters[category]), "The shop must stock only the default %s" % category)
+		_check(items.size() > 1, "The shop must stock more than the default %s, or coins have nothing to buy" % category)
+		var has_starter := false
+		for item_value in items:
+			has_starter = has_starter or str((item_value as Dictionary).get("id", "")) == str(starters[category])
+		_check(has_starter, "The default %s must stay in the shop as the owned baseline" % category)
+		_check(bool(economy.owned.get(str(starters[category]), false)), "A fresh account must own the default %s" % category)
 		_check(str(economy.call("get_equipped", category)) == str(starters[category]), "A fresh account must wear the default %s" % category)
+	_check(not (economy.call("get_next_unlock") as Dictionary).is_empty(), "A fresh account must have a next unlock to work toward")
 	economy.coins = 100000
-	_check(not bool(economy.call("purchase", "skins", "gold")), "Items removed from the shop must not be purchasable")
-	economy.owned["gold"] = true
-	_check(not bool(economy.call("equip", "skins", "gold")), "A skin owned before the shop was emptied must not be equippable")
-	_check((economy.call("get_next_unlock") as Dictionary).is_empty(), "With only default items in the shop there is no next unlock")
+	_check(bool(economy.call("purchase", "skins", "gold")) and bool(economy.call("equip", "skins", "gold")), "A stocked legendary skin must be purchasable and equippable")
+	economy.set("stock_full_catalog", false)
+	_check((economy.call("get_items", "skins") as Array).size() == 1, "Clearing stock_full_catalog must cut the shop back to the starter loadout")
 	economy.free()
 
 
