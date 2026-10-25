@@ -58,17 +58,18 @@ func _test_practice_clock_and_fling_meter() -> void:
 	hud.call("set_duel_mode", true)
 	_check(timer != null and timer.visible, "Leaving Practice must restore the duel timer")
 
+	# The fling meter (one rail above the health pill) carries the cooldown.
+	var meter := hud.call("get_fling_meter") as Control
 	hud.call("set_fling_cooldown", 3.0, 3.0)
-	var cooldown_panel := hud.find_child("FlingCooldownPanel", true, false) as Control
-	var cooldown_bar := hud.find_child("FlingCooldownBar", true, false) as ProgressBar
-	var cooldown_value := hud.find_child("FlingCooldownValue", true, false) as Label
-	_check(cooldown_panel != null and cooldown_panel.visible, "Fling cooldown must have a visible dedicated HUD indicator")
-	_check(cooldown_bar != null and is_equal_approx(cooldown_bar.value, 100.0), "Fling cooldown bar must start full")
+	_check(meter != null and meter.is_visible_in_tree(), "Fling cooldown must show on the fling meter")
+	_check(meter != null and bool(meter.call("is_on_cooldown")) and is_zero_approx(float(meter.call("get_fill_ratio"))), "A fresh fling cooldown must start the meter empty")
 	hud.call("set_fling_cooldown", 1.5, 3.0)
-	_check(cooldown_bar != null and is_equal_approx(cooldown_bar.value, 50.0), "Fling cooldown bar must deplete with elapsed cooldown")
-	_check(cooldown_value != null and "1.5" in cooldown_value.text, "Fling cooldown needs a readable time state")
+	_check(meter != null and is_equal_approx(float(meter.call("get_fill_ratio")), 0.5), "The fling meter must refill as the cooldown runs down")
+	_check(meter != null and "1.5" in str(meter.call("get_state_text")), "Fling cooldown needs a readable time state")
 	hud.call("set_fling_cooldown", 0.0, 3.0)
-	_check(cooldown_panel != null and not cooldown_panel.visible, "Fling cooldown indicator must clear when fling is ready")
+	_check(meter != null and not bool(meter.call("is_on_cooldown")) and str(meter.call("get_state_text")) == "FLING READY", "The fling meter must read ready once the cooldown ends")
+	var cooldown_panel := hud.find_child("FlingCooldownPanel", true, false) as Control
+	_check(cooldown_panel == null or not cooldown_panel.visible, "The old separate cooldown bar must stay hidden")
 	hud.queue_free()
 	await process_frame
 

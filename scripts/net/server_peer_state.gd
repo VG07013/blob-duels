@@ -29,6 +29,11 @@ var overcharge_end_at := 0
 var phase_end_at := 0
 var gravity_end_at := 0
 
+## Hotbar slot the peer last reported (CombatTuning.SLOT_*). The host refuses
+## shots while it is the Blob slot and uses it for the Blob ram bonus. It is
+## the player's choice, so it survives match resets.
+var hotbar_slot := 0
+
 ## The one bounce mine this peer may have live at a time.
 var bounce_mine: Node = null
 
@@ -40,10 +45,9 @@ var last_state_msec := 0
 var has_reported_position := false
 
 
-## Resets everything a new match should start clean, while keeping the peer's
-## registered loadout, which is chosen once at join and outlives the match.
-func reset_for_match(full_health: int) -> void:
-	health = full_health
+## Every round starts with cooldowns and timed ability effects cleared, so a
+## late-round cast never carries into the next round.
+func reset_for_round() -> void:
 	shot_ready_at = 0
 	ability_ready_at = 0
 	ricochet_loaded = false
@@ -51,6 +55,13 @@ func reset_for_match(full_health: int) -> void:
 	overcharge_end_at = 0
 	phase_end_at = 0
 	gravity_end_at = 0
+
+
+## Resets everything a new match should start clean, while keeping the peer's
+## registered loadout, which is chosen once at join and outlives the match.
+func reset_for_match(full_health: int) -> void:
+	health = full_health
+	reset_for_round()
 	last_state_position = Vector3.ZERO
 	last_state_msec = 0
 	has_reported_position = false

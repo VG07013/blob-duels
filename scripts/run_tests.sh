@@ -129,10 +129,36 @@ if [[ ! -d "$ROOT/.godot/imported" ]]; then
 fi
 
 # macOS has no coreutils timeout, so supervise the run directly.
+# Two-process harnesses (names ending _network_harness) need a client beside
+# the host: the script reads --role, and a lone host only ever times out.
+NETWORK_CLIENT_DELAY_SECONDS=3
+
 run_with_timeout() {
 	local log="$1" name="$2"
-	"$GODOT_BIN" --headless --path "$ROOT" --script "res://tests/$name.gd" >"$log" 2>&1 &
-	local pid=$!
+	local client_pid=""
+	if [[ "$name" == *_network_harness ]]; then
+		"$GODOT_BIN" --headless --path "$ROOT" --script "res://tests/$name.gd" -- --role=host >"$log" 2>&1 &
+		local pid=$!
+		sleep "$NETWORK_CLIENT_DELAY_SECONDS"
+		"$GODOT_BIN" --headless --path "$ROOT" --script "res://tests/$name.gd" -- --role=client >"$log.client" 2>&1 &
+		client_pid=$!
+	else
+		"$GODOT_BIN" --headless --path "$ROOT" --script "res://tests/$name.gd" >"$log" 2>&1 &
+		local pid=$!
+	fi
+	supervise "$log" "$pid"
+	local status=$?
+	if [[ -n "$client_pid" ]]; then
+		supervise "$log.client" "$client_pid"
+		local client_status=$?
+		{ echo "--- client ---"; cat "$log.client"; } >>"$log"
+		[[ $status -eq 0 ]] && status=$client_status
+	fi
+	return $status
+}
+
+supervise() {
+	local log="$1" pid="$2"
 	local waited=0
 	while kill -0 "$pid" 2>/dev/null; do
 		if [[ $waited -ge $TIMEOUT_SECONDS ]]; then

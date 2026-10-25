@@ -9,13 +9,18 @@ func _initialize() -> void:
 	var hud := HUD_SCENE.instantiate()
 	root.add_child(hud)
 	await process_frame
-	var ability := hud.get_node_or_null("AbilityHUD") as Control
+	var ability := hud.find_child("AbilityHUD", true, false) as Control
 	var health := hud.get_node_or_null("HealthPanel") as Control
-	_check(ability != null and health != null, "HUD must contain ability and health controls")
-	if ability != null and health != null:
-		_check(ability.anchor_left == 0.0 and ability.anchor_right == 0.0, "Ability HUD must anchor to the bottom-left corner")
-		_check(ability.position.x >= 24.0, "Ability HUD must keep a safe left screen margin")
-		_check(not ability.get_global_rect().intersects(health.get_global_rect()), "Ability HUD must not overlap the health panel")
+	var hotbar := hud.get_node_or_null("Hotbar") as Control
+	_check(ability != null and health != null and hotbar != null, "HUD must contain ability, health and hotbar controls")
+	if ability != null and health != null and hotbar != null:
+		_check(ability.get_parent() == hotbar and ability.get_index() == hotbar.get_child_count() - 1, "The ability must sit in the hotbar as its third item, after Blaster and Blob")
+		_check(hotbar.anchor_left == 1.0 and hotbar.anchor_top == 1.0, "The hotbar must anchor to the bottom-right corner")
+		_check(health.anchor_left == 0.0 and health.anchor_top == 1.0, "Health must anchor to the bottom-left corner")
+		hud.call("set_lobby_mode", false)
+		hud.call("set_ability_state", "dash", 0, false, false)
+		await process_frame
+		_check(not ability.get_global_rect().intersects(health.get_global_rect()), "The ability must not overlap the health bar")
 		hud.call("set_ability_state", "", 0, false, false)
 		hud.call("set_lobby_mode", false)
 		_check(not ability.visible, "Arena entry must not force an empty ability HUD visible")

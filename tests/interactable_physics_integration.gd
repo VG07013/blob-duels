@@ -5,6 +5,7 @@ const WIND_ZONE := preload("res://scenes/interactables/wind_zone.tscn")
 const CONVEYOR := preload("res://scenes/interactables/conveyor.tscn")
 const BUMPER := preload("res://scenes/interactables/rotating_bumper.tscn")
 const MOVING_PLATFORM := preload("res://scenes/interactables/moving_platform.tscn")
+const JUMP_RING := preload("res://scripts/interactables/jump_ring.gd")
 
 var _failures: Array[String] = []
 
@@ -68,7 +69,21 @@ func _run() -> void:
 	await physics_frame
 	_expect(moving_platform.position.distance_to(start_position) > 1.0, "moving platform traverses its configured route")
 
-	for node in [launch_pad, wind_zone, conveyor, bumper, moving_platform, body]:
+	var jump_ring := JUMP_RING.new() as Area3D
+	root.add_child(jump_ring)
+	jump_ring.call("configure", 5.8, 0.6, Vector3.FORWARD, 1.3, 36.0, Color.CYAN)
+	body.global_position = jump_ring.global_position
+	body.linear_velocity = Vector3(4.0, 2.0, 20.0)
+	_expect(jump_ring.call("activate_body", body), "jump ring accepts a blob running through it")
+	_expect(body.linear_velocity.z >= 36.0 and body.linear_velocity.y > 2.0, "jump ring re-flings along the run's own direction and keeps lift")
+	_expect(not jump_ring.call("activate_body", body), "jump ring holds a cooldown so one pass is one launch")
+	body.linear_velocity = Vector3(0.0, 0.0, -1.0)
+	jump_ring.set("cooldown", 0.0)
+	body.remove_meta("jump_ring_%d" % jump_ring.get_instance_id())
+	_expect(not jump_ring.call("activate_body", body), "jump ring ignores a slow drift through the hoop")
+	_expect(jump_ring.get_node_or_null("SolidRing") == null and jump_ring.find_children("*", "StaticBody3D", true, false).is_empty(), "jump ring is a pure trigger so a threading blob is never clipped")
+
+	for node in [launch_pad, wind_zone, conveyor, bumper, moving_platform, jump_ring, body]:
 		node.queue_free()
 	await process_frame
 	if _failures.is_empty():

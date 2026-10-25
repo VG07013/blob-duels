@@ -56,6 +56,14 @@ func remove(peer_id: int) -> void:
 	_states.erase(peer_id)
 
 
+## Clears every peer's cooldowns and timed effects at the start of a round.
+func reset_for_round() -> void:
+	for state_value in _states.values():
+		var state := state_value as ServerPeerState
+		state.clear_bounce_mine()
+		state.reset_for_round()
+
+
 ## Resets every peer for a new match without forgetting who is connected or
 ## which ability they registered at join.
 func reset_for_match() -> void:

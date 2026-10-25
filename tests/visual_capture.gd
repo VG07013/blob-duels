@@ -2,20 +2,12 @@ extends SceneTree
 
 const OUTPUT_DIR := "res://artifacts/screenshots"
 const MAPS := {
-	"neon_arcade": preload("res://scenes/world/maps/neon_arcade.tscn"),
-	"backyard": preload("res://scenes/world/maps/backyard.tscn"),
-	"arena": preload("res://scenes/world/maps/arena.tscn"),
-	"sky_temple": preload("res://scenes/world/maps/sky_temple.tscn"),
-	"toybox": preload("res://scenes/world/maps/toybox.tscn"),
+	"bounceground": preload("res://scenes/world/maps/bounceground.tscn"),
 }
 const PRACTICE_SCENE := preload("res://scenes/world/practice_arena.tscn")
 const MAIN_SCENE := preload("res://scenes/main.tscn")
 const DETAIL_MODEL_IDS := {
-	"neon_arcade": "arcade_claw",
-	"backyard": "suburban_house_f",
-	"arena": "factory_robot_a",
-	"sky_temple": "",
-	"toybox": "",
+	"bounceground": "",
 }
 
 var _capture_failures := 0
@@ -125,14 +117,14 @@ func _capture_practice_map() -> void:
 	await process_frame
 	_apply_profile(world, practice.call("get_lighting_profile") as Dictionary)
 	var camera := world.get_node("Camera") as Camera3D
-	# Interior angles: the facility is an enclosed simulation room, so exterior
-	# shots would only show the shell.
+	# Blueprint-comparison angles: the straight-down overhead mirrors the
+	# reference sheet, the rest walk the training stations.
 	var shots := [
-		{"file": "practice_facility_wide.png", "from": Vector3(118.0, 46.0, 132.0), "at": Vector3(-20.0, 4.0, -20.0), "fov": 62.0},
-		{"file": "practice_fling_range.png", "from": Vector3(-4.0, 7.0, -40.0), "at": Vector3(-100.0, 6.0, -40.0), "fov": 62.0},
-		{"file": "practice_bounce_towers.png", "from": Vector3(-62.0, 26.0, -62.0), "at": Vector3(0.0, 14.0, -112.0), "fov": 58.0},
-		{"file": "practice_ricochet_gallery.png", "from": Vector3(66.0, 20.0, 96.0), "at": Vector3(120.0, 4.0, 45.0), "fov": 58.0},
-		{"file": "practice_hub.png", "from": Vector3(30.0, 12.0, 42.0), "at": Vector3(0.0, 8.0, 0.0), "fov": 60.0},
+		{"file": "practice_facility_wide.png", "from": Vector3(52.0, 40.0, 58.0), "at": Vector3(0.0, 2.0, 0.0), "fov": 55.0},
+		{"file": "practice_overhead.png", "from": Vector3(0.0, 108.0, 0.1), "at": Vector3(0.0, 0.0, 0.0), "fov": 50.0},
+		{"file": "practice_center_platform.png", "from": Vector3(14.0, 8.0, 16.0), "at": Vector3(0.0, 1.7, 0.0), "fov": 60.0},
+		{"file": "practice_wall_panels.png", "from": Vector3(-22.0, 5.0, 0.0), "at": Vector3(-39.0, 4.3, 0.0), "fov": 60.0},
+		{"file": "practice_dummy_lanes.png", "from": Vector3(0.0, 8.0, 4.0), "at": Vector3(0.0, 3.0, -15.9), "fov": 62.0},
 	]
 	for shot in shots:
 		camera.position = shot["from"] as Vector3
@@ -191,7 +183,7 @@ func _capture_game_ui() -> void:
 
 	pause_menu.call("close_pause")
 	root.size = Vector2i(1280, 720)
-	game.get_node("Lobby").visible = false
+	game.get_viewport().disable_3d = false
 	game.get_node("PracticeArena").visible = true
 	game.get_node("HUD").call("set_lobby_mode", false)
 	game.get_node("HUD").call("set_duel_mode", false)
@@ -231,12 +223,12 @@ func _capture_gameplay_moments() -> void:
 	game.call("_start_practice_match")
 	await _physics_frames(3)
 	var player := game.get_node("Player") as RigidBody3D
-	var dummy := game.get_node("DummyRose") as RigidBody3D
+	var dummy := game.get_node("DummyStationA") as RigidBody3D
 	player.gravity_scale = 0.0
 	dummy.gravity_scale = 0.0
-	player.global_position = Vector3(0.0, 14.0, 24.0)
+	player.global_position = Vector3(0.0, 8.0, 14.0)
 	player.linear_velocity = Vector3.ZERO
-	dummy.global_position = Vector3(0.0, 14.0, 0.0)
+	dummy.global_position = Vector3(0.0, 8.0, 0.0)
 	dummy.linear_velocity = Vector3.ZERO
 	game.set("camera_yaw", 0.0)
 	game.set("camera_pitch", 0.0)
@@ -246,9 +238,9 @@ func _capture_gameplay_moments() -> void:
 	await _settle_render()
 	_save_viewport("projectile_hit.png")
 
-	player.respawn(Vector3(0.0, 14.0, 11.0))
+	player.respawn(Vector3(0.0, 8.0, 11.0))
 	dummy.call("respawn")
-	dummy.global_position = Vector3(0.0, 14.0, 0.0)
+	dummy.global_position = Vector3(0.0, 8.0, 0.0)
 	dummy.linear_velocity = Vector3.ZERO
 	player.linear_velocity = Vector3(0.0, 0.0, -68.0)
 	await _physics_frames(6)
@@ -257,16 +249,16 @@ func _capture_gameplay_moments() -> void:
 	var camera_rig := game.get_node("CameraRig") as Node3D
 	var camera := game.get_node("CameraRig/Camera3D") as Camera3D
 	camera.position = Vector3.ZERO
-	camera_rig.global_position = Vector3(18.0, 24.0, 29.0)
-	camera_rig.look_at(Vector3(0.0, 14.0, 4.0), Vector3.UP)
+	camera_rig.global_position = Vector3(14.0, 15.0, 21.0)
+	camera_rig.look_at(Vector3(0.0, 8.0, 4.0), Vector3.UP)
 	camera.fov = 68.0
 	game.get_node("HUD/Announcement").visible = false
 	await _settle_render()
 	_save_viewport("blob_collision.png")
 	game.set_process(true)
 
-	game.set("_selected_map_id", "arena")
-	game.call("_activate_competitive_map", "arena")
+	game.set("_selected_map_id", "bounceground")
+	game.call("_activate_competitive_map", "bounceground")
 	game.set("_practice_mode", true)
 	game.call("_start_arena_for_peer", 1)
 	await _physics_frames(3)
@@ -368,6 +360,11 @@ func _apply_profile(world: Node3D, profile: Dictionary) -> void:
 	environment.glow_intensity = float(profile.get("glow_intensity", 0.5))
 	environment.glow_strength = float(profile.get("glow_strength", 0.9))
 	environment.glow_bloom = float(profile.get("glow_bloom", 0.0))
+	# Same sky-cover handling as game.gd, so cloud decks and star fields show.
+	var game_script := load("res://scripts/game.gd") as GDScript
+	var covers: Dictionary = game_script.SKY_COVER_TEXTURES
+	sky_material.sky_cover = covers.get(str(profile.get("sky_cover", ""))) as Texture2D
+	sky_material.sky_cover_modulate = profile.get("sky_cover_modulate", Color.WHITE) as Color
 
 
 func _settle_render() -> void:

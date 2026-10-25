@@ -21,6 +21,8 @@ func _initialize() -> void:
 func _run() -> void:
 	var progression := PROGRESSION_SCRIPT.new()
 	progression.set("persistence_enabled", false)
+	# The live shop only stocks the starter items; every authored item must still preview.
+	progression.set("stock_full_catalog", true)
 	var preview := SubViewportContainer.new()
 	preview.name = "ExhaustiveShopPreview"
 	preview.size = Vector2(420, 320)
@@ -37,8 +39,8 @@ func _run() -> void:
 			var item := item_value as Dictionary
 			await _validate_preview_item(preview, category, item, tested_ids, visual_signatures)
 
-	_check(tested_ids.size() == 89, "Preview runtime must exercise all 89 catalog items, exercised %d" % tested_ids.size())
-	_check(visual_signatures.size() == 89, "Every shop item must expose a distinct non-empty visual_signature, got %d" % visual_signatures.size())
+	_check(tested_ids.size() == 90, "Preview runtime must exercise all 90 catalog items, exercised %d" % tested_ids.size())
+	_check(visual_signatures.size() == 90, "Every shop item must expose a distinct non-empty visual_signature, got %d" % visual_signatures.size())
 	_check(preview.find_children("*", "SubViewport", true, false).size() == 1, "Cycling all items must retain exactly one bounded SubViewport")
 	_check(preview.find_children("*", "RigidBody3D", true, false).filter(func(node: Node) -> bool: return node.name == "InGameBlobModel").size() == 1, "Cycling all items must retain exactly one real preview blob")
 	progression.free()

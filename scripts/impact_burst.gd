@@ -15,7 +15,7 @@ func configure(world_position: Vector3, color: Color, burst_scale: float = 1.0, 
 	global_position = world_position
 	_burst_color = color
 	_burst_scale = burst_scale
-	_quality = clampi(quality, 0, 2)
+	_quality = clampi(quality, 0, 3)
 	_style_id = style_id
 
 
@@ -35,7 +35,7 @@ func _start_burst() -> void:
 	mesh.material = material
 	particles.draw_pass_1 = mesh
 	var density := 1.35 if _style_id in ["confetti_burst", "pixel_explosion", "crystal_shatter", "supernova"] else 1.0
-	particles.amount = maxi(6, int(18.0 * density * _burst_scale * [0.45, 0.72, 1.0][_quality]))
+	particles.amount = maxi(6, int(18.0 * density * _burst_scale * [0.45, 0.72, 1.0, 1.35][_quality]))
 	particles.scale = Vector3.ONE * _burst_scale
 	if _quality > 0:
 		_create_shockwave()

@@ -1,11 +1,7 @@
 extends SceneTree
 
 const MAPS := {
-	"Neon Arcade": preload("res://scenes/world/maps/neon_arcade.tscn"),
-	"Backyard": preload("res://scenes/world/maps/backyard.tscn"),
-	"Arena": preload("res://scenes/world/maps/arena.tscn"),
-	"Aether Citadel": preload("res://scenes/world/maps/sky_temple.tscn"),
-	"Toybox": preload("res://scenes/world/maps/toybox.tscn"),
+	"Bounceground": preload("res://scenes/world/maps/bounceground.tscn"),
 }
 
 var _failures: Array[String] = []
@@ -33,35 +29,6 @@ func _run() -> void:
 
 
 func _validate_map_flow(map_name: String, arena: Node3D) -> void:
-	if map_name == "Neon Arcade":
-		var blueprint := arena.call("get_neon_arcade_blueprint") as Dictionary
-		_expect(blueprint.get("footprint_gu", Vector2.ZERO) == Vector2(18, 18), "Neon Arcade must use its square 18 x 18 GU blueprint")
-		_expect(_group_descendants(arena, &"map_interactable").size() >= 25, "Neon Arcade needs its authored bumper, boost, and gate movement systems")
-		return
-	if map_name == "Backyard":
-		var blueprint := (arena.call("get_map_audit") as Dictionary).get("blueprint", {}) as Dictionary
-		_expect(blueprint.get("footprint_gu", Vector2.ZERO) == Vector2(84, 64), "Backyard must use its literal 84 x 64 GU blueprint")
-		_expect(_backyard_elements(arena, "hose_ramp").size() == 4, "Backyard needs its four blueprint hose movement routes")
-		_expect(_backyard_elements(arena, "planter_cover").size() == 4, "Backyard needs four solid planter redirects")
-		_expect(_backyard_elements(arena, "sprinkler_pad").size() == 6 and _backyard_elements(arena, "mushroom_pad").size() == 4, "Backyard needs all ten active garden movement pads")
-		_expect(_group_descendants(arena, &"duel_flow_anchor").size() >= 12, "Backyard needs explicit direct, flank, and picnic attack anchors")
-		return
-	if map_name == "Toybox":
-		var blueprint := (arena.call("get_map_audit") as Dictionary).get("blueprint", {}) as Dictionary
-		_expect(blueprint.get("footprint_gu", Vector2.ZERO) == Vector2(64, 128), "Toybox must use its literal 64 x 128 GU blueprint")
-		_expect(_toybox_elements(arena, "launch_ramp").size() == 4 and _toybox_elements(arena, "wedge_block").size() == 4, "Toybox needs all eight blueprint ramp and wedge movement pieces")
-		_expect(_toybox_elements(arena, "balance_beam").size() == 4 and _toybox_elements(arena, "low_cover").size() == 4, "Toybox needs the exact central beams and low covers")
-		_expect(_toybox_elements(arena, "boost_pad").size() == 4 and _toybox_elements(arena, "wall_bumper").size() == 4, "Toybox needs all eight powered route redirects")
-		_expect(_group_descendants(arena, &"duel_flow_anchor").size() >= 13, "Toybox needs its mirrored direct, ramp, wall, and trampoline anchors")
-		return
-	if map_name == "Aether Citadel":
-		var blueprint := (arena.call("get_map_audit") as Dictionary).get("blueprint", {}) as Dictionary
-		_expect(blueprint.get("footprint_gu", Vector2.ZERO) == Vector2(48, 72), "Aether Citadel must use its approved 48 x 72 GU blueprint")
-		_expect(_aether_elements(arena, "ascension_ramp").size() == 4 and _aether_elements(arena, "crescent_wing_terrace").size() == 2, "Aether Citadel needs all six elevated wing routes")
-		_expect(_aether_elements(arena, "boost_pad").size() == 4 and _aether_elements(arena, "wind_arch").size() == 4, "Aether Citadel needs all eight powered center feeders")
-		_expect(_aether_elements(arena, "rebound_pylon").size() == 8 and _aether_elements(arena, "wall_rebound_fin").size() == 12, "Aether Citadel needs its full recovery network")
-		_expect(_group_descendants(arena, &"duel_flow_anchor").size() >= 11, "Aether Citadel needs explicit sanctum, wing, meridian, and crown flow anchors")
-		return
 	var anchors := _group_descendants(arena, &"duel_flow_anchor")
 	var covers := _group_descendants(arena, &"duel_cover")
 	var interactables := _group_descendants(arena, &"intentional_interactable")
@@ -75,8 +42,7 @@ func _validate_map_flow(map_name: String, arena: Node3D) -> void:
 	_expect(int(roles.get("spawn_exit", 0)) >= 2, "%s needs two authored spawn exits" % map_name)
 	_expect(int(roles.get("center_contest", 0)) >= 1, "%s needs a defined center contest" % map_name)
 	_expect(int(roles.get("flank_route", 0)) >= 4, "%s needs readable protected flank routes" % map_name)
-	var minimum_attack_routes := 2 if map_name == "Arena" else 4
-	_expect(int(roles.get("attack_route", 0)) >= minimum_attack_routes, "%s needs deliberate attack-route anchors" % map_name)
+	_expect(int(roles.get("attack_route", 0)) >= 4, "%s needs deliberate attack-route anchors" % map_name)
 	_expect(lanes.has("center") and lanes.has("left") and lanes.has("right"), "%s needs center, left, and right route language" % map_name)
 	for anchor in anchors:
 		var role := String(anchor.get_meta("flow_role", ""))
@@ -121,44 +87,16 @@ func _group_descendants(arena: Node, group_name: StringName) -> Array[Node]:
 	return matches
 
 
-func _backyard_elements(arena: Node, kind: String) -> Array[Node]:
-	var matches: Array[Node] = []
-	for node in arena.find_children("*", "Node", true, false):
-		if String(node.get_meta("backyard_kind", "")) == kind:
-			matches.append(node)
-	return matches
-
-
-func _toybox_elements(arena: Node, kind: String) -> Array[Node]:
-	var matches: Array[Node] = []
-	for node in arena.find_children("*", "Node", true, false):
-		if String(node.get_meta("toybox_kind", "")) == kind:
-			matches.append(node)
-	return matches
-
-
-func _aether_elements(arena: Node, kind: String) -> Array[Node]:
-	var matches: Array[Node] = []
-	for node in arena.find_children("*", "Node", true, false):
-		if String(node.get_meta("aether_kind", "")) == kind:
-			matches.append(node)
-	return matches
-
-
 func _physically_feeds_center(interactable: Node3D) -> bool:
 	var flat_position := Vector3(interactable.position.x, 0.0, interactable.position.z)
 	if flat_position.length() <= 22.0:
 		return true
 	var toward_center := -flat_position.normalized()
 	var kind := StringName(interactable.call("get_interaction_kind")) if interactable.has_method("get_interaction_kind") else &""
-	if kind in [&"launch_pad", &"conveyor", &"wind_zone", &"toybox_boost_pad"]:
+	if kind in [&"launch_pad", &"conveyor", &"wind_zone"]:
 		var configured := interactable.get("local_direction") as Vector3
 		var flat_direction := Vector3(configured.x, 0.0, configured.z).normalized()
 		return flat_direction.dot(toward_center) >= 0.35
-	if kind in [&"wall_launch_strip", &"toybox_wall_bumper"]:
-		var inward := interactable.get("inward") as Vector3
-		var flat_inward := Vector3(inward.x, 0.0, inward.z).normalized()
-		return flat_inward.dot(toward_center) >= 0.35
 	if kind == &"moving_platform":
 		var offset := interactable.get("travel_offset") as Vector3
 		var flat_offset := Vector3(offset.x, 0.0, offset.z).normalized()

@@ -1,7 +1,6 @@
 extends SceneTree
 
-const ARENA := preload("res://scenes/world/maps/arena.tscn")
-const NEON_ARCADE := preload("res://scenes/world/maps/neon_arcade.tscn")
+const BOUNCEGROUND := preload("res://scenes/world/maps/bounceground.tscn")
 const PRACTICE := preload("res://scenes/world/practice_arena.tscn")
 
 var failures: Array[String] = []
@@ -12,8 +11,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	await _check_authored_footprints("Arena", ARENA)
-	await _check_authored_footprints("Neon Arcade", NEON_ARCADE)
+	await _check_authored_footprints("Bounceground", BOUNCEGROUND)
 	await _check_practice_geometry()
 	if failures.is_empty():
 		print("MAP GEOMETRY CONTRACT PASS")
@@ -38,13 +36,11 @@ func _check_authored_footprints(label: String, packed: PackedScene) -> void:
 			var first := footprints[first_index] as Node3D
 			var second := footprints[second_index] as Node3D
 			_check(not _footprints_overlap(first, second), "%s has intersecting authored geometry: %s and %s" % [label, first.name, second.name])
-	if label in ["Arena", "Neon Arcade"]:
-		for footprint in footprints:
-			if not String(footprint.name).contains("Ramp"):
-				continue
-			var surface_pattern := "*ContinuousSurface*" if label == "Arena" else "*Surface*"
-			var surfaces := footprint.find_children(surface_pattern, "MeshInstance3D", true, false)
-			_check(surfaces.size() == 1 and _mesh_is_closed((surfaces[0] as MeshInstance3D).mesh), "%s must have a closed visible shell, including its underside and high end" % footprint.name)
+	for footprint in footprints:
+		if not String(footprint.name).contains("Ramp"):
+			continue
+		var surfaces := footprint.find_children("*Surface*", "MeshInstance3D", true, false)
+		_check(surfaces.size() == 1 and _mesh_is_closed((surfaces[0] as MeshInstance3D).mesh), "%s must have a closed visible shell, including its underside and high end" % footprint.name)
 	arena.queue_free()
 	await process_frame
 
@@ -73,57 +69,38 @@ func _check_practice_geometry() -> void:
 	await process_frame
 	var ramps := practice.get_tree().get_nodes_in_group("closed_ramp").filter(func(node: Node) -> bool: return practice.is_ancestor_of(node))
 	var ramp_collisions := practice.get_tree().get_nodes_in_group("closed_ramp_collision").filter(func(node: Node) -> bool: return practice.is_ancestor_of(node))
-	_check(ramps.size() == 8, "Practice must build all eight traversal ramps as closed wedge meshes")
+	_check(ramps.size() == 12, "Practice must build two four-segment side ramps and four wedges as closed prisms")
 	_check(ramp_collisions.size() == ramps.size(), "Every closed practice ramp needs one matching convex collider")
 	for ramp_value in ramps:
 		var ramp := ramp_value as MeshInstance3D
-		_check(ramp != null and ramp.mesh != null and _mesh_is_closed(ramp.mesh), "%s must be a watertight wedge with a visible underside" % ramp_value.name)
-		if ramp != null and ramp.mesh != null:
-			var expected_landing_heights := {
-				"RangeRamp_": 8.0,
-				"GalleryRamp_": 8.0,
-				"SparRamp_": 8.0,
-				"TowerRamp_": 10.0,
-			}
-			for prefix in expected_landing_heights:
-				if not String(ramp.name).begins_with(prefix):
-					continue
-				var high_edge_y := ramp.position.y + ramp.mesh.get_aabb().end.y
-				_check(absf(high_edge_y - float(expected_landing_heights[prefix])) <= 1.0, "%s must meet its landing without a collision lip" % ramp.name)
+		_check(ramp != null and ramp.mesh != null and _mesh_is_closed(ramp.mesh), "%s must be a watertight prism with a visible underside" % ramp_value.name)
 	for collision_value in ramp_collisions:
 		var collision := collision_value as CollisionShape3D
 		var convex := collision.shape as ConvexPolygonShape3D if collision != null else null
-		_check(convex != null and convex.points.size() == 8, "%s must use the same eight-point ramp-prism volume as its visible ramp" % collision_value.name)
-	var solid_props := practice.get_tree().get_nodes_in_group("solid_visible_prop").filter(func(node: Node) -> bool: return practice.is_ancestor_of(node))
-	var solid_prop_collisions := practice.get_tree().get_nodes_in_group("solid_visible_prop_collision").filter(func(node: Node) -> bool: return practice.is_ancestor_of(node))
-	_check(solid_props.size() >= 10, "Practice tree canopies must be classified as reachable solid-looking props")
-	_check(solid_prop_collisions.size() == solid_props.size(), "Every reachable solid-looking practice prop must have matching collision")
-	var landing_pairs := {
-		"RangeRamp_": "RangeDeck_",
-		"GalleryRamp_": "GalleryDeck_",
-		"SparRamp_": "SparDeck_",
-		"TowerRamp_": "TowerADeck_",
-	}
+		_check(convex != null and convex.points.size() == 8, "%s must use the same eight-point prism volume as its visible ramp" % collision_value.name)
+	# Crest heights straight off the blueprint: side ramps rise to 1.6 GU
+	# beside their wall, wedges to 1.2 GU, with no collision lip anywhere.
+	var west_crest := -INF
+	var east_crest := -INF
+	var wedge_crest := -INF
 	for ramp_value in ramps:
 		var ramp := ramp_value as MeshInstance3D
-		for ramp_prefix in landing_pairs:
-			if not String(ramp.name).begins_with(ramp_prefix):
-				continue
-			var landing := _mesh_with_prefix(practice, landing_pairs[ramp_prefix] as String)
-			_check(landing != null and absf(_mesh_top_y(ramp) - _box_top_y(landing)) < 0.05, "%s must meet the top of %s without a collision lip" % [ramp.name, landing_pairs[ramp_prefix]])
-	# Landing zones stay clean: no stand or pylon stands on a deck's footprint.
-	var deck_meshes: Array[MeshInstance3D] = []
-	for node in practice.find_children("*", "MeshInstance3D", true, false):
-		var mesh_node := node as MeshInstance3D
-		if ["RangeDeck_", "GalleryDeck_", "SparDeck_", "TowerADeck_", "TowerBDeck_", "TowerCDeck_"].any(func(prefix: String) -> bool: return String(mesh_node.name).begins_with(prefix)) and mesh_node.mesh is BoxMesh:
-			deck_meshes.append(mesh_node)
-	for node in practice.find_children("*", "MeshInstance3D", true, false):
-		var furniture := node as MeshInstance3D
-		var is_stand := String(furniture.name).begins_with("SupportPylon_") or String(furniture.name).contains("RingStand")
-		if not is_stand:
+		if ramp == null or ramp.mesh == null:
 			continue
-		for deck in deck_meshes:
-			_check(not _circle_overlaps_box_xz(furniture.position, 1.0, deck), "%s intrudes on the landing deck %s" % [furniture.name, deck.name])
+		var top := _mesh_top_y(ramp)
+		if String(ramp.name).begins_with("SideRampWest"):
+			west_crest = maxf(west_crest, top)
+		elif String(ramp.name).begins_with("SideRampEast"):
+			east_crest = maxf(east_crest, top)
+		elif String(ramp.name).begins_with("Wedge"):
+			wedge_crest = maxf(wedge_crest, top)
+	_check(absf(west_crest - 4.6208) <= 0.05, "West side ramp must crest at 1.6 GU, got %.3f" % west_crest)
+	_check(absf(east_crest - 4.6208) <= 0.05, "East side ramp must crest at 1.6 GU, got %.3f" % east_crest)
+	_check(absf(wedge_crest - 3.4656) <= 0.05, "Wedge ramps must crest at 1.2 GU, got %.3f" % wedge_crest)
+	var solid_props := practice.get_tree().get_nodes_in_group("solid_visible_prop").filter(func(node: Node) -> bool: return practice.is_ancestor_of(node))
+	var solid_prop_collisions := practice.get_tree().get_nodes_in_group("solid_visible_prop_collision").filter(func(node: Node) -> bool: return practice.is_ancestor_of(node))
+	_check(solid_props.size() >= 20, "Practice platform, cover blocks, pedestals, pads, and corner rounds must be classified as solid props")
+	_check(solid_prop_collisions.size() == solid_props.size(), "Every reachable solid-looking practice prop must have matching collision")
 	practice.queue_free()
 	await process_frame
 

@@ -67,7 +67,9 @@ func _run() -> void:
 		await physics_frame
 		peak_speed = maxf(peak_speed, player.linear_velocity.length())
 	var settled_fling_speed := _planar_speed()
-	_check(peak_speed <= player.maximum_movement_speed + 1.0, "A fling or bounce exceeds the bounded movement speed")
+	# The release thrust may briefly exceed the rolling cap, but only up to its
+	# own charge-scaled ceiling.
+	_check(peak_speed <= player.fling_thrust_max_speed + 5.0, "A fling or bounce exceeds the bounded movement speed")
 	_check(settled_fling_speed < 9.0, "A single fling does not settle back toward normal movement")
 
 	# Ground movement remains deliberate but reaches combat-useful speed after buildup.
@@ -83,19 +85,11 @@ func _run() -> void:
 	_check(ground_late_speed <= player.ground_control_speed + 3.0, "Ground buildup overshoots the controllable traversal band")
 	_check(ground_late_speed <= player.maximum_movement_speed + 0.1, "Ground buildup can exceed the movement speed bound")
 
-	# Name must sit above the health bar, scale down, and disappear at range.
+	# No name tag or health bar floats above a blob, at any camera distance.
 	var nameplate := player.get_node("Nameplate") as Node3D
-	var name_label := player.get_node("Nameplate/Name") as Label3D
-	var health_back := player.get_node("Nameplate/HealthBackground") as MeshInstance3D
-	_check(name_label.position.y > health_back.position.y + 0.25, "Player name is not positioned above the health bar")
-	_check(not name_label.fixed_size, "Name tag still uses oversized fixed screen-space rendering")
-	player.update_nameplate_for_camera(player.global_position + Vector3(0.0, 0.0, 8.0))
-	var near_scale := nameplate.scale.x
-	player.update_nameplate_for_camera(player.global_position + Vector3(0.0, 0.0, 40.0))
-	var far_scale := nameplate.scale.x
-	_check(nameplate.visible and far_scale < near_scale, "Nameplate does not shrink with camera distance")
-	player.update_nameplate_for_camera(player.global_position + Vector3(0.0, 0.0, 80.0))
-	_check(not nameplate.visible, "Nameplate remains visible beyond its maximum readable distance")
+	for camera_distance in [4.0, 8.0, 40.0, 80.0]:
+		player.update_nameplate_for_camera(player.global_position + Vector3(0.0, 0.0, camera_distance))
+		_check(not nameplate.visible, "Blobs must not show a floating name tag or health bar (camera %.0f away)" % camera_distance)
 
 	Input.action_release("move_forward")
 	Input.action_release("move_right")
@@ -130,7 +124,11 @@ func _add_floor() -> void:
 	var floor := StaticBody3D.new()
 	var collision := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
-	shape.size = Vector3(180.0, 2.0, 180.0)
+	# The settle check needs ground to settle on. The floor was 180 units when
+	# the post-fling drag peaked on the launch frame; since BUG-026 made the
+	# launch carry first, a full fling covers ~90 units in 1.3 s and flew off the
+	# edge into a free fall that only air drag could slow.
+	shape.size = Vector3(900.0, 2.0, 900.0)
 	collision.shape = shape
 	collision.position.y = -1.0
 	floor.add_child(collision)

@@ -6,14 +6,6 @@ const COIN_ICON_SCRIPT := preload("res://scripts/ui/coin_icon.gd")
 const SHOP_PREVIEW_SCRIPT := preload("res://scripts/ui/shop_model_preview.gd")
 
 const REFERENCE_VIEWPORT := Vector2(1280.0, 720.0)
-const LOBBY_ACTIONS := [
-	"PlayButton",
-	"CustomizeButton",
-	"HostChoice",
-	"JoinChoice",
-	"PracticeChoice",
-	"ShopButton",
-]
 
 var failures: Array[String] = []
 
@@ -30,7 +22,6 @@ func _run() -> void:
 	hud.call("set_lobby_mode", true)
 	await process_frame
 
-	_test_compact_translucent_lobby(hud)
 	_test_progression_widgets(hud)
 	_test_lobby_widget_suppression(hud)
 	await _test_compact_progression_drawers(hud)
@@ -48,47 +39,11 @@ func _run() -> void:
 	quit(1)
 
 
-func _test_compact_translucent_lobby(hud: Node) -> void:
-	var lobby_panel := hud.find_child("LobbyPanel", true, false) as PanelContainer
-	_check(lobby_panel != null, "Lobby must retain one dedicated action panel")
-	if lobby_panel == null:
-		return
-	_check(
-		lobby_panel.size.x <= REFERENCE_VIEWPORT.x * 0.42
-		and lobby_panel.size.y <= REFERENCE_VIEWPORT.y * 0.52,
-		"Lobby action panel must stay compact enough to leave most of the in-game lobby visible"
-	)
-	var panel_style := lobby_panel.get_theme_stylebox("panel")
-	_check(
-		panel_style is StyleBoxFlat and (panel_style as StyleBoxFlat).bg_color.a <= 0.82,
-		"Lobby panel must use a translucent flat game-UI surface"
-	)
-
-	for action_name in LOBBY_ACTIONS:
-		var action := hud.find_child(action_name, true, false) as Button
-		_check(action != null, "Lobby action %s is missing" % action_name)
-		if action == null:
-			continue
-		var normal_style := action.get_theme_stylebox("normal")
-		_check(
-			not normal_style is StyleBoxTexture,
-			"%s must not use an image as its full button background" % action_name
-		)
-		_check(
-			normal_style is StyleBoxFlat,
-			"%s must use a crisp native UI style instead of generated lobby artwork" % action_name
-		)
-		_check(
-			action.custom_minimum_size.y <= 72.0,
-			"%s must be a compact action, not a large illustrated tile" % action_name
-		)
-
-
 func _test_progression_widgets(hud: Node) -> void:
 	var coin_chip := hud.find_child("CoinBalance", true, false) as PanelContainer
 	var quest_panel := hud.find_child("QuestPanel", true, false) as PanelContainer
-	_check(coin_chip != null, "Lobby must expose a dedicated coin counter")
-	_check(quest_panel != null, "Lobby must expose a dedicated daily-quest surface")
+	_check(coin_chip != null, "The menu must expose a dedicated coin counter")
+	_check(quest_panel != null, "The menu must expose a dedicated daily-quest surface")
 	if coin_chip != null:
 		_check(
 			coin_chip.size.x <= 190.0 and coin_chip.size.y <= 64.0,
@@ -102,7 +57,6 @@ func _test_progression_widgets(hud: Node) -> void:
 			quest_panel.size.x <= 340.0 and quest_panel.size.y <= 230.0,
 			"Daily quests must stay in a compact glanceable panel"
 		)
-		_check(_is_translucent_flat_panel(quest_panel, 0.9), "Daily quests must use a translucent bordered surface")
 		_check(_has_label_fragment(quest_panel, "TODAY"), "Quest surface must clearly identify today's daily rotation")
 		_check(
 			quest_panel.find_children("*", "ProgressBar", true, false).size() >= 1,
@@ -111,15 +65,17 @@ func _test_progression_widgets(hud: Node) -> void:
 
 
 func _test_lobby_widget_suppression(hud: Node) -> void:
-	_check(hud.has_method("set_lobby_ui_suppressed"), "Lobby settings need a dedicated widget-suppression path")
+	_check(hud.has_method("set_lobby_ui_suppressed"), "Menu settings need a dedicated suppression path")
 	if not hud.has_method("set_lobby_ui_suppressed"):
 		return
+	var menu := hud.find_child("MainMenu", true, false) as Control
 	hud.call("set_lobby_ui_suppressed", true)
-	_check(not (hud.find_child("LobbyPanel", true, false) as Control).visible, "Settings must hide the lobby action dock")
-	_check(not (hud.find_child("QuestPanel", true, false) as Control).visible, "Settings must hide the lobby quest tracker")
-	_check(not (hud.find_child("HealthPanel", true, false) as Control).visible, "Hiding lobby widgets must not enable the match health HUD")
-	_check(not (hud.find_child("AbilityHUD", true, false) as Control).visible, "Hiding lobby widgets must not enable the match ability HUD")
+	_check(menu.visible and menu.modulate.v < 0.8, "Settings must sit over a dimmed menu, keeping it as the backdrop")
+	_check(not menu.can_process(), "The dimmed menu must stop animating and taking input under settings")
+	_check(not (hud.find_child("HealthPanel", true, false) as Control).visible, "Suppressing the menu must not enable the match health HUD")
+	_check(not (hud.find_child("AbilityHUD", true, false) as Control).visible, "Suppressing the menu must not enable the match ability HUD")
 	hud.call("set_lobby_ui_suppressed", false)
+	_check(menu.modulate == Color.WHITE and menu.can_process(), "Closing settings must restore the menu")
 
 
 func _test_compact_progression_drawers(hud: Node) -> void:
@@ -133,7 +89,7 @@ func _test_compact_progression_drawers(hud: Node) -> void:
 	_check(shop_drawer != null, "Shop must render inside a bounded drawer panel")
 	if shop_drawer != null:
 		_test_drawer_bounds(shop_drawer, "Shop")
-	_check(_full_rect_backdrop_alpha(overlay) <= 0.72, "Shop backdrop must stay transparent enough to preserve the in-game lobby")
+	_check(_full_rect_backdrop_alpha(overlay) <= 0.72, "Shop backdrop must stay transparent enough to keep the menu visible behind it")
 	_check(
 		_count_controls_with_script(overlay, SHOP_PREVIEW_SCRIPT) >= 1,
 		"Shop must render the selected item on the real in-game blob model"

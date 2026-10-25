@@ -27,7 +27,7 @@ func _run() -> void:
 	await process_frame
 	var player := game.get_node("Player") as RigidBody3D
 	game._apply_settings({"graphics_quality": 99, "effects_quality": -4, "shadow_quality": 99, "render_scale": 8.0})
-	_check(int(game.get("_graphics_quality")) == 2, "Corrupt graphics quality is not clamped at the runtime boundary")
+	_check(int(game.get("_graphics_quality")) == 3, "Corrupt graphics quality is not clamped at the runtime boundary (Ultra is the ceiling)")
 	_check(is_equal_approx(get_root().scaling_3d_scale, 1.25), "Corrupt render scale is not clamped at the runtime boundary")
 	var no_token_flags := game._consume_server_shot_flags(2, 1000) as Dictionary
 	_check(not bool(no_token_flags.get("ricochet")) and not bool(no_token_flags.get("rail")), "Remote shots gain privileged ability flags without a server token")

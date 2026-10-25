@@ -2,11 +2,8 @@ extends SceneTree
 
 const MAPS := [
 	preload("res://scenes/world/practice_arena.tscn"),
-	preload("res://scenes/world/maps/neon_arcade.tscn"),
-	preload("res://scenes/world/maps/backyard.tscn"),
-	preload("res://scenes/world/maps/arena.tscn"),
-	preload("res://scenes/world/maps/sky_temple.tscn"),
-	preload("res://scenes/world/maps/toybox.tscn"),
+	preload("res://scenes/world/maps/bounceground.tscn"),
+	preload("res://scenes/world/maps/skyline.tscn"),
 ]
 const MAIN_SCENE := preload("res://scenes/main.tscn")
 

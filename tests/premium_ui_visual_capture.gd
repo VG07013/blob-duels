@@ -31,23 +31,12 @@ func _run() -> void:
 	camera_rig.look_at(Vector3(0.0, 4.5, 620.0), Vector3.UP)
 	camera.fov = 67.0
 
-	hud.call("_show_lobby_page", "play")
+	# The menu's entrance runs ~1.5s; capture it settled.
+	await create_timer(1.8).timeout
 	await _settle()
-	_save("direction3_lobby.png")
-	hud.call("_show_lobby_page", "chooser")
-	await _settle()
-	_save("direction3_play_chooser.png")
-	hud.call("_show_lobby_page", "customize")
-	await _settle()
-	_save("premium_customize.png")
-	hud.call("_show_lobby_page", "host")
-	await _settle()
-	_save("premium_host.png")
-	hud.call("_show_lobby_page", "join")
-	await _settle()
-	_save("premium_join.png")
+	_save("main_menu.png")
 
-	game.get_node("Lobby").visible = false
+	game.get_viewport().disable_3d = false
 	game.get_node("PracticeArena").visible = true
 	hud.call("set_lobby_mode", false)
 	hud.call("set_duel_mode", true)

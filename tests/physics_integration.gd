@@ -60,7 +60,7 @@ func _run() -> void:
 	Input.action_press("move_forward")
 	await _physics_seconds(0.5)
 	Input.action_release("move_forward")
-	_check(-player.linear_velocity.z <= 38.5, "Ground input amplifies existing momentum beyond the controllable traversal band")
+	_check(-player.linear_velocity.z <= player.ground_control_speed + 0.5, "Ground input amplifies existing momentum beyond the controllable traversal band")
 	_check(-player.linear_velocity.z >= 28.0, "Ground movement over-brakes useful existing momentum")
 
 	await _reset_player(Vector3(0, 20.0, 24.0))

@@ -93,7 +93,10 @@ func _test_fling_cooldown() -> void:
 	var launched_velocity := player.linear_velocity
 	player.call("_release_fling", 1.0)
 	await physics_frame
-	_check(player.linear_velocity.distance_to(launched_velocity) < 3.0, "A second fling can launch during the three-second cooldown")
+	# One frame of the first fling's release thrust is expected; a second
+	# launch impulse (50+ m/s) is not.
+	var thrust_step := float(player.get("fling_thrust_acceleration")) / 60.0
+	_check(player.linear_velocity.distance_to(launched_velocity) < 3.0 + thrust_step, "A second fling can launch during the three-second cooldown")
 
 	await _physics_seconds(1.45)
 	var middle_ratio := float(player.call("get_fling_cooldown_ratio"))

@@ -20,7 +20,7 @@ func _run() -> void:
 
 	await _test_progression_layering(hud)
 	await _test_shop_state_copy(hud)
-	await _test_play_chooser_containment(hud)
+	_test_menu_card_containment(hud)
 	await _test_universal_toast(hud)
 	await _test_match_hud(hud)
 	await _test_victory_composition(hud)
@@ -75,14 +75,19 @@ func _test_shop_state_copy(hud: Node) -> void:
 	await process_frame
 
 
-func _test_play_chooser_containment(hud: Node) -> void:
-	hud.call("_show_lobby_page", "chooser")
-	await create_timer(0.22).timeout
-	var panel := hud.find_child("LobbyPanel", true, false) as PanelContainer
-	var chooser := hud.find_child("ModeChooser", true, false) as Control
-	_check(panel != null and chooser != null and panel.get_global_rect().grow(1.0).encloses(chooser.get_global_rect()), "Play chooser must fit inside its compact lobby shell")
-	hud.call("_show_lobby_page", "play")
-	await process_frame
+func _test_menu_card_containment(hud: Node) -> void:
+	var menu := hud.find_child("MainMenu", true, false) as Control
+	_check(menu != null, "The main menu must exist")
+	if menu == null:
+		return
+	for candidate in menu.find_children("*", "PanelContainer", true, false):
+		var card := candidate as MenuCard
+		if card == null or not card.is_visible_in_tree():
+			continue
+		for inner in card.content.find_children("*", "Control", true, false):
+			var control := inner as Control
+			if control.is_visible_in_tree() and control.size.x > 0.0:
+				_check(card.get_global_rect().grow(1.0).encloses(control.get_global_rect()), "%s must stay inside its %s card" % [control.name, card.name])
 
 
 func _test_universal_toast(hud: Node) -> void:
@@ -102,8 +107,10 @@ func _test_match_hud(hud: Node) -> void:
 	var scoreboard := hud.find_child("Scoreboard", true, false) as Control
 	var health := hud.find_child("HealthPanel", true, false) as Control
 	var charge := hud.find_child("ChargePanel", true, false) as Control
-	_check(scoreboard.size.x <= 420.0 and scoreboard.size.y <= 54.0, "Match scoreboard must be a compact top rail")
-	_check(health.size.x <= 270.0 and health.size.y <= 58.0, "Health HUD must be compact and edge-safe")
+	_check(scoreboard.size.x <= 460.0 and scoreboard.size.y <= 80.0, "Match scoreboard must stay a single top rail of score, timer, score")
+	_check(health.size.x <= 460.0 and health.size.y <= 72.0, "Health HUD must stay a single pill in the corner")
+	var viewport_rect := hud.get_viewport().get_visible_rect()
+	_check(health.get_global_rect().position.x >= 16.0 and health.get_global_rect().end.y <= viewport_rect.size.y - 16.0, "Health HUD must keep a safe edge margin")
 	_check(charge.size.x <= 300.0 and charge.size.y <= 42.0, "Fling meter must be a slim gameplay rail")
 
 

@@ -1,167 +1,163 @@
 class_name PracticeFacilityGeometry
 extends RefCounted
 
-## Pure layout data for the holo training facility - no nodes, no engine calls.
+## Pure layout data for the practice training grounds - no nodes, no engine
+## calls. Rebuilt 1:1 from the "Practice Map - Blueprint" sheet.
 ##
-## Everything is authored in world units at 1:1 scale. Fixed external
-## constraints this layout must respect (all set in scenes/main.tscn):
-##   - SpawnManager bound: half-extent 157, fall limit -80
-##   - spawn markers at (+/-115, 5, 0) and (0, 5, +/-115), FallbackSpawn (0, 6, 0)
-##   - dummies: Rose (-60, -35), Gold (60, 35), Lime (-130, -40),
-##     Violet (130, 50), Orange (0, -105)
-##   - blob diameter 5.776
+## Blueprint convention: a 28 x 15 grid-unit (GU) top-down sheet, origin at the
+## bottom-left corner, +GridX to the right, +GridY toward the top. 1 GU is half
+## a blob diameter. The sheet's top edge faces world -Z:
+##   world_x = (grid_x - 14.0) * GU
+##   world_z = (7.5 - grid_y) * GU
+## Fixed external constraints (scenes/main.tscn): SpawnManager bound 157 /
+## fall limit -80 stay as the outer safety net, the FallbackSpawn drops at the
+## origin onto the centre platform, and the eight training dummies sit on the
+## stations tabled below.
 
 const BLOB_DIAMETER := 5.776
+const GU := 2.888
 
-## Shell -----------------------------------------------------------------------
-const GROUND_SIZE := Vector3(320.0, 2.0, 320.0)
-const GROUND_CENTER := Vector3(0.0, -1.0, 0.0)
-## Inner faces at +/-158: the blob's centre is physically capped at ~155, inside
-## the 157 out-of-bounds line - the same wall/bound relationship the old map had.
-const WALL_INNER := 158.0
-const WALL_SIZE := Vector3(320.0, 66.0, 2.0)
-const WALL_CENTER_Y := 33.0
-const ROOF_SIZE := Vector3(330.0, 2.0, 330.0)
-const ROOF_UNDERSIDE_Y := 66.0
-const PYLON_SIZE := Vector3(4.0, 66.0, 4.0)
-const PYLON_POSITIONS: Array[Vector3] = [
-	Vector3(-150, 33, -150), Vector3(150, 33, -150),
-	Vector3(-150, 33, 150), Vector3(150, 33, 150),
-	Vector3(-150, 33, 0), Vector3(150, 33, 0),
-	Vector3(0, 33, -150), Vector3(0, 33, 150),
-]
+## Sheet footprint --------------------------------------------------------------
+const GRID_WIDTH := 28.0
+const GRID_LENGTH := 15.0
+const FLOOR_SIZE := Vector3(GRID_WIDTH * GU, 0.35 * GU, GRID_LENGTH * GU)
+## Surrounding lawn apron so the outdoor facility does not float in the sky;
+## sized to the SpawnManager safety bound, top flush with the turf underside
+## so the two ground plates touch without interpenetrating.
+const APRON_SIZE := Vector3(320.0, 1.0, 320.0)
+const APRON_TOP_Y := -0.35 * GU
 
-## Colour language --------------------------------------------------------------
-const COLOR_STRUCTURE := Color(0.10, 0.85, 1.0)   # cyan - grid, walls, trim
-const COLOR_TARGET := Color(1.0, 0.25, 0.85)       # magenta - things to hit
-const COLOR_MOVEMENT := Color(1.0, 0.72, 0.15)     # amber - pads, ramps, routes
-const COLOR_SAFE := Color(0.30, 1.0, 0.55)         # green - spawns, safe ground
-const COLOR_DECK := Color(0.05, 0.07, 0.11)        # dark structure body
+## Colour palette (spec: controlled, no rainbow, no neon) ------------------------
+const COLOR_TURF := Color("527542")
+const COLOR_TURF_DARK := Color("425F36")
+const COLOR_GRID_LINE := Color("5E8050")
+const COLOR_WALL := Color("252A2E")
+const COLOR_WALL_TRIM := Color("41484F")
+const COLOR_BLOCK := Color("8B9095")
+const COLOR_LIGHT_PANEL := Color("C9CDD0")
+const COLOR_ORANGE := Color("F17C24")
+const COLOR_BLUE := Color("327CC5")
+const COLOR_RED := Color("D8493F")
+const COLOR_WHITE := Color("D9DDE0")
+const COLOR_BASE_TRIM := Color("1B1F22")
 
-## Centre hub (FallbackSpawn lands at the origin - keep r < 8 free of collision
-## above the floor) --------------------------------------------------------------
-const HUB_FLOOR_RINGS := [
-	{"radius": 6.0, "color": COLOR_TARGET},
-	{"radius": 9.0, "color": COLOR_STRUCTURE},
-]
-const HUB_CORE_RING_RADII: Array[float] = [3.0, 4.2, 5.4]
-const HUB_CORE_BASE_Y := 11.0
-const SPAWN_DISC_POSITIONS: Array[Vector3] = [
-	Vector3(-115, 0.06, 0), Vector3(115, 0.06, 0),
-	Vector3(0, 0.06, -115), Vector3(0, 0.06, 115),
-]
+## Perimeter walls (solid band, 0..3 GU) -----------------------------------------
+const WALL_THICKNESS := 0.5 * GU
+const WALL_HEIGHT := 3.0 * GU
+const WALL_INNER_X := 13.5 * GU
+const WALL_INNER_Z := 7.0 * GU
+const CORNER_ROUND_RADIUS := 0.75 * GU
 
-## Zone 1 - FLING RANGE (west lane; Rose is the mid target, Lime the long one) --
-const RANGE_LANE_Z := -40.0
-const RANGE_TEE := Vector3(-18, 0.06, -40)
-const RANGE_RAIL_Z := [-54.5, -25.5]
-const RANGE_RAIL_SIZE := Vector3(134.0, 0.1, 0.4)
-const RANGE_RAIL_CENTER_X := -85.0
-## Tick marks every 20 m of fling distance from the tee at x = -18.
-const RANGE_TICK_XS: Array[float] = [-38.0, -58.0, -78.0, -98.0, -118.0, -138.0]
-const RANGE_TICK_SIZE := Vector3(0.5, 0.08, 26.0)
-## Upright rings to fling through - taller and further as charge grows.
-const RANGE_RINGS := [
-	{"center": Vector3(-78, 5, -40), "radius": 4.0},
-	{"center": Vector3(-108, 7, -40), "radius": 3.0},
-	{"center": Vector3(-142, 9, -40), "radius": 2.5},
-]
-## Extra rings woven into the other zones: one threaded between the tower decks
-## (fling through it mid-chain), one at the gallery mouth.
-const EXTRA_RINGS := [
-	{"center": Vector3(14, 21, -117), "radius": 3.5},
-	{"center": Vector3(82, 6, 50), "radius": 3.0},
-]
-## TAP / FULL SEND arcs, from measured landings (practice_calibration_probe):
-## a tap from the tee rests ~48 units down-range; a full send crosses the whole
-## lane and splats on the west wall, so its arc marks the splat line.
-const RANGE_TAP_ARC_X := -66.0
-const RANGE_FULL_ARC_X := -152.0
-const RANGE_DECK := {"center": Vector3(-60, 7, -70), "size": Vector3(28, 2, 12)}
+## Transparent upper enclosure (3..5 GU) and canopy roof at 5 GU ------------------
+const ENCLOSURE_THICKNESS := 0.15 * GU
+const ENCLOSURE_BASE_Y := WALL_HEIGHT
+const ENCLOSURE_TOP_Y := 5.0 * GU
+const ROOF_UNDERSIDE_Y := 5.0 * GU
+const ROOF_SIZE := Vector3(GRID_WIDTH * GU, 0.15 * GU, GRID_LENGTH * GU)
 
-## Zone 2 - RICOCHET GALLERY (east; Violet sits in a pocket you can only bank
-## into) --------------------------------------------------------------------------
-const GALLERY_BANK_WALLS := [
-	{"center": Vector3(94, 4, 24), "yaw_degrees": 35.0},
-	{"center": Vector3(120, 4, 18), "yaw_degrees": -40.0},
-	{"center": Vector3(94, 4, 76), "yaw_degrees": -35.0},
-	{"center": Vector3(120, 4, 82), "yaw_degrees": 40.0},
-	{"center": Vector3(146, 4, 50), "yaw_degrees": 90.0},
-]
-const GALLERY_BANK_SIZE := Vector3(10.0, 8.0, 1.5)
-const GALLERY_CHEVRON_POSITIONS: Array[Vector3] = [
-	Vector3(86, 0.07, 34), Vector3(97, 0.07, 42), Vector3(108, 0.07, 47),
-	Vector3(86, 0.07, 66), Vector3(97, 0.07, 58), Vector3(108, 0.07, 53),
-]
-const GALLERY_DECK := {"center": Vector3(110, 7, 115), "size": Vector3(28, 2, 14)}
+## Centre spawn platform (octagonal frustum, flat top, ramped skirt) --------------
+const PLATFORM_TOP_Y := 0.6 * GU
+const PLATFORM_TOP_HALF_X := 2.25 * GU
+const PLATFORM_TOP_HALF_Z := 2.0 * GU
+const PLATFORM_CORNER_CUT := 3.5
+## 0.7 GU skirt keeps the base inside the 3 GU shooting circle.
+const PLATFORM_SKIRT := 0.7 * GU
 
-## Zone 3 - BOUNCE TOWERS (north; Orange stands among the towers as the aerial
-## target) ------------------------------------------------------------------------
-const TOWER_DECKS := [
-	{"prefix": "TowerADeck", "center": Vector3(-30, 9, -108), "size": Vector3(16, 2, 16)},
-	{"prefix": "TowerBDeck", "center": Vector3(0, 17, -126), "size": Vector3(12, 2, 12)},
-	{"prefix": "TowerCDeck", "center": Vector3(28, 25, -108), "size": Vector3(10, 2, 10)},
-]
-## impulse tuned during calibration so each arc lands centre-deck.
-## Impulses measured in-engine (practice_calibration_probe): 70 rises +12.9,
-## 60 rises +9.5, 55 ~ +8 - each clears its deck by about a blob radius.
-const BOUNCE_PADS := [
-	{"position": Vector3(-30, 0.7, -86), "impulse": 70.0},
-	{"position": Vector3(-30, 10.7, -108), "impulse": 60.0},
-	{"position": Vector3(0, 18.7, -126), "impulse": 60.0},
-	{"position": Vector3(-150, 0.7, -40), "impulse": 55.0},
-	{"position": Vector3(60, 0.7, 12), "impulse": 55.0},
+## Dummy stations (blueprint grid coords; raised stations get a pedestal) --------
+## Station letters follow the spec sheet: A-C upper row, D-E middle, F-H lower.
+const PEDESTAL_HEIGHT := 0.4 * GU
+const PEDESTAL_RADIUS := 0.8 * GU
+const STATION_RING_RADIUS := 1.25 * GU
+const DUMMY_STATIONS := [
+	{"letter": "A", "grid": Vector2(5.0, 13.0), "raised": false},
+	{"letter": "B", "grid": Vector2(14.0, 12.5), "raised": true},
+	{"letter": "C", "grid": Vector2(23.0, 13.0), "raised": false},
+	{"letter": "D", "grid": Vector2(5.0, 9.5), "raised": false},
+	{"letter": "E", "grid": Vector2(23.0, 9.5), "raised": false},
+	{"letter": "F", "grid": Vector2(5.0, 3.5), "raised": false},
+	{"letter": "G", "grid": Vector2(14.0, 2.3), "raised": true},
+	{"letter": "H", "grid": Vector2(23.0, 3.5), "raised": false},
 ]
 
-## Zone 4 - SPAR RING (south-east; Gold anchors a close-quarters circle) ---------
-const SPAR_RING_CENTER := Vector3(60, 0.06, 35)
-const SPAR_RING_RADIUS := 10.0
-const SPAR_RINGS := [
-	{"center": Vector3(60, 5, 55), "radius": 3.5},
-	{"center": Vector3(78, 6, 35), "radius": 3.0},
-]
-const SPAR_DECK := {"center": Vector3(60, 7, 92), "size": Vector3(24, 2, 12)}
-
-## Ramps: 8 closed wedges, run 18 wide 6, rising to their deck top with no lip.
-## Pairing (prefix -> landing prefix) is asserted by map_geometry_contract.
-const RAMPS := [
-	{"prefix": "RangeRamp_E", "deck": "RangeDeck", "foot": Vector3(-41, 0, -70), "toward": Vector3(-1, 0, 0)},
-	{"prefix": "RangeRamp_W", "deck": "RangeDeck", "foot": Vector3(-79, 0, -70), "toward": Vector3(1, 0, 0)},
-	{"prefix": "GalleryRamp_E", "deck": "GalleryDeck", "foot": Vector3(129, 0, 115), "toward": Vector3(-1, 0, 0)},
-	{"prefix": "GalleryRamp_W", "deck": "GalleryDeck", "foot": Vector3(91, 0, 115), "toward": Vector3(1, 0, 0)},
-	{"prefix": "SparRamp_E", "deck": "SparDeck", "foot": Vector3(77, 0, 92), "toward": Vector3(-1, 0, 0)},
-	{"prefix": "SparRamp_W", "deck": "SparDeck", "foot": Vector3(43, 0, 92), "toward": Vector3(1, 0, 0)},
-	{"prefix": "TowerRamp_W", "deck": "TowerADeck", "foot": Vector3(-43, 0, -108), "toward": Vector3(1, 0, 0)},
-	{"prefix": "TowerRamp_S", "deck": "TowerADeck", "foot": Vector3(-30, 0, -95), "toward": Vector3(0, 0, -1)},
-]
-const RAMP_RUN := 18.0
-const RAMP_WIDTH := 6.0
-const RAMP_THICKNESS := 1.0
-
-## Signage ------------------------------------------------------------------------
-const ZONE_SIGNS := [
-	{"text": "FLING RANGE", "position": Vector3(-60, 14, -58), "yaw_degrees": 0.0, "color": COLOR_MOVEMENT},
-	{"text": "RICOCHET GALLERY", "position": Vector3(110, 14, 100), "yaw_degrees": 180.0, "color": COLOR_TARGET},
-	{"text": "BOUNCE TOWERS", "position": Vector3(0, 30, -130), "yaw_degrees": 0.0, "color": COLOR_MOVEMENT},
-	{"text": "SPAR RING", "position": Vector3(60, 12, 78), "yaw_degrees": 180.0, "color": COLOR_TARGET},
-]
-## Fixed dummy positions (from main.tscn) - used to place spotlight discs.
-const DUMMY_POSITIONS: Array[Vector3] = [
-	Vector3(-60, 0, -35), Vector3(60, 0, 35), Vector3(-130, 0, -40),
-	Vector3(130, 0, 50), Vector3(0, 0, -105),
+## Low cover blocks (3 x 1.8 x 1.2 GU, box collision) -----------------------------
+const COVER_SIZE := Vector3(3.0 * GU, 1.2 * GU, 1.8 * GU)
+const COVER_GRID_POSITIONS: Array[Vector2] = [
+	Vector2(10.0, 10.0), Vector2(18.0, 10.0),
+	Vector2(10.0, 5.0), Vector2(18.0, 5.0),
 ]
 
+## Broad side ramps (4 GU run rising to 1.6 GU at the wall end, curved profile) ---
+## "sign" is the world-X direction of travel up the ramp; the high edge sits
+## 1 GU clear of the wall, matching the sheet.
+const SIDE_RAMP_WIDTH := 3.0 * GU
+const SIDE_RAMP_RUN := 4.0 * GU
+const SIDE_RAMP_HEIGHT := 1.6 * GU
+const SIDE_RAMP_SEGMENTS := 4
+const SIDE_RAMPS := [
+	{"prefix": "SideRampWest", "grid_center": Vector2(3.5, 7.5), "sign": -1.0},
+	{"prefix": "SideRampEast", "grid_center": Vector2(24.5, 7.5), "sign": 1.0},
+]
 
-## Deck top height for a ramp entry, resolved from the deck tables.
-static func deck_top_y(deck_prefix: String) -> float:
-	match deck_prefix:
-		"RangeDeck":
-			return RANGE_DECK["center"].y + RANGE_DECK["size"].y * 0.5
-		"GalleryDeck":
-			return GALLERY_DECK["center"].y + GALLERY_DECK["size"].y * 0.5
-		"SparDeck":
-			return SPAR_DECK["center"].y + SPAR_DECK["size"].y * 0.5
-		"TowerADeck":
-			var tower := TOWER_DECKS[0] as Dictionary
-			return (tower["center"] as Vector3).y + (tower["size"] as Vector3).y * 0.5
-	return 0.0
+## Wedge ramps (3 x 2.5 GU rising to 1.2 GU), each aimed at its corner dummy lane.
+const WEDGE_WIDTH := 3.0 * GU
+const WEDGE_RUN := 2.5 * GU
+const WEDGE_HEIGHT := 1.2 * GU
+const WEDGES := [
+	{"prefix": "WedgeUpperLeft", "grid": Vector2(8.0, 11.0), "aim_letter": "A"},
+	{"prefix": "WedgeUpperRight", "grid": Vector2(20.0, 11.0), "aim_letter": "C"},
+	{"prefix": "WedgeLowerLeft", "grid": Vector2(8.0, 4.0), "aim_letter": "F"},
+	{"prefix": "WedgeLowerRight", "grid": Vector2(20.0, 4.0), "aim_letter": "H"},
+]
+
+## Training hop pads (0.9 GU discs, light bounce only) ----------------------------
+const HOP_PAD_RADIUS := 0.45 * GU
+const HOP_PAD_HEIGHT := 0.18 * GU
+## Small controlled hops - about half a blob of rise with the current
+## controller (bounce-pad impulse 55 measured ~+8 during BUG-028 calibration).
+const HOP_PAD_IMPULSE := 24.0
+const HOP_PAD_GRID_POSITIONS: Array[Vector2] = [
+	Vector2(9.0, 12.4), Vector2(10.5, 12.4), Vector2(12.0, 12.4),
+	Vector2(16.0, 12.4), Vector2(17.5, 12.4), Vector2(19.0, 12.4),
+	Vector2(9.0, 2.0), Vector2(10.5, 2.0), Vector2(12.0, 2.0),
+	Vector2(16.0, 2.0), Vector2(17.5, 2.0), Vector2(19.0, 2.0),
+]
+
+## Wall bounce panels (5 x 2 GU, centre 1.5 GU up, 0.15 GU proud of the wall) -----
+const PANEL_WIDTH := 5.0 * GU
+const PANEL_HEIGHT := 2.0 * GU
+const PANEL_CENTER_Y := 1.5 * GU
+const PANEL_PROTRUSION := 0.15 * GU
+const PANEL_SPEED_MULTIPLIER := 1.10
+const PANEL_MINIMUM_SPEED := 6.0
+## Face anchor = the wall's inner face; the panel protrudes inward from it.
+const REBOUND_PANELS := [
+	{"name": "ReboundPanelNorth", "face": Vector3(0.0, 1.5 * GU, -7.0 * GU), "inward": Vector3(0, 0, 1)},
+	{"name": "ReboundPanelSouth", "face": Vector3(0.0, 1.5 * GU, 7.0 * GU), "inward": Vector3(0, 0, -1)},
+	{"name": "ReboundPanelWest", "face": Vector3(-13.5 * GU, 1.5 * GU, 0.0), "inward": Vector3(1, 0, 0)},
+	{"name": "ReboundPanelEast", "face": Vector3(13.5 * GU, 1.5 * GU, 0.0), "inward": Vector3(-1, 0, 0)},
+]
+
+## Floor markings (all visual only) -----------------------------------------------
+const GRID_LINE_WIDTH := 0.06
+const CROSSHAIR_LINE_WIDTH := 0.08 * GU
+const CROSSHAIR_X_SPAN := Vector2(7.0, 21.0)
+const CROSSHAIR_Y_SPAN := Vector2(2.0, 13.0)
+const SHOOTING_CIRCLE_RADIUS := 3.0 * GU
+
+
+## Blueprint grid -> world conversion. Height is passed straight through.
+static func world(grid: Vector2, height: float = 0.0) -> Vector3:
+	return Vector3((grid.x - 14.0) * GU, height, (7.5 - grid.y) * GU)
+
+
+static func station_by_letter(letter: String) -> Dictionary:
+	for station_value in DUMMY_STATIONS:
+		var station := station_value as Dictionary
+		if str(station["letter"]) == letter:
+			return station
+	return {}
+
+
+## Y of the surface a dummy on this station rests on.
+static func station_floor_y(station: Dictionary) -> float:
+	return PEDESTAL_HEIGHT if bool(station["raised"]) else 0.0

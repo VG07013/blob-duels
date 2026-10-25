@@ -34,7 +34,7 @@ func _run() -> void:
 	var session := root.get_node("NetworkSession")
 	session.state_changed.connect(func(state: int, message: String) -> void: print("NETWORK TRACE role=%s state=%d message=%s" % [_role, state, message]))
 	if _role == "host":
-		_game.set("_selected_map_id", "arena")
+		_game.set("_selected_map_id", "bounceground")
 		var host_error: Error = session.call("host_game", 7361)
 		if host_error != OK:
 			_fail("host could not bind test port: %s" % error_string(host_error))

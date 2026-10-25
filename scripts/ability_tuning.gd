@@ -34,3 +34,14 @@ const ADRENALINE_HEALTH_THRESHOLD := 0.6
 const ADRENALINE_MOVEMENT_MULTIPLIER := 1.15
 const ADRENALINE_CHARGE_MULTIPLIER := 1.15
 const ADRENALINE_FOV_BONUS := 3.0
+const DASH_IMPULSE := 42.0
+const DASH_LIFT := 2.5
+const DASH_FOV_KICK := 8.0
+const SHOCKWAVE_RADIUS := 7.0
+const SHOCKWAVE_STRENGTH := 72.0
+const SHOCKWAVE_LIFT := 0.35
+## Impulse falls to zero a little beyond the trigger radius so an edge hit
+## still moves the target instead of tickling it.
+const SHOCKWAVE_FALLOFF_STRETCH := 1.35
+const SHOCKWAVE_SELF_HOP := 10.0
+const SHOCKWAVE_COOLDOWN_MSEC := 14000

@@ -17,6 +17,12 @@ const SAVE_DEBOUNCE_SECONDS := 2.0
 const DAILY_REWARD := 75
 const DAILY_SET_BONUS := 50
 const BASE_MATCH_REWARD := 25
+const ELIMINATION_REWARD := 5
+const TRICK_SHOT_REWARD := 10
+# Damage pays 1 Coin per DAMAGE_PER_COIN dealt, capped so a long stalemate
+# never out-earns a decisive win.
+const DAMAGE_PER_COIN := 40
+const DAMAGE_REWARD_CAP := 25
 const ABILITY_CATALOG := [
 	{"id": "dash", "name": "Dash", "rarity": "Basic", "price": 150, "tagline": "Turn momentum into distance", "description": "Burst 7m in your movement direction while keeping the duel fast and readable. 7 second cooldown.", "preview_mode": "ability_demo", "runtime_effect": "directional_dash"},
 	{"id": "ricochet_shot", "name": "Ricochet Shot", "rarity": "Advanced", "price": 300, "tagline": "Make the walls your weapon", "description": "Charge your next shot for +10 damage and up to 3 bright, readable wall bounces.", "preview_mode": "ability_demo", "runtime_effect": "charged_ricochet"},
@@ -28,14 +34,34 @@ const ABILITY_CATALOG := [
 	{"id": "rail_shot", "name": "Rail Shot", "rarity": "Expert", "price": 700, "tagline": "One line. One decision.", "description": "Charge for 1 second, then fire one near-instant precision shot for +15 damage.", "preview_mode": "ability_demo", "runtime_effect": "charged_rail"},
 	{"id": "bounce_mine", "name": "Bounce Mine", "rarity": "Advanced", "price": 550, "tagline": "Reposition the whole fight", "description": "Deploy one bright bouncing mine that launches enemies without dealing damage.", "preview_mode": "ability_demo", "runtime_effect": "launch_mine"},
 	{"id": "phase_bubble", "name": "Phase Bubble", "rarity": "Legendary", "price": 750, "tagline": "Let the bullets pass through", "description": "Enemy bullets pass through you for 4 seconds while your movement physics stay unchanged.", "preview_mode": "ability_demo", "runtime_effect": "projectile_phase"},
+	{"id": "shockwave", "name": "Shockwave", "rarity": "Advanced", "price": 400, "tagline": "Break the corner trap", "description": "Throw every nearby blob away from you and hop clear. 7m radius, 14 second cooldown.", "preview_mode": "ability_demo", "runtime_effect": "radial_shove"},
 	{"id": "adrenaline", "name": "Adrenaline", "rarity": "Expert", "price": 650, "tagline": "Come alive under pressure", "description": "Passive: below 60% HP, gain 15% movement and fling charge speed.", "preview_mode": "ability_demo", "runtime_effect": "low_health_haste"},
 ]
+# Quest pools mix volume quests (play, bounce, deal damage) with skill-shaped
+# quests that teach a specific mechanic. A skill quest that needs an ability
+# declares it under "requires" and is left out of the rotation until the
+# player owns that ability, so a fresh account never draws a dead objective.
+#
+# Skill stats and where game.gd records them:
+#   flawless_rounds           - won a round without taking damage
+#   ricochet_hits             - ricochet-shot hits landed (round-result delta)
+#   rail_eliminations         - round won by a rail-shot knockout
+#   interactable_eliminations - round won right after using a map interactable
+#   bounce_rounds             - rounds with at least BOUNCE_ROUND_TARGET bounces
+#   wins_<map_id>             - match wins per arena (award_match)
+const BOUNCE_ROUND_TARGET := 10
 const DAILY_POOL := [
 	{"id": "play_matches", "title": "Play 3 Matches", "target": 3, "stat": "matches"},
 	{"id": "eliminations", "title": "Get 5 Eliminations", "target": 5, "stat": "eliminations"},
 	{"id": "bounce", "title": "Bounce 100 Times", "target": 100, "stat": "bounces"},
 	{"id": "wins", "title": "Win 1 Match", "target": 1, "stat": "wins"},
 	{"id": "damage", "title": "Deal 1,000 Damage", "target": 1000, "stat": "damage"},
+	{"id": "flawless_round", "title": "Win a Round Without Taking Damage", "target": 1, "stat": "flawless_rounds"},
+	{"id": "ricochet_hits", "title": "Land 3 Ricochet Hits", "target": 3, "stat": "ricochet_hits", "requires": "ricochet_shot"},
+	{"id": "rail_elimination", "title": "Eliminate With a Rail Shot", "target": 1, "stat": "rail_eliminations", "requires": "rail_shot"},
+	{"id": "interactable_score", "title": "Score Using a Map Interactable", "target": 1, "stat": "interactable_eliminations"},
+	{"id": "bounce_round", "title": "Bounce 10 Times in One Round", "target": 1, "stat": "bounce_rounds"},
+	{"id": "bounceground_win", "title": "Win a Match on Bounceground", "target": 1, "stat": "wins_bounceground"},
 ]
 const WEEKLY_POOL := [
 	{"id": "weekly_matches", "title": "Play 20 Matches", "target": 20, "stat": "matches", "reward": 300},
@@ -43,7 +69,30 @@ const WEEKLY_POOL := [
 	{"id": "weekly_bounce", "title": "Bounce 2,500 Times", "target": 2500, "stat": "bounces", "reward": 500},
 	{"id": "weekly_wins", "title": "Win 10 Matches", "target": 10, "stat": "wins", "reward": 400},
 	{"id": "weekly_damage", "title": "Deal 10,000 Damage", "target": 10000, "stat": "damage", "reward": 350},
+	{"id": "weekly_flawless", "title": "Win 5 Rounds Without Taking Damage", "target": 5, "stat": "flawless_rounds", "reward": 400},
+	{"id": "weekly_ricochet", "title": "Land 25 Ricochet Hits", "target": 25, "stat": "ricochet_hits", "reward": 350, "requires": "ricochet_shot"},
+	{"id": "weekly_rail", "title": "Get 5 Rail Shot Eliminations", "target": 5, "stat": "rail_eliminations", "reward": 400, "requires": "rail_shot"},
+	{"id": "weekly_interactable", "title": "Score 3 Times Using Map Interactables", "target": 3, "stat": "interactable_eliminations", "reward": 350},
+	{"id": "weekly_bounce_rounds", "title": "Bounce 10 Times in a Round, 5 Times", "target": 5, "stat": "bounce_rounds", "reward": 300},
+	{"id": "weekly_bounceground_wins", "title": "Win 3 Matches on Bounceground", "target": 3, "stat": "wins_bounceground", "reward": 350},
 ]
+## Maps moved to archive/maps/ can no longer be won on. A saved quest that
+## still asks for one is retargeted at the live map instead of sitting stuck
+## until the quest set rolls over.
+const ARCHIVED_MAP_NAMES := {
+	"neon_arcade": "Neon Arcade",
+	"backyard": "Backyard",
+	"arena": "Arena",
+	"sky_temple": "Aether Citadel",
+	"toybox": "Toybox",
+}
+const LIVE_MAP_ID := "bounceground"
+const LIVE_MAP_NAME := "Bounceground"
+const COSMETIC_CATEGORIES := ["skins", "trails", "kill_effects", "faces"]
+# The shop is emptied down to the starter loadout: every category lists only
+# its default item. The full tables above and in CosmeticLibrary stay intact so
+# the renderer keeps its profiles; set `stock_full_catalog` to restore them.
+const STARTER_LOADOUT := {"abilities": "dash", "skins": "classic_blue", "trails": "bubble", "kill_effects": "bubble_pop", "faces": "happy"}
 
 var coins := 0
 var owned: Dictionary = {}
@@ -53,15 +102,24 @@ var weekly_quests: Array = []
 var _daily_key := ""
 var _weekly_key := ""
 var persistence_enabled := true
+var stock_full_catalog := false
 
 var _dirty := false
 var _dirty_seconds := 0.0
+# Running totals for the current process, keyed by stat. Never persisted:
+# they exist so gameplay code can measure a window ("bounces this round")
+# without owning its own counters.
+var _session_totals: Dictionary = {}
+# Quest progress at the last match award, keyed "group/id". The rewards card
+# diffs against this to list the objectives that moved during the match.
+var _quest_progress_marks: Dictionary = {}
 
 
 func _ready() -> void:
 	_load()
 	_ensure_starter_loadout()
 	_refresh_quests_if_needed()
+	_mark_quest_progress()
 
 
 func _process(delta: float) -> void:
@@ -124,10 +182,9 @@ func equip(category: String, item_id: String) -> bool:
 
 
 func _ensure_starter_loadout() -> void:
-	var starters := {"abilities": "dash", "skins": "classic_blue", "trails": "bubble", "kill_effects": "bubble_pop", "faces": "happy"}
 	var changed := false
-	for category in starters:
-		var item_id := str(starters[category])
+	for category in STARTER_LOADOUT:
+		var item_id := str(STARTER_LOADOUT[category])
 		if not bool(owned.get(item_id, false)):
 			owned[item_id] = true
 			changed = true
@@ -144,7 +201,41 @@ func _ensure_starter_loadout() -> void:
 func record_stat(stat: String, amount := 1) -> void:
 	if amount <= 0:
 		return
+	_session_totals[stat] = int(_session_totals.get(stat, 0)) + amount
 	_update_quests({stat: amount})
+
+
+## Total recorded for a stat since launch. Gameplay code snapshots this at a
+## round boundary to measure per-round windows without extra counters.
+func get_session_total(stat: String) -> int:
+	return int(_session_totals.get(stat, 0))
+
+
+## The cheapest cosmetic the player does not own yet, so the rewards card can
+## point at a concrete next goal. Falls back to abilities once every cosmetic
+## is owned, and returns an empty Dictionary when there is nothing left.
+func get_next_unlock() -> Dictionary:
+	var best: Dictionary = {}
+	for category_value in COSMETIC_CATEGORIES + ["abilities"]:
+		var category := str(category_value)
+		if not best.is_empty() and category == "abilities":
+			break
+		for item_value in _catalog_for(category):
+			var item := item_value as Dictionary
+			if is_owned(str(item.get("id", ""))):
+				continue
+			var price := int(item.get("price", 0))
+			if best.is_empty() or price < int(best.get("price", 0)):
+				best = {
+					"id": str(item.get("id", "")),
+					"name": str(item.get("name", "")),
+					"category": category,
+					"rarity": str(item.get("rarity", "")),
+					"price": price,
+				}
+	if not best.is_empty():
+		best["balance"] = coins
+	return best
 
 
 func claim_quest(group: String, quest_id: String) -> bool:
@@ -173,35 +264,88 @@ func award_match(stats: Dictionary) -> Dictionary:
 	var placement := clampi(int(stats.get("placement", 2)), 1, 99)
 	var placement_reward := 30 if placement == 1 else (20 if placement == 2 else (10 if placement == 3 else 0))
 	if placement_reward > 0:
-		breakdown.append({"label": "Placement Bonus", "amount": placement_reward})
+		breakdown.append({"label": "Win Bonus" if placement == 1 else "Runner-Up Bonus", "amount": placement_reward})
 	var eliminations := maxi(0, int(stats.get("eliminations", 0)))
 	if eliminations > 0:
-		breakdown.append({"label": "Eliminations", "amount": eliminations * 5})
+		breakdown.append({"label": "Eliminations  x%d" % eliminations, "amount": eliminations * ELIMINATION_REWARD})
+	var damage := maxi(0, int(stats.get("damage", 0)))
+	var damage_reward := mini(DAMAGE_REWARD_CAP, damage / DAMAGE_PER_COIN)
+	if damage_reward > 0:
+		breakdown.append({"label": "Damage Dealt  %d" % damage, "amount": damage_reward})
 	var tricks := mini(3, maxi(0, int(stats.get("trick_shots", 0))))
 	if tricks > 0:
-		breakdown.append({"label": "Trick Shots", "amount": tricks * 10})
+		breakdown.append({"label": "Trick Shots  x%d" % tricks, "amount": tricks * TRICK_SHOT_REWARD})
 	if bool(stats.get("survived", false)):
 		breakdown.append({"label": "Survival Bonus", "amount": 15})
 	if bool(stats.get("mvp", false)):
 		breakdown.append({"label": "MVP Bonus", "amount": 20})
 	# Quest progress advances here, but quest coins are paid on claim, so they
 	# are deliberately absent from this breakdown.
-	_update_quests({
+	var quest_stats := {
 		"matches": 1,
 		"wins": 1 if placement == 1 else 0,
 		"eliminations": eliminations,
 		"trick_shots": tricks,
-		"damage": maxi(0, int(stats.get("damage", 0))),
-	})
+		"damage": damage,
+	}
+	var map_id := str(stats.get("map_id", "")).strip_edges()
+	if not map_id.is_empty():
+		quest_stats["wins_%s" % map_id] = 1 if placement == 1 else 0
+	_update_quests(quest_stats)
 	var total := 0
 	for reward in breakdown:
 		total += int((reward as Dictionary).get("amount", 0))
 	coins += total
+	var quest_ticks := _quest_ticks_since_mark()
+	_mark_quest_progress()
 	_queue_save()
 	save_now()
 	balance_changed.emit(coins, total)
 	reward_earned.emit(breakdown, total)
-	return {"breakdown": breakdown, "total": total, "balance": coins}
+	return {
+		"breakdown": breakdown,
+		"total": total,
+		"balance": coins,
+		"quest_ticks": quest_ticks,
+		"next_unlock": get_next_unlock(),
+	}
+
+
+## Snapshot every active quest's progress so the next match award can report
+## exactly which objectives advanced.
+func _mark_quest_progress() -> void:
+	_quest_progress_marks.clear()
+	for group_data in [["daily", daily_quests], ["weekly", weekly_quests]]:
+		for quest_value in group_data[1] as Array:
+			var quest := quest_value as Dictionary
+			_quest_progress_marks["%s/%s" % [str(group_data[0]), str(quest.get("id", ""))]] = int(quest.get("progress", 0))
+
+
+## Quests whose progress moved since the last mark, oldest group first, each
+## carrying the delta so the card can show "+2" next to the bar.
+func _quest_ticks_since_mark() -> Array:
+	var ticks: Array = []
+	for group_data in [["daily", daily_quests], ["weekly", weekly_quests]]:
+		var group := str(group_data[0])
+		for quest_value in group_data[1] as Array:
+			var quest := quest_value as Dictionary
+			var key := "%s/%s" % [group, str(quest.get("id", ""))]
+			var progress := int(quest.get("progress", 0))
+			var previous := int(_quest_progress_marks.get(key, 0))
+			if progress <= previous:
+				continue
+			ticks.append({
+				"group": group,
+				"id": str(quest.get("id", "")),
+				"title": str(quest.get("title", "")),
+				"progress": progress,
+				"previous": previous,
+				"delta": progress - previous,
+				"target": maxi(1, int(quest.get("target", 1))),
+				"reward": int(quest.get("reward", 0)),
+				"completed": bool(quest.get("completed", false)),
+			})
+	return ticks
 
 
 func _update_quests(stats: Dictionary) -> void:
@@ -249,11 +393,25 @@ func _refresh_quests_if_needed() -> void:
 		weekly_quests = _make_quests(WEEKLY_POOL, 5, -1, weekly_key)
 		rotated = true
 	if rotated:
+		_mark_quest_progress()
 		_queue_save()
 
 
+## Skill quests that need an unowned ability are dropped before the seeded
+## shuffle, so the rotation stays deterministic for a given loadout and never
+## hands out an objective the player cannot attempt.
+func _eligible_pool(pool: Array) -> Array:
+	var eligible: Array = []
+	for quest_value in pool:
+		var quest := quest_value as Dictionary
+		var required := str(quest.get("requires", ""))
+		if required.is_empty() or is_owned(required):
+			eligible.append(quest)
+	return eligible
+
+
 func _make_quests(pool: Array, count: int, default_reward: int, key: String) -> Array:
-	var shuffled := pool.duplicate(true)
+	var shuffled := _eligible_pool(pool).duplicate(true)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(key.hash())
 	for index in range(shuffled.size() - 1, 0, -1):
@@ -281,9 +439,11 @@ func _find_item(category: String, item_id: String) -> Dictionary:
 
 
 func _catalog_for(category: String) -> Array:
-	if category == "abilities":
-		return ABILITY_CATALOG
-	return COSMETIC_LIBRARY.catalog().get(category, []) as Array
+	var full_catalog := ABILITY_CATALOG if category == "abilities" else COSMETIC_LIBRARY.catalog().get(category, []) as Array
+	if stock_full_catalog:
+		return full_catalog
+	var starter_id := str(STARTER_LOADOUT.get(category, ""))
+	return full_catalog.filter(func(item: Dictionary) -> bool: return str(item.get("id", "")) == starter_id)
 
 
 func _load() -> void:
@@ -303,6 +463,7 @@ func _load() -> void:
 	_weekly_key = str(config.get_value("quests", "weekly_key", ""))
 	set_meta("daily_set_claimed", bool(config.get_value("quests", "daily_set_claimed", false)))
 	_migrate_launch_cosmetics()
+	_retarget_archived_map_quests()
 
 
 func _dictionary_or_empty(value: Variant) -> Dictionary:
@@ -321,6 +482,18 @@ func _quest_array_or_empty(value: Variant) -> Array:
 		if entry is Dictionary:
 			quests.append(entry)
 	return quests
+
+
+func _retarget_archived_map_quests() -> void:
+	for quest_group in [daily_quests, weekly_quests]:
+		for quest_value in quest_group:
+			var quest := quest_value as Dictionary
+			var stat := str(quest.get("stat", ""))
+			var map_id := stat.trim_prefix("wins_")
+			if not stat.begins_with("wins_") or not ARCHIVED_MAP_NAMES.has(map_id):
+				continue
+			quest["stat"] = "wins_%s" % LIVE_MAP_ID
+			quest["title"] = str(quest.get("title", "")).replace(str(ARCHIVED_MAP_NAMES[map_id]), LIVE_MAP_NAME)
 
 
 func _migrate_launch_cosmetics() -> void:

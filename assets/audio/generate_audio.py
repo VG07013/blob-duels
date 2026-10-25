@@ -162,7 +162,33 @@ def make_charge_pack() -> None:
 
 
 def make_air_rush() -> None:
-    make_loop_noise("air_rush_loop.wav", 1.6, 0.19, 52.0, 1.25, 7341)
+    """Wind past the blob: band-passed noise with slow gusts and no pitched
+    tone, so it reads as air rather than an engine."""
+    rng = random.Random(7341)
+    duration = 2.4
+    length = int(duration * RATE)
+    low = high = 0.0
+    samples: list[float] = []
+    for index in range(length):
+        time_value = index / RATE
+        noise = rng.uniform(-1.0, 1.0)
+        low += (noise - low) * 0.09
+        high += (low - high) * 0.012
+        band = low - high
+        gust = 0.7 + 0.2 * math.sin(TAU * 2.0 * time_value / duration) + 0.1 * math.sin(TAU * 5.0 * time_value / duration + 1.3)
+        samples.append(band * gust)
+    save_mono("air_rush_loop.wav", _loop_crossfade(samples), 0.62)
+
+
+def _loop_crossfade(samples: list[float], seconds: float = 0.25) -> list[float]:
+    """Folds the tail over the head so a noise loop restarts without a seam."""
+    count = min(int(seconds * RATE), len(samples) // 3)
+    head = samples[:count]
+    body = samples[count:]
+    for index in range(count):
+        mix = index / count
+        body[-count + index] = body[-count + index] * (1.0 - mix) + head[index] * mix
+    return body
 
 
 def make_respawn() -> None:
@@ -389,6 +415,10 @@ def make_map_music_pack() -> None:
         "music_match_toybox.wav", 124.0, (60, 64, 67, 65),
         (0, 4, 7, 12, 9, 7, 16, 12), "toybox", 2105,
     )
+    make_themed_music_track(
+        "music_match_skyline.wav", 128.0, (53, 57, 60, 55),
+        (0, 7, 12, 19, 16, 12, 7, 14), "neon_arcade", 2106,
+    )
 
 
 def make_music_pack() -> None:
@@ -492,6 +522,126 @@ def make_legacy_ambience() -> None:
     make_music_track("city_duel_loop.wav", 126.0, 8, (57, 60, 64, 62), (0, 7, 12, 4, 9, 7, 2, 11), 0.68, 1103)
 
 
+def _lowpass_noise(rng: random.Random, length: int, brightness: float) -> list[float]:
+    filtered = 0.0
+    result: list[float] = []
+    for _ in range(length):
+        filtered += (rng.uniform(-1.0, 1.0) - filtered) * brightness
+        result.append(filtered)
+    return result
+
+
+def _render(duration: float, voice: Callable[[float, float], float]) -> list[float]:
+    """Calls voice(time, progress) once per sample."""
+    length = int(duration * RATE)
+    return [voice(index / RATE, index / max(length - 1, 1)) for index in range(length)]
+
+
+def _swept_phase(duration: float, frequency_at: Callable[[float], float]) -> list[float]:
+    """Phase-accumulated sweep, so pitch glides stay click-free."""
+    length = int(duration * RATE)
+    phase = 0.0
+    result: list[float] = []
+    for index in range(length):
+        phase += TAU * frequency_at(index / max(length - 1, 1)) / RATE
+        result.append(phase)
+    return result
+
+
+def make_movement_pack() -> None:
+    """Synthesised movement cues; jumps, landings and kicks are recorded
+    CC0 samples in assets/audio/kenney/ (see THIRD_PARTY_ASSETS.md)."""
+    # Air (double) jump: a quick breathy "fwoomp" of air, no pitched chirp.
+    rng = random.Random(4102)
+    duration = 0.3
+    length = int(duration * RATE)
+    low = high = 0.0
+    samples = []
+    for index in range(length):
+        progress = index / max(length - 1, 1)
+        cutoff = 0.05 + 0.25 * math.sin(math.pi * min(progress * 1.6, 1.0))
+        noise = rng.uniform(-1.0, 1.0)
+        low += (noise - low) * cutoff
+        high += (low - high) * 0.02
+        env = min(progress / 0.04, 1.0) * math.exp(-progress * 5.5)
+        samples.append((low - high) * env)
+    save_mono("air_jump.wav", samples, 0.8)
+
+    # Rolling: a soft low rumble of contact noise, no hum, seamless loop.
+    rng = random.Random(4104)
+    duration = 1.6
+    length = int(duration * RATE)
+    low = sub = 0.0
+    samples = []
+    for index in range(length):
+        noise = rng.uniform(-1.0, 1.0)
+        low += (noise - low) * 0.035
+        sub += (low - sub) * 0.004
+        samples.append((low - sub) * (0.85 + 0.15 * math.sin(TAU * 3.0 * index / length)))
+    save_mono("roll_loop.wav", _loop_crossfade(samples), 0.6)
+
+    # Slide: a brighter scrape loop.
+    rng = random.Random(4105)
+    duration = 1.0
+    scrape = _lowpass_noise(rng, int(duration * RATE), 0.3)
+    body = _lowpass_noise(rng, len(scrape), 0.03)
+    samples = []
+    for index in range(len(scrape)):
+        flutter = 0.8 + 0.2 * math.sin(TAU * 12.0 * (index / RATE) / duration)
+        samples.append((scrape[index] * 0.6 + body[index] * 2.2) * flutter)
+    save_mono("slide_loop.wav", samples, 0.66)
+
+    # Slam dive: a falling whistle over rushing air.
+    rng = random.Random(4106)
+    phases = _swept_phase(0.38, lambda p: 1500.0 - 1180.0 * p ** 0.7)
+    air = _lowpass_noise(rng, len(phases), 0.4)
+    samples = []
+    for index, phase in enumerate(phases):
+        progress = index / max(len(phases) - 1, 1)
+        env = min(progress / 0.05, 1.0) * (1.0 - progress * 0.55)
+        samples.append((triangle(1.0, phase / TAU) * 0.28 + air[index] * 0.62) * env)
+    save_mono("slam_dive.wav", samples)
+
+
+
+def make_power_slide_pack() -> None:
+    """Power slide (hold C): a scraping burst of speed, then a springy hop out."""
+    # Start: a bright scrape that kicks in hard and trails off, over a rising whoosh.
+    rng = random.Random(4201)
+    duration = 0.42
+    scrape = _lowpass_noise(rng, int(duration * RATE), 0.45)
+    whoosh = _lowpass_noise(rng, len(scrape), 0.08)
+    samples = []
+    for index in range(len(scrape)):
+        progress = index / max(len(scrape) - 1, 1)
+        grit = 0.75 + 0.25 * math.sin(TAU * 38.0 * index / RATE)
+        kick = min(progress / 0.012, 1.0) * math.exp(-progress * 5.0)
+        swell = math.sin(math.pi * min(progress * 1.8, 1.0)) * math.exp(-progress * 2.5)
+        samples.append(scrape[index] * grit * kick * 0.7 + whoosh[index] * swell * 1.6)
+    save_mono("slide_start.wav", samples, 0.82)
+
+    # Hop: a short rubbery upward boing with a puff under it.
+    rng = random.Random(4203)
+    phases = _swept_phase(0.22, lambda p: 190.0 + 420.0 * (1.0 - (1.0 - p) ** 2.2))
+    puff = _lowpass_noise(rng, len(phases), 0.3)
+    samples = []
+    for index, phase in enumerate(phases):
+        progress = index / max(len(phases) - 1, 1)
+        env = min(progress / 0.015, 1.0) * math.exp(-progress * 6.0)
+        samples.append((math.sin(phase) + math.sin(phase * 2.0) * 0.18) * env * 0.7 + puff[index] * math.exp(-progress * 18.0) * 0.45)
+    save_mono("slide_hop.wav", samples, 0.8)
+
+
+def make_combat_pack() -> None:
+    """The hit-confirm ding; shots, hurts and knockouts are CC0 samples."""
+    # Hit confirm: a crisp ding the shooter hears when a shot connects.
+    samples = _render(0.16, lambda t, p: (
+        (sine(1760.0, t) + sine(2640.0, t) * 0.45 + sine(3520.0, t) * 0.12)
+        * math.exp(-p * 7.0) * min(p / 0.01, 1.0) * 0.45
+    ))
+    save_mono("hit_confirm.wav", samples, 0.8)
+
+
 def main() -> None:
     make_tone("ui_hover.wav", 0.075, 720.0, 940.0, (1.0, 0.2), release=0.3)
     make_tone("ui_click.wav", 0.11, 540.0, 390.0, (1.0, 0.28), release=0.25)
@@ -527,7 +677,20 @@ def main() -> None:
     make_result_cue("defeat.wav", (60, 57, 53, 48), 1.5)
     make_music_pack()
     make_legacy_ambience()
+    make_movement_pack()
+    make_power_slide_pack()
+    make_combat_pack()
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+
+    # --sfx-only regenerates just the movement + combat packs (the full run
+    # also re-renders every music track, which takes a while).
+    if "--sfx-only" in sys.argv:
+        make_air_rush()
+        make_movement_pack()
+        make_power_slide_pack()
+        make_combat_pack()
+    else:
+        main()

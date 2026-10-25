@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
 [ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="2_player"]
@@ -7,7 +7,8 @@
 [ext_resource type="Script" path="res://scripts/spawn_manager.gd" id="5_spawn_manager"]
 [ext_resource type="PackedScene" path="res://scenes/world/practice_arena.tscn" id="6_practice_arena"]
 [ext_resource type="PackedScene" path="res://scenes/ui/pause_menu.tscn" id="7_pause_menu"]
-[ext_resource type="PackedScene" path="res://scenes/world/lobby_room.tscn" id="8_lobby"]
+[ext_resource type="Script" path="res://scripts/practice_session.gd" id="9_practice_session"]
+[ext_resource type="Script" path="res://scripts/ui/practice_hud.gd" id="10_practice_hud"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMaterial"]
 sky_top_color = Color(0.12, 0.48, 0.92, 1)
@@ -55,9 +56,6 @@ shadow_enabled = true
 directional_shadow_max_distance = 700.0
 directional_shadow_fade_start = 0.82
 
-[node name="Lobby" parent="." instance=ExtResource("8_lobby")]
-position = Vector3(0, 0, 620)
-
 [node name="PracticeArena" parent="." instance=ExtResource("6_practice_arena")]
 
 [node name="CompetitiveMapRoot" type="Node3D" parent="."]
@@ -66,25 +64,20 @@ position = Vector3(0, 0, 620)
 script = ExtResource("5_spawn_manager")
 arena_half_extent = 157.0
 fall_limit = -80.0
-lobby_center = Vector3(0, 0, 620)
-lobby_radius = 39.5
 
 [node name="ArenaSpawns" type="Node3D" parent="SpawnManager"]
 
 [node name="HostSpawn" type="Marker3D" parent="SpawnManager/ArenaSpawns"]
-position = Vector3(-115, 5, 0)
-rotation = Vector3(0, -1.5708, 0)
+position = Vector3(0, 4.7, 0)
 
 [node name="ClientSpawn" type="Marker3D" parent="SpawnManager/ArenaSpawns"]
-position = Vector3(115, 5, 0)
-rotation = Vector3(0, 1.5708, 0)
+position = Vector3(0, 4.7, 2.9)
 
 [node name="NorthReserve" type="Marker3D" parent="SpawnManager/ArenaSpawns"]
-position = Vector3(0, 5, -115)
-rotation = Vector3(0, 3.14159, 0)
+position = Vector3(-2.9, 4.7, 0)
 
 [node name="SouthReserve" type="Marker3D" parent="SpawnManager/ArenaSpawns"]
-position = Vector3(0, 5, 115)
+position = Vector3(2.9, 4.7, 0)
 
 [node name="FallbackSpawn" type="Marker3D" parent="SpawnManager"]
 position = Vector3(0, 6, 0)
@@ -96,25 +89,45 @@ position = Vector3(0, 6, 0)
 [node name="Player" parent="." instance=ExtResource("2_player")]
 position = Vector3(0, 2, 627)
 
-[node name="DummyRose" parent="." groups=["training_dummy"] instance=ExtResource("4_dummy")]
-position = Vector3(-60, 2, -35)
-blob_color = Color(1, 0.2, 0.52, 1)
+[node name="DummyStationA" parent="." groups=["training_dummy"] instance=ExtResource("4_dummy")]
+position = Vector3(-25.992, 3, -15.884)
+blob_color = Color(0.839216, 0.847059, 0.85098, 1)
+display_name = "Bob"
 
-[node name="DummyGold" parent="." groups=["training_dummy"] instance=ExtResource("4_dummy")]
-position = Vector3(60, 2, 35)
-blob_color = Color(1, 0.72, 0.08, 1)
+[node name="DummyStationB" parent="." groups=["training_dummy"] instance=ExtResource("4_dummy")]
+position = Vector3(0, 4.2, -14.44)
+blob_color = Color(0.839216, 0.847059, 0.85098, 1)
+display_name = "Sir Bounces"
 
-[node name="DummyLime" parent="." groups=["training_dummy"] instance=ExtResource("4_dummy")]
-position = Vector3(-130, 2, -40)
-blob_color = Color(0.36, 1, 0.25, 1)
+[node name="DummyStationC" parent="." groups=["training_dummy"] instance=ExtResource("4_dummy")]
+position = Vector3(25.992, 3, -15.884)
+blob_color = Color(0.839216, 0.847059, 0.85098, 1)
+display_name = "Jellybean"
 
-[node name="DummyViolet" parent="." groups=["training_dummy"] instance=ExtResource("4_dummy")]
-position = Vector3(130, 2, 50)
-blob_color = Color(0.63, 0.3, 1, 1)
+[node name="DummyStationD" parent="." groups=["training_dummy"] instance=ExtResource("4_dummy")]
+position = Vector3(-25.992, 3, -5.776)
+blob_color = Color(0.839216, 0.847059, 0.85098, 1)
+display_name = "Wobbleton"
 
-[node name="DummyOrange" parent="." groups=["training_dummy"] instance=ExtResource("4_dummy")]
-position = Vector3(0, 2, -105)
-blob_color = Color(1, 0.35, 0.1, 1)
+[node name="DummyStationE" parent="." groups=["training_dummy"] instance=ExtResource("4_dummy")]
+position = Vector3(25.992, 3, -5.776)
+blob_color = Color(0.839216, 0.847059, 0.85098, 1)
+display_name = "Mochi"
+
+[node name="DummyStationF" parent="." groups=["training_dummy"] instance=ExtResource("4_dummy")]
+position = Vector3(-25.992, 3, 11.552)
+blob_color = Color(0.839216, 0.847059, 0.85098, 1)
+display_name = "Boop"
+
+[node name="DummyStationG" parent="." groups=["training_dummy"] instance=ExtResource("4_dummy")]
+position = Vector3(0, 4.2, 15.0176)
+blob_color = Color(0.839216, 0.847059, 0.85098, 1)
+display_name = "Captain Squish"
+
+[node name="DummyStationH" parent="." groups=["training_dummy"] instance=ExtResource("4_dummy")]
+position = Vector3(25.992, 3, 11.552)
+blob_color = Color(0.839216, 0.847059, 0.85098, 1)
+display_name = "Pogo"
 
 [node name="CameraRig" type="Node3D" parent="."]
 position = Vector3(0, 2.4, 627)
@@ -126,5 +139,11 @@ fov = 94.0
 current = true
 
 [node name="HUD" parent="." instance=ExtResource("3_hud")]
+
+[node name="PracticeSession" type="Node" parent="."]
+script = ExtResource("9_practice_session")
+
+[node name="PracticeHud" type="CanvasLayer" parent="."]
+script = ExtResource("10_practice_hud")
 
 [node name="PauseMenu" parent="." instance=ExtResource("7_pause_menu")]

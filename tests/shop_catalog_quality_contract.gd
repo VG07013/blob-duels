@@ -5,7 +5,7 @@ const PREVIEW_SCRIPT := preload("res://scripts/ui/shop_model_preview.gd")
 
 const CATEGORIES := ["abilities", "skins", "trails", "kill_effects", "faces"]
 const VALID_RARITIES := ["Basic", "Advanced", "Expert", "Common", "Rare", "Epic", "Legendary"]
-const EXPECTED_ITEM_COUNT := 89
+const EXPECTED_ITEM_COUNT := 90
 
 var failures: Array[String] = []
 
@@ -17,6 +17,8 @@ func _initialize() -> void:
 func _run() -> void:
 	var progression := PROGRESSION_SCRIPT.new()
 	progression.persistence_enabled = false
+	# The live shop only stocks the starter items; this guards the full data set.
+	progression.stock_full_catalog = true
 	root.add_child(progression)
 	await process_frame
 	_test_catalog_quality(progression)

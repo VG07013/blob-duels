@@ -5,7 +5,8 @@ const PAUSE_SCENE := preload("res://scenes/ui/pause_menu.tscn")
 const COIN_ICON_SCRIPT := preload("res://scripts/ui/coin_icon.gd")
 
 const REFERENCE_VIEWPORT := Vector2(1280.0, 720.0)
-const COMPACT_LOBBY_PAGES := ["customize", "host", "join"]
+## Menu action cards and the heading each must show.
+const MENU_ACTION_CARDS := {"BotCard": "DUEL A BOT", "PracticeCard": "PRACTICE", "OnlineCard": "PLAY A FRIEND"}
 
 var failures: Array[String] = []
 
@@ -23,7 +24,7 @@ func _run() -> void:
 	await process_frame
 
 	await _test_bounded_progression_surfaces(hud)
-	await _test_compact_secondary_lobby_flows(hud)
+	_test_menu_action_cards(hud)
 	_test_match_hud_readability(hud)
 	await _test_victory_and_reward_flow(hud)
 	await _test_reduced_motion_feedback(hud)
@@ -74,27 +75,15 @@ func _test_bounded_progression_surfaces(hud: Node) -> void:
 	await process_frame
 
 
-func _test_compact_secondary_lobby_flows(hud: Node) -> void:
-	var panel := hud.find_child("LobbyPanel", true, false) as PanelContainer
-	_check(panel != null, "Secondary lobby flows need a shared compact shell")
-	if panel == null:
-		return
-	for page in COMPACT_LOBBY_PAGES:
-		hud.call("_show_lobby_page", page)
-		await create_timer(0.22).timeout
-		_check(
-			panel.size.x <= REFERENCE_VIEWPORT.x * 0.44
-			and panel.size.y <= REFERENCE_VIEWPORT.y * 0.48,
-			"%s flow must stay compact and preserve the 3D lobby" % page.capitalize()
-		)
-		var page_control := hud.find_child("%sMenu" % page.capitalize(), true, false) as Control
-		_check(page_control != null and page_control.visible, "%s flow must expose only its relevant controls" % page.capitalize())
-		if page_control == null:
+func _test_menu_action_cards(hud: Node) -> void:
+	for card_name in MENU_ACTION_CARDS:
+		var card := hud.find_child(card_name, true, false) as MenuCard
+		_check(card != null and card.is_visible_in_tree(), "%s must be on the main menu" % card_name)
+		if card == null:
 			continue
-		_check(_interactive_control_count(page_control) <= 8, "%s flow must avoid control overload" % page.capitalize())
-		_check(_all_controls_have_comfortable_height(page_control), "%s controls must be compact but comfortably clickable" % page.capitalize())
-		_check(_has_clear_page_context(page_control, page), "%s flow needs a visible contextual heading, not an unexplained form" % page.capitalize())
-	hud.call("_show_lobby_page", "play")
+		_check(_has_clear_page_context(card, str(MENU_ACTION_CARDS[card_name])), "%s needs a visible heading, not an unexplained form" % card_name)
+		_check(_interactive_control_count(card) <= 8, "%s must avoid control overload" % card_name)
+		_check(_all_controls_have_comfortable_height(card.content), "%s controls must be compact but comfortably clickable" % card_name)
 
 
 func _test_match_hud_readability(hud: Node) -> void:
@@ -113,12 +102,12 @@ func _test_match_hud_readability(hud: Node) -> void:
 		_check(control != null and control.visible, "Match HUD must expose %s during a duel" % control_name)
 		if control != null:
 			_check(_control_fits_viewport(control, REFERENCE_VIEWPORT, 8.0), "%s must remain inside gameplay safe bounds" % control_name)
-	var lobby_panel := hud.find_child("LobbyPanel", true, false) as Control
+	var main_menu := hud.find_child("MainMenu", true, false) as Control
 	var quest_panel := hud.find_child("QuestPanel", true, false) as Control
 	var coin_chip := hud.find_child("CoinBalance", true, false) as Control
-	_check(lobby_panel != null and not lobby_panel.visible, "Match HUD must not retain lobby navigation")
-	_check(quest_panel != null and not quest_panel.visible, "Match HUD must hide lobby quest tracking")
-	_check(coin_chip != null and not coin_chip.visible, "Match HUD must hide lobby currency")
+	_check(main_menu != null and not main_menu.visible, "Match HUD must not retain the main menu")
+	_check(quest_panel != null and not quest_panel.is_visible_in_tree(), "Match HUD must hide menu quest tracking")
+	_check(coin_chip != null and not coin_chip.is_visible_in_tree(), "Match HUD must hide menu currency")
 	var timer := required_controls["TimerLabel"] as Label
 	var health := hud.find_child("HealthValue", true, false) as Label
 	var cooldown := hud.find_child("Cooldown", true, false) as Label
@@ -154,7 +143,7 @@ func _test_victory_and_reward_flow(hud: Node) -> void:
 		_check(rewards.size.x <= REFERENCE_VIEWPORT.x * 0.46 and rewards.size.y <= REFERENCE_VIEWPORT.y * 0.58, "Reward summary must remain a compact receipt")
 		_check(_count_controls_with_script(rewards, COIN_ICON_SCRIPT) == 1, "Reward total must use the same authored coin mark as the economy UI")
 		_check(_reward_total_has_priority(rewards), "Reward total must be visually stronger than individual reward rows")
-	_check(_has_visible_primary_action(overlay, ["CONTINUE", "PLAY AGAIN", "RETURN TO LOBBY"]), "Result flow needs an obvious next action")
+	_check(_has_visible_primary_action(overlay, ["CONTINUE", "PLAY AGAIN", "MAIN MENU"]), "Result flow needs an obvious next action")
 
 
 func _test_reduced_motion_feedback(hud: Node) -> void:

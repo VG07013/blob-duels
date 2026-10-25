@@ -5,6 +5,8 @@ const ABILITY_HUD_SCRIPT := preload("res://scripts/ui/ability_hud.gd")
 const COSMETIC_LIBRARY := preload("res://scripts/cosmetic_library.gd")
 const IMPACT_BURST_SCENE := preload("res://scenes/effects/impact_burst.tscn")
 
+## Base colour applied before the equipped cosmetics, as the game does.
+var blob_tint := Color(0.02, 0.86, 1.0)
 var _category := "skins"
 var _item: Dictionary = {}
 var _preview_player: RigidBody3D
@@ -188,7 +190,7 @@ func _apply_item() -> void:
 		"trails": trail_id = item_id
 		"faces": face_id = item_id
 		"kill_effects": kill_id = item_id
-	_preview_player.call("set_blob_color", Color(0.02, 0.86, 1.0))
+	_preview_player.call("set_blob_color", blob_tint)
 	_preview_player.call("apply_equipped_cosmetics", skin_id, trail_id, face_id, kill_id)
 	_ability_icon.visible = _category == "abilities"
 	_ability_icon.texture = ABILITY_HUD_SCRIPT.get_icon(item_id) if _category == "abilities" else null

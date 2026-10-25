@@ -4,7 +4,7 @@ const PROGRESSION_SCRIPT := preload("res://scripts/progression_manager.gd")
 const COSMETIC_LIBRARY := preload("res://scripts/cosmetic_library.gd")
 
 const EXPECTED_COUNTS := {
-	"abilities": 11,
+	"abilities": 12,
 	"skins": 24,
 	"trails": 19,
 	"kill_effects": 16,
@@ -25,6 +25,8 @@ var failures: Array[String] = []
 func _initialize() -> void:
 	var progression := PROGRESSION_SCRIPT.new()
 	progression.set("persistence_enabled", false)
+	# The live shop only stocks the starter items; this guards the full data set.
+	progression.set("stock_full_catalog", true)
 	var all_ids: Dictionary = {}
 	var total_items := 0
 
@@ -37,8 +39,8 @@ func _initialize() -> void:
 		_validate_category(category, items, all_ids)
 		_validate_catalog_is_a_deep_copy(progression, category, items)
 
-	_check(total_items == 89, "The complete shop must expose exactly 89 items, got %d" % total_items)
-	_check(all_ids.size() == 89, "All 89 item IDs must be globally unique because ownership is keyed by item ID")
+	_check(total_items == 90, "The complete shop must expose exactly 90 items, got %d" % total_items)
+	_check(all_ids.size() == 90, "All 90 item IDs must be globally unique because ownership is keyed by item ID")
 	progression.free()
 	_finish()
 

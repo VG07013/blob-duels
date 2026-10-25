@@ -39,21 +39,23 @@ func _test_network_replication_contracts() -> void:
 		"BUG 1: a host bounce mine has no authority RPC path, so clients never see its deployment"
 	)
 
-	var ability_source := _function_source(source, "_use_equipped_ability")
-	var mine_branch := _between(ability_source, "\t\t\"bounce_mine\":", "\t\t\"phase_bubble\":")
-	var client_guard := mine_branch.find("network_session.is_online() and not multiplayer.is_server()")
-	var network_request := mine_branch.find("_request_network_ability.rpc_id")
-	var authoritative_spawn := mine_branch.find("_spawn_bounce_mine()")
+	# Abilities live in scripts/abilities/, one file each; the rules below
+	# guard the same replication order they enforced when the logic sat in
+	# game.gd.
+	var mine_source := FileAccess.get_file_as_string("res://scripts/abilities/bounce_mine_ability.gd")
+	var mine_activate := _function_source(mine_source, "activate")
+	var client_guard := mine_activate.find("DuelAbility.is_online_client(game)")
+	var network_request := mine_activate.find("_request_network_ability.rpc_id")
+	var authoritative_spawn := mine_activate.find("_spawn_bounce_mine()")
 	_check(
 		client_guard >= 0 and network_request > client_guard and authoritative_spawn > network_request,
 		"BUG 2: an online client still spawns a fake local bounce mine before server authorization"
 	)
 
-	var phase_branch := _between(ability_source, "\t\t\"phase_bubble\":", "\t\t\"adrenaline\":")
-	var ability_process_source := _function_source(source, "_process_ability_state")
+	var phase_source := FileAccess.get_file_as_string("res://scripts/abilities/phase_bubble_ability.gd")
 	_check(
-		"_replicate_phase_bubble.rpc" in phase_branch
-		and "_replicate_phase_bubble.rpc" in ability_process_source
+		"_replicate_phase_bubble.rpc" in _function_source(phase_source, "activate")
+		and "_replicate_phase_bubble.rpc" in _function_source(phase_source, "expire")
 		and "func _replicate_phase_bubble" in source,
 		"BUG 3: phase-bubble activation or expiry is not replicated, leaving remote visuals stale or invisible"
 	)
@@ -93,8 +95,8 @@ func _test_progression_hud_contracts() -> void:
 	root.add_child(hud)
 	await process_frame
 
-	var coin_chip := hud.get_node_or_null("CoinBalance") as Control
-	var quest_panel := hud.get_node_or_null("QuestPanel") as Control
+	var coin_chip := hud.find_child("CoinBalance", true, false) as Control
+	var quest_panel := hud.find_child("QuestPanel", true, false) as Control
 	_check(
 		coin_chip != null and quest_panel != null,
 		"BUG 5: coin and quest constructors are never invoked, leaving both progression HUD pieces absent"
@@ -116,7 +118,7 @@ func _test_progression_hud_contracts() -> void:
 		not selected_color.is_equal_approx(initial_color)
 		and not emitted_colors.is_empty()
 		and emitted_colors.back().is_equal_approx(selected_color),
-		"BUG 9: selecting a lobby color does not change or emit the player's identity color"
+		"BUG 9: selecting a menu color does not change or emit the player's identity color"
 	)
 
 	hud.queue_free()

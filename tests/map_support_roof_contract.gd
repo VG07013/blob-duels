@@ -2,11 +2,7 @@ extends SceneTree
 
 const PRACTICE := preload("res://scenes/world/practice_arena.tscn")
 const MAPS := {
-	"Arena": preload("res://scenes/world/maps/arena.tscn"),
-	"Backyard": preload("res://scenes/world/maps/backyard.tscn"),
-	"Neon Arcade": preload("res://scenes/world/maps/neon_arcade.tscn"),
-	"Aether Citadel": preload("res://scenes/world/maps/sky_temple.tscn"),
-	"Toybox": preload("res://scenes/world/maps/toybox.tscn"),
+	"Bounceground": preload("res://scenes/world/maps/bounceground.tscn"),
 }
 
 var failures: Array[String] = []
@@ -51,12 +47,12 @@ func _check_map_supports(map_name: String, packed: PackedScene) -> void:
 	await process_frame
 	var elevated := _owned_group(arena, "supported_elevated_structure")
 	var supports := _owned_group(arena, "structural_support")
-	if map_name in ["Arena", "Backyard", "Toybox"]:
-		_check(not elevated.is_empty(), "%s must classify its non-hovering elevated structures" % map_name)
-		_check(supports.size() >= elevated.size(), "%s elevated structures need visible ground-connected bases or struts" % map_name)
-	elif map_name == "Aether Citadel":
-		_check(_aether_elements(arena, "continuous_floor").size() == 1, "Aether Citadel needs one unbroken ground-connected floor")
-		_check(arena.find_children("*", "StaticBody3D", true, false).size() >= 65, "Aether Citadel terraces, ramps, housings, and shell must all remain solid")
+	# Every raised Bounceground piece is a solid block down to the court, so
+	# nothing needs struts; what matters is that the lid exists and is solid.
+	var roofs := _owned_group(arena, "arena_roof")
+	_check(roofs.size() == 1, "%s needs one glass lid so full-charge flings stay in the court" % map_name)
+	var glass := arena.get_node_or_null("GlassCollision") as StaticBody3D
+	_check(glass != null and glass.get_child_count() >= 5, "%s glass walls and roof must all have collision" % map_name)
 	for structure_value in elevated:
 		var structure := structure_value as Node
 		var support_key := String(structure.get_meta("support_key", ""))
@@ -71,14 +67,6 @@ func _owned_group(owner: Node, group_name: String) -> Array[Node]:
 	for node_value in owner.get_tree().get_nodes_in_group(group_name):
 		var node := node_value as Node
 		if owner.is_ancestor_of(node):
-			result.append(node)
-	return result
-
-
-func _aether_elements(owner: Node, kind: String) -> Array[Node]:
-	var result: Array[Node] = []
-	for node in owner.find_children("*", "Node", true, false):
-		if String(node.get_meta("aether_kind", "")) == kind:
 			result.append(node)
 	return result
 

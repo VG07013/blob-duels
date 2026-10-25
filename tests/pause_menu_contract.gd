@@ -36,6 +36,12 @@ func _run() -> void:
 	_check(_all_interactive_controls_disable_focus(pause), "escape menu controls must not accept keyboard focus")
 	pause.call("_select_crosshair_slot", 2)
 	_check(_all_interactive_controls_disable_focus(pause), "rebuilt crosshair controls must not accept keyboard focus")
+	_check(pause.get_node_or_null("PausePanel/Content/Tabs/ControlsTab") is Button, "escape menu must offer a Controls tab beside Match, Settings, and Crosshair")
+	_check(pause.get_node_or_null("PausePanel/Content/Pages/ControlsPage") != null, "escape menu must have a Controls page for key rebinding")
+	pause.call("_show_page", 3)
+	_check(str(pause.get_node("PausePanel/Content/Header/BrandBlock/Title").text) == "Controls", "Controls tab must title the header")
+	pause.call("_reset_bindings")
+	_check(_all_interactive_controls_disable_focus(pause), "rebuilt binding controls must not accept keyboard focus")
 
 	for viewport_size in [Vector2i(640, 360), Vector2i(1280, 720), Vector2i(1440, 900), Vector2i(1920, 1080)]:
 		root.size = viewport_size
@@ -45,7 +51,7 @@ func _run() -> void:
 		_check(panel.get_combined_minimum_size().y <= minf(540.0, viewport_size.y - 24.0), "escape menu minimum height exceeds its responsive cap at %s" % viewport_size)
 		_check(panel.size.x <= minf(900.0, viewport_size.x - 48.0) + 1.0, "escape menu is too wide at %s" % viewport_size)
 		_check(panel.size.y <= minf(620.0, viewport_size.y - 36.0) + 1.0, "escape menu is too tall at %s" % viewport_size)
-		for page_index in 3:
+		for page_index in 4:
 			pause.call("_show_page", page_index)
 			await process_frame
 			_check(_visible_descendants_fit(panel), "escape menu page %d clips at %s" % [page_index, viewport_size])

@@ -1,10 +1,10 @@
 extends SceneTree
 
-## Measures, in the real facility with the real player physics:
-##   1. where a tap fling and a full fling actually come to rest from the tee
-##      (calibrates the TAP / FULL SEND floor arcs), and
+## Measures, in the real training grounds with the real player physics:
+##   1. where a tap fling and a full fling come to rest launched east from the
+##      centre spawn platform (how much lane the 28 GU blueprint gives), and
 ##   2. the apex height a blob reaches off each bounce-pad impulse value
-##      (calibrates the tower chain).
+##      (calibrates the hop pads - the blueprint wants small hops only).
 ## _probe suffix: telemetry, not a contract.
 
 const PRACTICE := preload("res://scenes/world/practice_arena.tscn")
@@ -27,10 +27,10 @@ func _run() -> void:
 	await physics_frame
 	await physics_frame
 
-	print("=== FLING LANDINGS from tee x=-18 (rest position after full decay) ===")
+	print("=== FLING LANDINGS launched +X from the centre platform (rest after decay) ===")
 	for sample in [["tap 0.15s", 0.021], ["hold 1.75s", 0.25], ["hold 3.5s", 0.5], ["FULL 7s", 1.0]]:
 		var distance := await _measure_fling(float(sample[1]))
-		print("%-11s ratio %.3f -> stops %.1f units down-range (x=%.1f)" % [sample[0], float(sample[1]), distance, -18.0 - distance])
+		print("%-11s ratio %.3f -> stops %.1f units down-range (x=%.1f)" % [sample[0], float(sample[1]), distance, distance])
 
 	print("=== BOUNCE PAD APEX by impulse (rise above launch point) ===")
 	for impulse in [34.0, 50.0, 60.0, 70.0, 80.0, 90.0]:
@@ -41,11 +41,11 @@ func _run() -> void:
 
 
 func _measure_fling(ratio: float) -> float:
-	player.respawn(Vector3(-18, 3.5, -40))
+	player.respawn(Vector3(0, 4.6, 0))
 	await _physics_seconds(0.4)
 	player.linear_velocity = Vector3.ZERO
 	player.angular_velocity = Vector3.ZERO
-	player.aim_direction = Vector3(-1, 0, 0)
+	player.aim_direction = Vector3(1, 0, 0)
 	player.call("_release_fling", ratio)
 	var settled := 0
 	for _tick in range(60 * 14):
@@ -56,11 +56,11 @@ func _measure_fling(ratio: float) -> float:
 				break
 		else:
 			settled = 0
-	return -18.0 - player.global_position.x
+	return player.global_position.x
 
 
 func _measure_pad_apex(impulse: float) -> float:
-	player.respawn(Vector3(60, 3.5, 12))
+	player.respawn(Vector3(12, 3.5, 0))
 	await _physics_seconds(0.4)
 	player.linear_velocity = Vector3.ZERO
 	var start_y := player.global_position.y

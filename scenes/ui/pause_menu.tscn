@@ -409,7 +409,7 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.77, 0.83, 0.9, 1)
 theme_override_fonts/font = SubResource("UIFont")
 theme_override_font_sizes/font_size = 17
-text = "RED VS BLUE  |  FIRST TO 5"
+text = "ORANGE VS BLUE  |  1:30 ROUNDS"
 horizontal_alignment = 1
 
 [node name="RuleDivider" type="ColorRect" parent="PausePanel/Content/Pages/MatchPage/Stack"]
@@ -548,7 +548,7 @@ theme_override_font_sizes/font_size = 17
 theme_override_styles/normal = SubResource("DangerNormal")
 theme_override_styles/hover = SubResource("ActionHover")
 theme_override_styles/pressed = SubResource("ActionPressed")
-text = "LOBBY"
+text = "MAIN MENU"
 
 [node name="RespawnButton" type="Button" parent="PausePanel/Content/Actions"]
 custom_minimum_size = Vector2(0, 58)

@@ -13,6 +13,7 @@ const ABILITY_ICONS := {
 	"bounce_mine": preload("res://assets/ui/abilities/bounce_mine.svg"),
 	"phase_bubble": preload("res://assets/ui/abilities/phase_bubble.svg"),
 	"adrenaline": preload("res://assets/ui/abilities/adrenaline.svg"),
+	"shockwave": preload("res://assets/ui/abilities/shockwave.svg"),
 }
 
 var blob_color := Color(0.22, 0.58, 1.0)

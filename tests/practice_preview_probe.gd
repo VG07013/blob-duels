@@ -1,8 +1,8 @@
 extends SceneTree
 
-## Scratch renderer for the holo facility - wide + per-zone shots with the
-## map's own lighting profile. _probe suffix keeps it out of the suite.
-## Run WITHOUT --headless.
+## Scratch renderer for the practice training grounds - wide + per-station
+## shots with the map's own lighting profile. _probe suffix keeps it out of
+## the suite. Run WITHOUT --headless.
 
 const PRACTICE := preload("res://scenes/world/practice_arena.tscn")
 
@@ -36,10 +36,10 @@ func _run() -> void:
 	environment.adjustment_enabled = true
 	environment.adjustment_saturation = 1.12
 	environment.adjustment_contrast = 1.06
-	environment.glow_enabled = true
-	environment.glow_intensity = float(profile["glow_intensity"])
-	environment.glow_strength = float(profile["glow_strength"])
-	environment.glow_bloom = float(profile["glow_bloom"])
+	environment.glow_enabled = bool(profile.get("glow_enabled", false))
+	environment.glow_intensity = float(profile.get("glow_intensity", 0.5))
+	environment.glow_strength = float(profile.get("glow_strength", 0.9))
+	environment.glow_bloom = float(profile.get("glow_bloom", 0.0))
 	environment.fog_enabled = true
 	environment.fog_light_color = profile["fog"]
 	environment.fog_light_energy = profile["fog_energy"]
@@ -59,11 +59,11 @@ func _run() -> void:
 	camera.current = true
 
 	var shots := [
-		{"name": "holo_wide", "from": Vector3(118, 46, 132), "at": Vector3(-20, 4, -20)},
-		{"name": "holo_hub", "from": Vector3(30, 12, 42), "at": Vector3(0, 8, 0)},
-		{"name": "holo_fling_range", "from": Vector3(-4, 7, -40), "at": Vector3(-100, 6, -40)},
-		{"name": "holo_towers", "from": Vector3(-62, 26, -62), "at": Vector3(0, 14, -112)},
-		{"name": "holo_gallery", "from": Vector3(66, 20, 96), "at": Vector3(120, 4, 45)},
+		{"name": "grounds_wide", "from": Vector3(52, 40, 58), "at": Vector3(0, 2, 0)},
+		{"name": "grounds_overhead", "from": Vector3(0, 108, 0.1), "at": Vector3(0, 0, 0)},
+		{"name": "grounds_platform", "from": Vector3(14, 8, 16), "at": Vector3(0, 1.7, 0)},
+		{"name": "grounds_panels", "from": Vector3(-22, 5, 0), "at": Vector3(-39, 4.3, 0)},
+		{"name": "grounds_dummies", "from": Vector3(0, 8, 4), "at": Vector3(0, 3, -15.9)},
 	]
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://artifacts/screenshots"))
 	for shot in shots:

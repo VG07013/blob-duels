@@ -6,7 +6,11 @@ signal respawn_requested
 signal back_to_lobby_requested
 signal settings_applied(settings: Dictionary)
 
+const INPUT_BINDINGS := preload("res://scripts/input_bindings.gd")
 const SETTINGS_PATH := "user://blob_duels_settings.cfg"
+const PAGE_TITLES := ["Match menu", "Settings", "Crosshair", "Controls"]
+const REBIND_PROMPTS := {"keyboard": "PRESS A KEY...", "joypad": "PRESS A BUTTON..."}
+const CONTROLS_HINT := "Click a binding, then press the new key, mouse button, or gamepad control. Esc cancels. A control already in use swaps with the other action."
 const CROSSHAIR_KEYS := [
 	"crosshair_length", "crosshair_thickness", "crosshair_gap", "crosshair_dot",
 	"crosshair_dot_size", "crosshair_outline", "crosshair_outline_thickness",
@@ -17,6 +21,7 @@ const CROSSHAIR_COLORS := [
 	Color.WHITE, Color(0.2, 0.92, 1.0), Color(0.25, 1.0, 0.42),
 	Color(1.0, 0.82, 0.16), Color(1.0, 0.26, 0.4), Color(0.92, 0.28, 1.0),
 ]
+const QUALITY_TIER_NAMES := ["Low", "Balanced", "High", "Ultra"]
 @onready var match_page: Control = $PausePanel/Content/Pages/MatchPage
 @onready var settings_page: Control = $PausePanel/Content/Pages/SettingsPage
 @onready var crosshair_page: Control = $PausePanel/Content/Pages/CrosshairPage
@@ -37,12 +42,20 @@ const CROSSHAIR_COLORS := [
 @onready var host_code_card: PanelContainer = $PausePanel/Content/Pages/MatchPage/Stack/HostCodeCard
 @onready var host_code_value: Label = $PausePanel/Content/Pages/MatchPage/Stack/HostCodeCard/Row/Copy/HostCodeValue
 
+var controls_tab: Button
+var controls_page: Control
 var _settings: Dictionary = {}
+var _bindings: Dictionary = {}
 var _active_slot := 1
 var _ui_font: SystemFont
 var _active_page_index := -1
 var _page_tween: Tween
 var _save_status: Label
+var _controls_rows: VBoxContainer
+var _rebind_status: Label
+var _binding_buttons: Dictionary = {}
+var _rebind_action := ""
+var _rebind_slot := ""
 @export var settings_path := SETTINGS_PATH
 
 
@@ -52,11 +65,17 @@ func _ready() -> void:
 	_ui_font = SystemFont.new()
 	_ui_font.font_names = PackedStringArray(["SF Pro Display", "Avenir Next", "Helvetica Neue", "Arial"])
 	_settings = _load_settings()
+	# Bindings reach InputMap here, in a child's _ready, so they are live before
+	# game.gd's _ready runs and before the first physics tick reads any action.
+	_bindings = _load_bindings()
+	INPUT_BINDINGS.apply_to_input_map(_bindings)
 	_active_slot = clampi(int(_settings.get("active_crosshair_slot", 1)), 1, 3)
+	_create_controls_tab()
 	_apply_compact_visual_system()
 	_connect_navigation()
 	_build_general_settings()
 	_build_crosshair_settings()
+	_build_controls_settings()
 	_disable_keyboard_focus()
 	_apply_preview()
 	get_viewport().size_changed.connect(_fit_to_viewport)
@@ -82,11 +101,26 @@ func _apply_compact_visual_system() -> void:
 	header.custom_minimum_size.y = 46.0
 	var pages := pause_panel.get_node("Content/Pages") as Control
 	pages.custom_minimum_size.y = 300.0
-	for tab in [match_tab, settings_tab, crosshair_tab]:
+	for tab in [match_tab, settings_tab, crosshair_tab, controls_tab]:
 		tab.custom_minimum_size = Vector2(138, 40)
 	for action_path in ["Content/Actions/LobbyButton", "Content/Actions/RespawnButton", "Content/Actions/ResumeButton"]:
 		var action := pause_panel.get_node(action_path) as Button
 		action.custom_minimum_size.y = 48.0
+
+
+# The Controls tab and page are cloned from the Settings pair at runtime so
+# they inherit the scene's tab styles and page shell without a scene edit.
+func _create_controls_tab() -> void:
+	controls_tab = settings_tab.duplicate() as Button
+	controls_tab.name = "ControlsTab"
+	controls_tab.text = "CONTROLS"
+	controls_tab.button_pressed = false
+	settings_tab.get_parent().add_child(controls_tab)
+	controls_page = settings_page.duplicate() as Control
+	controls_page.name = "ControlsPage"
+	controls_page.visible = false
+	settings_page.get_parent().add_child(controls_page)
+	_controls_rows = controls_page.get_node("Scroll/Rows") as VBoxContainer
 
 
 func _connect_navigation() -> void:
@@ -96,13 +130,33 @@ func _connect_navigation() -> void:
 	$PausePanel/Content/Tabs/MatchTab.pressed.connect(_show_page.bind(0))
 	$PausePanel/Content/Tabs/SettingsTab.pressed.connect(_show_page.bind(1))
 	$PausePanel/Content/Tabs/CrosshairTab.pressed.connect(_show_page.bind(2))
+	controls_tab.pressed.connect(_show_page.bind(3))
 	for slot in range(1, 4):
 		var button := get_node("PausePanel/Content/Pages/CrosshairPage/Layout/Editor/Slots/Slot%d" % slot) as Button
 		button.pressed.connect(_select_crosshair_slot.bind(slot))
 
 
+# Rebind capture runs in _input so it sees the event before any button or the
+# game's own pause handling; Escape cancels instead of closing the menu.
+func _input(event: InputEvent) -> void:
+	if _rebind_action.is_empty():
+		return
+	var key := event as InputEventKey
+	if key != null and key.pressed and not key.echo and key.keycode == KEY_ESCAPE:
+		_cancel_rebind()
+		get_viewport().set_input_as_handled()
+		return
+	if INPUT_BINDINGS.slot_for_event(event) != _rebind_slot:
+		return
+	var code := INPUT_BINDINGS.encode_event(event)
+	if code.is_empty():
+		return
+	get_viewport().set_input_as_handled()
+	_assign_binding(_rebind_action, _rebind_slot, code)
+
+
 func _unhandled_input(event: InputEvent) -> void:
-	if visible and event.is_action_pressed("ui_cancel"):
+	if visible and _rebind_action.is_empty() and event.is_action_pressed("pause"):
 		resume_requested.emit()
 		get_viewport().set_input_as_handled()
 
@@ -131,20 +185,23 @@ func set_context(is_duel: bool, is_practice: bool, equipped_ability_id: String =
 	var match_rule := $PausePanel/Content/Pages/MatchPage/Stack/MatchRule as Label
 	var respawn_rule := $PausePanel/Content/Pages/MatchPage/Stack/RespawnRule as Label
 	var respawn_button := $PausePanel/Content/Actions/RespawnButton as Button
+	var menu_button := $PausePanel/Content/Actions/LobbyButton as Button
 	state_pill.visible = is_practice
 	respawn_button.visible = is_duel or is_practice
+	# Opened from the main menu itself, "back to the menu" is just Resume.
+	menu_button.visible = is_duel or is_practice
 	if is_duel:
 		state_label.text = ""
-		match_rule.text = "RED VS BLUE  |  FIRST TO 5"
+		match_rule.text = "ORANGE VS BLUE  |  1:30 ROUNDS"
 		respawn_rule.text = "Respawning during a duel awards the opposing team a point."
 	elif is_practice:
 		state_label.text = "PRACTICE"
 		match_rule.text = "PRACTICE"
 		respawn_rule.text = "Respawn returns your blob to the practice spawn."
 	else:
-		state_label.text = "LOBBY"
-		match_rule.text = "LOBBY"
-		respawn_rule.text = "Resume rolling or return to the lobby center."
+		state_label.text = "MENU"
+		match_rule.text = "MAIN MENU"
+		respawn_rule.text = "Resume to return to the main menu."
 	set_equipped_ability(equipped_ability_id, equipped_ability_icon)
 
 
@@ -177,6 +234,7 @@ func _disable_keyboard_focus() -> void:
 
 
 func close_pause() -> void:
+	_cancel_rebind()
 	var audio := get_node_or_null("/root/AudioManager")
 	if audio != null:
 		audio.call("play_sfx", &"ui_close", -10.0)
@@ -195,8 +253,16 @@ func get_settings() -> Dictionary:
 	return _settings.duplicate(true)
 
 
+func get_bindings() -> Dictionary:
+	return _bindings.duplicate(true)
+
+
+func is_rebinding() -> bool:
+	return not _rebind_action.is_empty()
+
+
 func _show_page(index: int) -> void:
-	var pages := [match_page, settings_page, crosshair_page]
+	var pages := [match_page, settings_page, crosshair_page, controls_page]
 	var safe_index := clampi(index, 0, pages.size() - 1)
 	var next_page := pages[safe_index] as Control
 	if _page_tween != null and _page_tween.is_valid():
@@ -210,10 +276,13 @@ func _show_page(index: int) -> void:
 	_page_tween = create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	_page_tween.tween_property(next_page, "modulate:a", 1.0, 0.01 if bool(_settings.get("reduced_motion", false)) else 0.16)
 	var header_title := $PausePanel/Content/Header/BrandBlock/Title as Label
-	header_title.text = ["Match menu", "Settings", "Crosshair"][safe_index]
-	match_tab.button_pressed = index == 0
-	settings_tab.button_pressed = index == 1
-	crosshair_tab.button_pressed = index == 2
+	header_title.text = PAGE_TITLES[safe_index]
+	match_tab.button_pressed = safe_index == 0
+	settings_tab.button_pressed = safe_index == 1
+	crosshair_tab.button_pressed = safe_index == 2
+	controls_tab.button_pressed = safe_index == 3
+	if safe_index != 3:
+		_cancel_rebind()
 	if safe_index != _active_page_index:
 		var audio := get_node_or_null("/root/AudioManager")
 		if audio != null and _active_page_index >= 0:
@@ -223,15 +292,18 @@ func _show_page(index: int) -> void:
 
 func _build_general_settings() -> void:
 	_clear_children(settings_rows)
-	_add_section_header(settings_rows, "CONTROLS", "Tune the feel of aiming and camera movement.")
+	_add_section_header(settings_rows, "CONTROLS", "Tune the feel of aiming and camera movement. Key bindings live in the Controls tab.")
 	_add_slider_row(settings_rows, "Mouse sensitivity", "mouse_sensitivity", 0.0008, 0.006, 0.0001, 10000.0)
+	_add_slider_row(settings_rows, "Gamepad sensitivity", "gamepad_sensitivity", INPUT_BINDINGS.GAMEPAD_SENSITIVITY_MIN, INPUT_BINDINGS.GAMEPAD_SENSITIVITY_MAX, INPUT_BINDINGS.GAMEPAD_SENSITIVITY_STEP, 1.0)
+	_add_toggle_row(settings_rows, "Invert look (Y axis)", "invert_look")
+	_add_slider_row(settings_rows, "Field of view", "fov", INPUT_BINDINGS.FOV_MIN, INPUT_BINDINGS.FOV_MAX, INPUT_BINDINGS.FOV_STEP, 1.0, "°")
 	_add_section_header(settings_rows, "AUDIO", "Changes apply immediately.")
 	_add_slider_row(settings_rows, "Master volume", "master_volume", 0.0, 1.0, 0.05, 100.0)
 	_add_slider_row(settings_rows, "Music volume", "music_volume", 0.0, 1.0, 0.05, 100.0)
 	_add_slider_row(settings_rows, "Sound effects", "sfx_volume", 0.0, 1.0, 0.05, 100.0)
 	_add_section_header(settings_rows, "VIDEO", "Balance clarity, effects, and performance.")
-	_add_option_row(settings_rows, "Graphics quality", "graphics_quality", ["Low", "Balanced", "High"])
-	_add_option_row(settings_rows, "Effects density", "effects_quality", ["Low", "Balanced", "High"])
+	_add_tier_slider_row(settings_rows, "Graphics quality", "graphics_quality", QUALITY_TIER_NAMES)
+	_add_option_row(settings_rows, "Effects density", "effects_quality", QUALITY_TIER_NAMES)
 	_add_option_row(settings_rows, "Shadow quality", "shadow_quality", ["Off", "Medium", "High"])
 	_add_option_row(settings_rows, "Render scale", "render_scale_index", ["75%", "100%", "125%"])
 	_add_toggle_row(settings_rows, "Fullscreen", "fullscreen")
@@ -263,7 +335,7 @@ func _build_crosshair_settings() -> void:
 	_update_slot_buttons()
 
 
-func _add_slider_row(parent: VBoxContainer, label_text: String, key: String, minimum: float, maximum: float, step: float, display_scale: float) -> void:
+func _add_slider_row(parent: VBoxContainer, label_text: String, key: String, minimum: float, maximum: float, step: float, display_scale: float, unit := "") -> void:
 	var row := _new_setting_row(parent)
 	var label := _setting_label(label_text)
 	row.add_child(label)
@@ -282,11 +354,41 @@ func _add_slider_row(parent: VBoxContainer, label_text: String, key: String, min
 	value_label.add_theme_font_size_override("font_size", 14)
 	value_label.add_theme_font_override("font", _ui_font)
 	value_label.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
-	_set_slider_label(value_label, slider.value, display_scale)
+	_set_slider_label(value_label, slider.value, display_scale, unit)
 	row.add_child(value_label)
 	slider.value_changed.connect(func(value: float) -> void:
 		_settings[key] = value
-		_set_slider_label(value_label, value, display_scale)
+		_set_slider_label(value_label, value, display_scale, unit)
+		_settings_changed(key)
+	)
+
+
+func _add_tier_slider_row(parent: VBoxContainer, label_text: String, key: String, tier_names: Array) -> void:
+	var row := _new_setting_row(parent)
+	row.add_child(_setting_label(label_text))
+	var slider := HSlider.new()
+	slider.custom_minimum_size = Vector2(150, 30)
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.min_value = 0
+	slider.max_value = tier_names.size() - 1
+	slider.step = 1
+	slider.tick_count = tier_names.size()
+	slider.ticks_on_borders = true
+	slider.value = clampi(int(_settings.get(key, 0)), 0, tier_names.size() - 1)
+	row.add_child(slider)
+	var value_label := Label.new()
+	value_label.custom_minimum_size = Vector2(76, 30)
+	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	value_label.add_theme_font_size_override("font_size", 14)
+	value_label.add_theme_font_override("font", _ui_font)
+	value_label.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
+	value_label.text = str(tier_names[int(slider.value)]).to_upper()
+	row.add_child(value_label)
+	slider.value_changed.connect(func(value: float) -> void:
+		var tier := clampi(int(value), 0, tier_names.size() - 1)
+		_settings[key] = tier
+		value_label.text = str(tier_names[tier]).to_upper()
 		_settings_changed(key)
 	)
 
@@ -364,6 +466,7 @@ func _add_section_header(parent: VBoxContainer, title: String, detail: String = 
 	if not detail.is_empty():
 		var description := Label.new()
 		description.text = detail
+		description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		description.add_theme_font_size_override("font_size", 11)
 		description.add_theme_font_override("font", _ui_font)
 		description.add_theme_color_override("font_color", Color(0.52, 0.61, 0.72))
@@ -406,6 +509,137 @@ func _reset_general_settings() -> void:
 	_apply_preview()
 	_save_settings()
 	settings_applied.emit(get_settings())
+
+
+func _build_controls_settings() -> void:
+	_cancel_rebind()
+	_binding_buttons.clear()
+	_clear_children(_controls_rows)
+	_add_section_header(_controls_rows, "KEY BINDINGS", CONTROLS_HINT)
+	var columns := _new_setting_row(_controls_rows)
+	columns.custom_minimum_size.y = 26.0
+	columns.add_child(_column_caption("ACTION", true))
+	columns.add_child(_column_caption("KEYBOARD / MOUSE", false))
+	columns.add_child(_column_caption("GAMEPAD", false))
+	for action in INPUT_BINDINGS.action_names():
+		var row := _new_setting_row(_controls_rows)
+		row.add_child(_setting_label(INPUT_BINDINGS.label_for(action)))
+		for slot in INPUT_BINDINGS.SLOTS:
+			var button := Button.new()
+			button.name = "Rebind_%s_%s" % [action, slot]
+			button.custom_minimum_size = Vector2(150, 34)
+			button.focus_mode = Control.FOCUS_NONE
+			button.add_theme_font_size_override("font_size", 14)
+			button.add_theme_font_override("font", _ui_font)
+			button.add_theme_color_override("font_color", Color(0.86, 0.91, 0.96))
+			button.add_theme_color_override("font_hover_color", Color(0.95, 0.98, 1.0))
+			button.add_theme_stylebox_override("normal", _control_style(Color(0.09, 0.11, 0.15), Color(0.3, 0.38, 0.48)))
+			button.add_theme_stylebox_override("hover", _control_style(Color(0.12, 0.15, 0.2), Color(0.35, 0.78, 0.88)))
+			button.add_theme_stylebox_override("pressed", _control_style(Color(0.06, 0.075, 0.1), Color(0.31, 0.84, 0.89)))
+			button.add_theme_stylebox_override("disabled", _control_style(Color(0.045, 0.05, 0.065, 0.7), Color(0.18, 0.2, 0.24)))
+			button.tooltip_text = "Rebind %s (%s)" % [INPUT_BINDINGS.label_for(action).to_lower(), slot]
+			button.pressed.connect(_begin_rebind.bind(action, slot))
+			row.add_child(button)
+			_binding_buttons["%s/%s" % [action, slot]] = button
+	var footer := HBoxContainer.new()
+	footer.custom_minimum_size = Vector2(0, 44)
+	footer.add_theme_constant_override("separation", 12)
+	_controls_rows.add_child(footer)
+	_rebind_status = Label.new()
+	_rebind_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_rebind_status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_rebind_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_rebind_status.add_theme_font_size_override("font_size", 11)
+	_rebind_status.add_theme_font_override("font", _ui_font)
+	_rebind_status.add_theme_color_override("font_color", Color(0.42, 0.86, 0.72))
+	footer.add_child(_rebind_status)
+	var reset := Button.new()
+	reset.name = "ResetBindingsButton"
+	reset.text = "RESET TO DEFAULTS"
+	reset.custom_minimum_size = Vector2(164, 38)
+	reset.focus_mode = Control.FOCUS_NONE
+	reset.add_theme_stylebox_override("normal", _control_style(Color(0.12, 0.075, 0.09, 0.9), Color(0.55, 0.24, 0.3)))
+	reset.add_theme_stylebox_override("hover", _control_style(Color(0.2, 0.09, 0.12, 1.0), Color(0.9, 0.38, 0.46)))
+	reset.add_theme_stylebox_override("pressed", _control_style(Color(0.08, 0.045, 0.06, 1.0), Color(1.0, 0.45, 0.52)))
+	reset.add_theme_stylebox_override("disabled", _control_style(Color(0.06, 0.055, 0.065, 0.72), Color(0.2, 0.2, 0.24)))
+	reset.pressed.connect(_reset_bindings)
+	footer.add_child(reset)
+	_refresh_binding_buttons("SAVED AUTOMATICALLY")
+
+
+func _column_caption(text_value: String, expand: bool) -> Label:
+	var caption := Label.new()
+	caption.text = text_value
+	caption.custom_minimum_size = Vector2(160 if expand else 150, 22)
+	caption.size_flags_horizontal = Control.SIZE_EXPAND_FILL if expand else Control.SIZE_FILL
+	caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if expand else HORIZONTAL_ALIGNMENT_CENTER
+	caption.add_theme_font_size_override("font_size", 11)
+	caption.add_theme_font_override("font", _ui_font)
+	caption.add_theme_color_override("font_color", Color(0.52, 0.61, 0.72))
+	return caption
+
+
+func _refresh_binding_buttons(status: String) -> void:
+	for key in _binding_buttons:
+		var parts := str(key).split("/")
+		var button := _binding_buttons[key] as Button
+		if parts[0] == _rebind_action and parts[1] == _rebind_slot:
+			button.text = str(REBIND_PROMPTS.get(parts[1], "PRESS..."))
+		else:
+			button.text = INPUT_BINDINGS.describe(str(_bindings[parts[0]][parts[1]])).to_upper()
+	if _rebind_status != null:
+		_rebind_status.text = status
+
+
+func _begin_rebind(action: String, slot: String) -> void:
+	_rebind_action = action
+	_rebind_slot = slot
+	_refresh_binding_buttons("Listening for %s... Esc cancels." % INPUT_BINDINGS.label_for(action).to_lower())
+
+
+func _cancel_rebind() -> void:
+	if _rebind_action.is_empty():
+		return
+	_rebind_action = ""
+	_rebind_slot = ""
+	_refresh_binding_buttons("Rebind cancelled.")
+
+
+# Conflict policy: a control already bound to another action in the same
+# slot swaps with it, so every action keeps exactly one binding per device.
+func _assign_binding(action: String, slot: String, code: String) -> void:
+	var swapped_with := INPUT_BINDINGS.assign(_bindings, action, slot, code)
+	_rebind_action = ""
+	_rebind_slot = ""
+	INPUT_BINDINGS.apply_to_input_map(_bindings)
+	_save_bindings()
+	var status := "%s bound to %s." % [INPUT_BINDINGS.label_for(action), INPUT_BINDINGS.describe(code)]
+	if not swapped_with.is_empty():
+		status += " Swapped with %s." % INPUT_BINDINGS.label_for(swapped_with).to_lower()
+	_refresh_binding_buttons(status)
+
+
+func _reset_bindings() -> void:
+	_rebind_action = ""
+	_rebind_slot = ""
+	_bindings = INPUT_BINDINGS.default_bindings()
+	INPUT_BINDINGS.apply_to_input_map(_bindings)
+	_save_bindings()
+	_refresh_binding_buttons("Bindings reset to defaults.")
+
+
+func _load_bindings() -> Dictionary:
+	var config := ConfigFile.new()
+	config.load(settings_path)
+	return INPUT_BINDINGS.load_from_config(config)
+
+
+func _save_bindings() -> void:
+	var config := ConfigFile.new()
+	config.load(settings_path)
+	INPUT_BINDINGS.save_to_config(config, _bindings)
+	config.save(settings_path)
 
 
 func _setting_label(text_value: String) -> Label:
@@ -453,8 +687,13 @@ func _control_style(background: Color, border: Color) -> StyleBoxFlat:
 	return style
 
 
-func _set_slider_label(label: Label, value: float, display_scale: float) -> void:
-	label.text = "%d%%" % int(round(value * display_scale)) if display_scale >= 10.0 else ("%.1f" % value)
+func _set_slider_label(label: Label, value: float, display_scale: float, unit := "") -> void:
+	if not unit.is_empty():
+		label.text = "%d%s" % [int(round(value)), unit]
+	elif display_scale >= 10.0:
+		label.text = "%d%%" % int(round(value * display_scale))
+	else:
+		label.text = "%.1f" % value
 
 
 func _settings_changed(key: String) -> void:
@@ -554,16 +793,19 @@ func _fit_to_viewport(viewport_size_override := Vector2.ZERO) -> void:
 	var respawn_rule := pause_panel.get_node("Content/Pages/MatchPage/Stack/RespawnRule") as Label
 	respawn_rule.visible = not compact
 	respawn_rule.add_theme_font_size_override("font_size", 13 if host_code_card.visible else 15)
-	for page_path in ["Content/Pages/MatchPage", "Content/Pages/SettingsPage", "Content/Pages/CrosshairPage"]:
-		var page := pause_panel.get_node(page_path) as PanelContainer
+	for page_path in ["Content/Pages/MatchPage", "Content/Pages/SettingsPage", "Content/Pages/CrosshairPage", "Content/Pages/ControlsPage"]:
+		var page := pause_panel.get_node_or_null(page_path) as PanelContainer
+		if page == null:
+			continue
 		var page_style := page.get_theme_stylebox("panel") as StyleBoxFlat
 		if page_style != null:
 			page_style.content_margin_left = 6.0 if compact else 22.0
 			page_style.content_margin_top = 6.0 if compact else 20.0
 			page_style.content_margin_right = 6.0 if compact else 22.0
 			page_style.content_margin_bottom = 6.0 if compact else 20.0
-	for tab in [match_tab, settings_tab, crosshair_tab]:
-		tab.custom_minimum_size = Vector2(96, 30) if compact else Vector2(138, 40)
+	for tab in [match_tab, settings_tab, crosshair_tab, controls_tab]:
+		if tab != null:
+			tab.custom_minimum_size = Vector2(96, 30) if compact else Vector2(138, 40)
 	for action_path in ["Content/Actions/LobbyButton", "Content/Actions/RespawnButton", "Content/Actions/ResumeButton"]:
 		var action := pause_panel.get_node(action_path) as Button
 		action.custom_minimum_size.y = 32.0 if compact else 48.0
@@ -583,6 +825,9 @@ func _fit_to_viewport(viewport_size_override := Vector2.ZERO) -> void:
 func _default_settings() -> Dictionary:
 	return {
 		"mouse_sensitivity": 0.0025,
+		"gamepad_sensitivity": INPUT_BINDINGS.GAMEPAD_SENSITIVITY_DEFAULT,
+		"invert_look": false,
+		"fov": INPUT_BINDINGS.FOV_DEFAULT,
 		"master_volume": 0.85,
 		"music_volume": 0.55,
 		"sfx_volume": 0.8,
@@ -629,9 +874,14 @@ func _load_settings() -> Dictionary:
 func _normalize_settings(settings: Dictionary) -> Dictionary:
 	var normalized := settings.duplicate(true)
 	normalized["mouse_sensitivity"] = clampf(float(normalized.get("mouse_sensitivity", 0.0025)), 0.0008, 0.006)
+	normalized["gamepad_sensitivity"] = INPUT_BINDINGS.clamp_gamepad_sensitivity(float(normalized.get("gamepad_sensitivity", INPUT_BINDINGS.GAMEPAD_SENSITIVITY_DEFAULT)))
+	normalized["invert_look"] = bool(normalized.get("invert_look", false))
+	normalized["fov"] = INPUT_BINDINGS.clamp_fov(float(normalized.get("fov", INPUT_BINDINGS.FOV_DEFAULT)))
 	for key in ["master_volume", "music_volume", "sfx_volume", "camera_shake"]:
 		normalized[key] = clampf(float(normalized.get(key, 0.0)), 0.0, 1.0)
-	for key in ["graphics_quality", "effects_quality", "shadow_quality", "render_scale_index"]:
+	for key in ["graphics_quality", "effects_quality"]:
+		normalized[key] = clampi(int(normalized.get(key, 1)), 0, QUALITY_TIER_NAMES.size() - 1)
+	for key in ["shadow_quality", "render_scale_index"]:
 		normalized[key] = clampi(int(normalized.get(key, 1)), 0, 2)
 	normalized["render_scale"] = [0.75, 1.0, 1.25][int(normalized["render_scale_index"])]
 	normalized["active_crosshair_slot"] = clampi(int(normalized.get("active_crosshair_slot", 1)), 1, 3)

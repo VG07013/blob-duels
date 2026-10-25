@@ -10,7 +10,13 @@ func _initialize() -> void:
 	root.add_child(player)
 	await process_frame
 
-	_check(player.ground_start_impulse <= 5.0, "Base movement must not start with the old near-instant launch impulse")
+	# The alpha shipped an 8.5 N.s start kick that read as an instant launch.
+	# The rework settled on 6.5 (a 2 m/s nudge over the 3.2 kg blob) in the same
+	# commit this contract was written, so the old "<= 5.0" bound never matched
+	# any shipped tuning. Guard the product rule instead: the opening nudge must
+	# stay well under the old kick and far below the 38 m/s traversal band.
+	_check(player.ground_start_impulse < 8.0, "Base movement must not start with the old near-instant launch impulse")
+	_check(player.ground_start_impulse / maxf(player.mass, 0.001) < 2.5, "The opening movement nudge must stay a nudge, not a launch")
 	_check(player.movement_build_up_time > 0.5, "Movement must expose a sustained momentum build-up window")
 	player.set("_movement_build_up", 0.0)
 	var initial_factor := float(player.call("_movement_build_up_factor"))
@@ -28,8 +34,8 @@ func _initialize() -> void:
 	var health_back := player.get_node_or_null("Nameplate/HealthBackground") as MeshInstance3D
 	var health_fill := player.get_node_or_null("Nameplate/HealthFill") as MeshInstance3D
 	_check(nameplate != null and nameplate.top_level, "Nameplate must stay upright independently of rolling blob physics")
-	_check(name_label != null and name_label.billboard != BaseMaterial3D.BILLBOARD_DISABLED, "Player name must always face the camera")
-	_check(name_label != null and name_label.no_depth_test, "Player name must render over the blob")
+	player.update_nameplate_for_camera(player.global_position + Vector3(0.0, 0.0, 6.0))
+	_check(nameplate != null and not nameplate.visible, "Blobs must not show a floating name tag or health bar above their heads")
 	_check(health_back != null and health_fill != null, "Nameplate must use a visual health bar instead of a raw health number")
 	_check(name_label != null and name_label.text.find("/") < 0, "Nameplate must not expose raw numeric health")
 

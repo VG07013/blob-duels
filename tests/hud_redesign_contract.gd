@@ -23,41 +23,22 @@ func _initialize() -> void:
 	var hud := HUD_SCENE.instantiate()
 	root.add_child(hud)
 	await process_frame
+	hud.call("set_lobby_mode", true)
 
-	var play := hud.get_node_or_null("LobbyPanel/LobbyStack/PlayButton") as Button
-	var chooser := hud.get_node_or_null("LobbyPanel/LobbyStack/ModeChooser") as Control
-	var host_menu := hud.get_node_or_null("LobbyPanel/LobbyStack/HostMenu") as Control
-	var join_menu := hud.get_node_or_null("LobbyPanel/LobbyStack/JoinMenu") as Control
-	_check(play != null and play.visible, "Lobby must default to one prominent PLAY button")
-	_check(chooser != null and not chooser.visible, "Mode chooser must be hidden until PLAY is clicked")
-	_check(host_menu != null and not host_menu.visible, "Host controls must be hidden by default")
-	_check(join_menu != null and not join_menu.visible, "Join controls must be hidden by default")
-	if play != null:
-		play.pressed.emit()
-	_check(not play.visible and chooser.visible, "PLAY must replace itself with the three-mode chooser")
-	hud.call("_show_lobby_page", "play")
-	hud.call("open_play_menu")
-	_check(chooser.visible and not play.visible, "Lobby play pad API must open the same chooser")
+	var menu := hud.get_node_or_null("MainMenu") as Control
+	_check(menu != null and menu.visible, "The pre-game HUD must be the one-page main menu")
+	for control_name in ["PracticeChoice", "BotChoice", "StartHost", "StartJoin", "CodeInput"]:
+		var control := hud.find_child(control_name, true, false) as Control
+		_check(control != null and control.is_visible_in_tree(), "%s must be reachable without any page navigation" % control_name)
 
 	var practice_count := [0]
 	hud.practice_requested.connect(func() -> void: practice_count[0] += 1)
-	var practice := hud.get_node_or_null("LobbyPanel/LobbyStack/ModeChooser/Choices/PracticeChoice") as Button
+	var practice := hud.find_child("PracticeChoice", true, false) as Button
 	if practice != null:
 		practice.pressed.emit()
-	_check(practice_count[0] == 1, "Practice must launch immediately from the chooser")
+	_check(practice_count[0] == 1, "Practice must launch with one click from the menu")
 
-	play.pressed.emit()
-	var host_choice := hud.get_node_or_null("LobbyPanel/LobbyStack/ModeChooser/Choices/HostChoice") as Button
-	if host_choice != null:
-		host_choice.pressed.emit()
-	_check(host_menu.visible and not chooser.visible and not join_menu.visible, "Host must open only host controls")
-	var join_choice := hud.get_node_or_null("LobbyPanel/LobbyStack/ModeChooser/Choices/JoinChoice") as Button
-	hud.call("_show_lobby_page", "chooser")
-	if join_choice != null:
-		join_choice.pressed.emit()
-	_check(join_menu.visible and not chooser.visible and not host_menu.visible, "Join must open only join controls")
-
-	var ability := hud.get_node_or_null("AbilityHUD") as Control
+	var ability := hud.find_child("AbilityHUD", true, false) as Control
 	_check(ability != null, "HUD must include the circular AbilityHUD control")
 	if ability != null:
 		_check(ability.size.x == ability.size.y, "Ability control must use a square circular footprint")
@@ -71,7 +52,7 @@ func _initialize() -> void:
 		_check(icon.texture != null, "Equipped ability must load its vector icon")
 		_check(icon.modulate.a < 0.5 and cooldown.visible, "Cooldown must gray the icon and show an internal countdown")
 		hud.call("set_ability_state", "dash", 0, false, false)
-		_check(cooldown.visible and cooldown.text == "READY", "Ready state must replace the countdown with a clear READY label")
+		_check(not cooldown.visible or cooldown.text.is_empty(), "A ready ability shows only its bright icon and full ring - no READY caption")
 
 	for ability_id in ABILITY_IDS:
 		_check(ResourceLoader.exists("res://assets/ui/abilities/%s.svg" % ability_id, "Texture2D"), "%s must have an original vector icon" % ability_id)

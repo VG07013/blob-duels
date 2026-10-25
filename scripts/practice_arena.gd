@@ -1,17 +1,19 @@
 class_name PracticeArena
 extends Node3D
 
-## Scene root for the holo training facility - the practice/offline map.
+## Scene root for the practice training grounds - the practice/offline map,
+## rebuilt 1:1 from the "Practice Map - Blueprint" sheet.
 ##
-## Thin by design: layout lives in PracticeFacilityGeometry, construction in
-## practice_facility_builder. This node owns the two structural roots the rest
-## of the game relies on (game.gd toggles PracticeCollision's layer when
-## entering/leaving practice), the lighting profile, and the small animation
-## registry that keeps the hub holograms alive.
+## Thin by design: layout lives in PracticeFacilityGeometry (the blueprint
+## coordinate table), construction in practice_facility_builder. This node owns
+## the two structural roots the rest of the game relies on (game.gd toggles
+## PracticeCollision's layer when entering/leaving practice) and the lighting
+## profile. register_spin/register_bob stay available to the builder for any
+## animated furniture.
 
 const BUILDER := preload("res://scripts/environment/practice_facility_builder.gd")
 
-var map_name := "Training Facility"
+var map_name := "Training Grounds"
 
 var _next_index := 0
 var _spins: Array[Dictionary] = []
@@ -45,28 +47,27 @@ func _process(delta: float) -> void:
 
 
 ## The map owns its look. Consumed by game.gd on practice activation, and held
-## to the same lighting_contract ceilings as every competitive map. Near-black
-## sky and low energies on purpose: the grid, holograms, and neon rings carry
-## the scene, which is what makes practice read as a simulation.
+## to the same lighting_contract ceilings as every competitive map. Clean
+## outdoor daylight on purpose: muted turf, soft clouds, and no glow pass -
+## the training ground should read as a calm sports facility, not an arcade.
 func get_lighting_profile() -> Dictionary:
 	return {
-		"sky_top": Color(0.01, 0.02, 0.05),
-		"sky_horizon": Color(0.02, 0.22, 0.30),
-		"ambient": Color(0.35, 0.55, 0.70),
-		"ambient_energy": 0.34,
-		"sun_color": Color(0.55, 0.80, 1.0),
-		"sun_energy": 0.5,
-		"sun_rotation": Vector3(-60, -30, 0),
-		"sun_size": 10.0,
-		"sun_curve": 0.05,
-		"fog": Color(0.02, 0.10, 0.16),
-		"fog_energy": 0.5,
-		"fog_density": 0.0009,
-		"fog_sky_affect": 0.5,
-		"glow_enabled": true,
-		"glow_intensity": 1.15,
-		"glow_strength": 1.0,
-		"glow_bloom": 0.10,
+		"sky_top": Color(0.24, 0.47, 0.78),
+		"sky_horizon": Color(0.74, 0.85, 0.94),
+		"ambient": Color(0.68, 0.74, 0.80),
+		"ambient_energy": 0.5,
+		"sun_color": Color(1.0, 0.96, 0.88),
+		"sun_energy": 1.05,
+		"sun_rotation": Vector3(-55, -35, 0),
+		"sun_size": 4.0,
+		"sun_curve": 0.12,
+		"fog": Color(0.76, 0.85, 0.93),
+		"fog_energy": 0.9,
+		"fog_density": 0.0004,
+		"fog_sky_affect": 0.15,
+		"glow_enabled": false,
+		"sky_cover": "clouds",
+		"sky_cover_modulate": Color(1.0, 1.0, 1.0),
 	}
 
 
