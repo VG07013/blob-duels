@@ -26,15 +26,18 @@ const SKY_COVER_TEXTURES := {
 	"clouds": preload("res://assets/textures/sky_cloud_cover.png"),
 	"stars": preload("res://assets/textures/sky_star_field.png"),
 }
-## Competitive maps: Bounceground and Arena (id "skyline", Blender-built); older maps live in archive/maps/.
+## Competitive maps: Arena (id "skyline", Blender-built), Bounceground and the
+## Training Yard (both code-built); older maps live in archive/maps/.
 const DEFAULT_MAP_ID := "skyline"
 const COMPETITIVE_MAP_SCENES := {
 	"skyline": preload("res://scenes/world/maps/skyline.tscn"),
 	"bounceground": preload("res://scenes/world/maps/bounceground.tscn"),
+	"training_yard": preload("res://scenes/world/maps/training_yard.tscn"),
 }
 const MAP_DISPLAY_NAMES := {
 	"bounceground": "Bounceground",
 	"skyline": "Arena",
+	"training_yard": "Training Yard",
 }
 const TEAM_RED := 0
 const TEAM_BLUE := 1

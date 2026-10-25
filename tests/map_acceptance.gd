@@ -2,6 +2,7 @@ extends SceneTree
 
 const MAPS := [
 	preload("res://scenes/world/maps/bounceground.tscn"),
+	preload("res://scenes/world/maps/training_yard.tscn"),
 ]
 
 var failures: Array[String] = []

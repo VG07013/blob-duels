@@ -2,6 +2,7 @@ extends SceneTree
 
 const MAPS := {
 	"bounceground": "res://scenes/world/maps/bounceground.tscn",
+	"training_yard": "res://scenes/world/maps/training_yard.tscn",
 }
 
 const MAX_ENVIRONMENT_MODELS := 26

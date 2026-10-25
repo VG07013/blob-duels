@@ -1,6 +1,7 @@
 extends SceneTree
 
 const BOUNCEGROUND := preload("res://scenes/world/maps/bounceground.tscn")
+const TRAINING_YARD := preload("res://scenes/world/maps/training_yard.tscn")
 const PRACTICE := preload("res://scenes/world/practice_arena.tscn")
 
 var failures: Array[String] = []
@@ -12,6 +13,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	await _check_authored_footprints("Bounceground", BOUNCEGROUND)
+	await _check_authored_footprints("Training Yard", TRAINING_YARD)
 	await _check_practice_geometry()
 	if failures.is_empty():
 		print("MAP GEOMETRY CONTRACT PASS")

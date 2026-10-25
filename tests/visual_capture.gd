@@ -3,11 +3,13 @@ extends SceneTree
 const OUTPUT_DIR := "res://artifacts/screenshots"
 const MAPS := {
 	"bounceground": preload("res://scenes/world/maps/bounceground.tscn"),
+	"training_yard": preload("res://scenes/world/maps/training_yard.tscn"),
 }
 const PRACTICE_SCENE := preload("res://scenes/world/practice_arena.tscn")
 const MAIN_SCENE := preload("res://scenes/main.tscn")
 const DETAIL_MODEL_IDS := {
 	"bounceground": "",
+	"training_yard": "",
 }
 
 var _capture_failures := 0

@@ -301,6 +301,18 @@ you move a pad. The five earlier maps (Neon Arcade, Backyard, Arena, Aether
 Citadel, Toybox) live in `archive/maps/` (`.gdignore`d, restore steps in its
 README).
 
+The third competitive map is the **Training Yard** (map id `training_yard`,
+`scenes/world/maps/training_yard.tscn`, host `scripts/training_yard_arena.gd`,
+`training_yard_geometry.gd` + `training_yard_builder.gd`): a 120×160
+charcoal drill hall laid out like a firing range with the Arena's single
+cyan accent - a raised eight-sided ring in the middle, a target pillar
+either side of it, an approach wall and two blocks per half, a gallery along
+each long wall reached by a ramp at each end, team spawn decks, a glass lid,
+and eight launch pads (feeders onto the ring, gallery lifts and dives). It
+is built with the same piece / surface-family / audit conventions as
+Bounceground, so every map contract that lists Bounceground lists it too;
+its tables are point-symmetric like Bounceground's.
+
 The practice/offline map is the blueprint training grounds:
 `scenes/world/practice_arena.tscn` + `scripts/practice_arena.gd` (thin host)
 with layout in `practice_facility_geometry.gd` and construction in

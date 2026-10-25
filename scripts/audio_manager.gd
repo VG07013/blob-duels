@@ -92,6 +92,8 @@ const POSITIONAL_SFX_UNIT_SIZE := 14.0
 ## Keyed by competitive map id (game.gd COMPETITIVE_MAP_SCENES).
 const MAP_MUSIC_THEMES := {
 	&"bounceground": preload("res://assets/audio/music_match_bounceground.wav"),
+	# The Training Yard shares the Bounceground track until it gets its own.
+	&"training_yard": preload("res://assets/audio/music_match_bounceground.wav"),
 	&"skyline": preload("res://assets/audio/music_match_skyline.wav"),
 }
 

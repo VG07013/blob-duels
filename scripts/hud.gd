@@ -75,6 +75,7 @@ const BLOB_COLORS := [
 const COMPETITIVE_MAPS := [
 	["skyline", "Arena"],
 	["bounceground", "Bounceground"],
+	["training_yard", "Training Yard"],
 ]
 @onready var health_bar: ProgressBar = $HealthPanel/HealthBar
 @onready var health_value: Label = $HealthPanel/HealthBar/HealthValue
