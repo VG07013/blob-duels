@@ -1,7 +1,14 @@
 # Blob Duels
 
 A physics-first 1v1 arena game in Godot 4.7 (Jolt physics, Mobile renderer).
-Main scene is `scenes/main.tscn`, driven by `scripts/game.gd`.
+Main scene is `scenes/main.tscn`, driven by `scripts/game.gd` (`DuelGame`).
+game.gd owns the match flow and hands two pieces to helper classes it creates
+in `_ready`: `VictoryDirector` (`scripts/victory_director.gd`, the match-end
+cinematic) and `PracticeCoordinator` (`scripts/practice_coordinator.gd`, the
+practice-only wiring). Both type their back-reference as `DuelGame`, so they
+are reached by class name rather than `preload` (a preload would be a parse
+cycle); `_victory_sequence_active` on game.gd is a read-only view of the
+director's `active` flag.
 
 ## Running things
 
@@ -124,9 +131,10 @@ clears cooldowns (`_reset_ability_state()` locally, `ServerPeerRegistry.reset_fo
 on the host).
 `bot_duel_contract` and `match_format_contract` guard both.
 
-Match end: `_start_victory_sequence` cuts to the winner on its spawn deck and
-plays a scripted celebration (`VICTORY_HOPS`, `_victory_pose_at`) driven from
-`_process`. The squash / spin goes through `VisualRoot.set_celebration_pose`,
+Match end: `_start_victory_sequence` forwards to `VictoryDirector.start`, which
+cuts to the winner on its spawn deck and plays a scripted celebration
+(`VICTORY_HOPS`, `pose_at`) driven from game.gd's `_process` via
+`VictoryDirector.process`. The squash / spin goes through `VisualRoot.set_celebration_pose`,
 never the body. The camera pushes in and orbits only along the cleared line
 from `_victory_camera_spot`. `VICTORY_RESULTS_DELAY` later the HUD shows the
 results: the title top-centre, the rewards receipt left, the scoreboard
@@ -189,9 +197,16 @@ match start unparks it. Esc in the menu opens Settings over a dimmed menu.
 ## Shop and quest drawer
 
 Coins, the Shop and the Quest Board open one translucent drawer over the menu
-(`ShopOverlay` / `ProgressionDrawer`, bounded to ~70% x 83% of the screen:
-`lobby_ui_revamp_contract`, `premium_non_lobby_ui_contract`). `hud.gd` builds
-it and owns what it means. Its header (title, Shop / Quests switch, balance,
+(`ShopOverlay`, bounded to ~70% x 83% of the screen: `lobby_ui_revamp_contract`,
+`premium_non_lobby_ui_contract`). `ProgressionDrawer`
+(`scripts/ui/progression_drawer.gd`, `hud.drawer`) builds the coin chip, the
+menu quest card, the drawer and the toasts, still as children of the HUD layer
+so draw order is unchanged; `hud.gd` keeps the entry points the menu, pause
+flow and contracts call (`_set_progression_open`, `close_progression`,
+`is_progression_open`, `_show_progression_toast`) and the results-screen
+rewards receipt. Tests inspect drawer state through `hud.drawer`. Room codes
+and the ping readout live in `NetworkStatusHud` (`scripts/ui/network_status.gd`,
+`hud.network_status`). Its header (title, Shop / Quests switch, balance,
 close) is built once. The body rebuilds per page, and only the affected slot
 rebuilds on a category, item or Daily / Weekly change, so the `MenuSegmented`
 pills (`ui/menu_segmented.gd`, shared with the menu) glide instead of
@@ -306,8 +321,10 @@ competitive maps do not. Three pieces, all practice-only:
 
 Defaults are product rules, not preferences: dummies are **static** with
 **infinite** health, return fire is harmless, and a defeated dummy respawns on
-its own station after 1.5s without paying coins. `game.gd` calls
-`_begin_practice_session()` / `_end_practice_session()` on every practice
-entry and exit, so a duel never inherits training state.
+its own station after 1.5s without paying coins. `PracticeCoordinator`
+(`scripts/practice_coordinator.gd`) owns that wiring: game.gd calls
+`_practice.begin_session()` / `_practice.end_session()` on every practice
+entry and exit, so a duel never inherits training state, and
+`_start_practice_match` / `_activate_practice_map` on game.gd are forwarders.
 `practice_training_contract` guards the modes, presets, and statistics;
 `tests/practice_hud_visual_capture.gd` renders the panels (needs a display).

@@ -30,7 +30,7 @@ func _run() -> void:
 	# Sample rewards instead of award_match, so a capture never touches the save.
 	game.set("_match_reward_awarded", true)
 	game.call("_apply_round_result", red, blue, winning_team, false, true)
-	create_timer(float((game.get_script() as Script).get_script_constant_map()["VICTORY_RESULTS_DELAY"]) + 0.05).timeout.connect(func() -> void:
+	create_timer(float(VictoryDirector.VICTORY_RESULTS_DELAY) + 0.05).timeout.connect(func() -> void:
 		game.get_node("HUD").call("show_match_rewards", {
 			"breakdown": [
 				{"label": "Base Reward", "amount": 25},

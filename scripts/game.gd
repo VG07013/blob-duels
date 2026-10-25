@@ -1,3 +1,4 @@
+class_name DuelGame
 extends Node3D
 
 ## Where the local blob waits, frozen, while the main menu is up. Far from
@@ -45,45 +46,6 @@ const MAX_SCORE_TO_WIN := 15
 const MIN_ROUND_SECONDS := 30.0
 ## Share of ambient light taken from the sky; the rest is the profile colour.
 const DEFAULT_AMBIENT_SKY_CONTRIBUTION := 0.3
-## Victory staging: the winner celebrates on its own spawn deck (always open
-## floor on every map) and the camera searches for a clear line to it instead
-## of using one fixed world point that sat inside scenery on several maps.
-const VICTORY_CAMERA_DISTANCE := 17.0
-const VICTORY_CAMERA_MIN_DISTANCE := 8.0
-const VICTORY_CAMERA_HEIGHT := 5.5
-const VICTORY_CAMERA_CLEARANCE := 1.1
-const VICTORY_CAMERA_ANGLES_DEGREES := [0.0, 30.0, -30.0, 60.0, -60.0, 90.0, -90.0, 135.0, -135.0, 180.0]
-## Celebration choreography, in seconds from the moment the camera cuts to
-## the winner: [takeoff, airtime, apex height, full spins]. The first leap is
-## the big one; after the last scripted hop the blob keeps an idle bounce going
-## under the results screen.
-const VICTORY_HOPS := [[0.3, 0.74, 4.6, 1.0], [1.26, 0.42, 2.1, 0.0], [1.86, 0.34, 1.1, 0.0]]
-const VICTORY_IDLE_START := 2.9
-const VICTORY_IDLE_PERIOD := 1.25
-const VICTORY_IDLE_AIRTIME := 0.4
-const VICTORY_IDLE_HEIGHT := 0.85
-## Crouch before a hop and the squash-jiggle after landing.
-const VICTORY_ANTICIPATION_TIME := 0.22
-const VICTORY_ANTICIPATION_SQUASH := 0.3
-const VICTORY_LANDING_SQUASH := 0.34
-const VICTORY_TAKEOFF_STRETCH := 0.2
-## Camera: starts high and wide, pushes in and drifts round the winner.
-const VICTORY_CAMERA_PUSH_TIME := 2.6
-const VICTORY_CAMERA_PUSH := 0.86
-## Share of the blob's hop height the camera tilts up to follow.
-const VICTORY_CAMERA_FOLLOW := 0.5
-const VICTORY_CAMERA_RISE := 2.6
-const VICTORY_CAMERA_ORBIT_DEGREES := 11.0
-const VICTORY_CAMERA_ORBIT_SPEED := 0.32
-const VICTORY_CAMERA_FOV_START := 66.0
-const VICTORY_CAMERA_FOV_END := 56.0
-## When the results UI slides in, relative to the camera cut.
-const VICTORY_RESULTS_DELAY := 2.35
-const VICTORY_TARGET_LIFT := 1.2
-const VICTORY_FLOOR_PROBE_UP := 6.0
-const VICTORY_FLOOR_PROBE_DOWN := 40.0
-## World and scenery collision layers the camera must not sit inside.
-const VICTORY_CAMERA_MASK := 1 | 8
 const MIN_EXPOSURE := 0.6
 const MAX_EXPOSURE := 1.6
 const MAX_ROUND_SECONDS := 600.0
@@ -175,12 +137,6 @@ var _local_death_reported := false
 var _pending_deaths: Dictionary = {}
 var _death_resolution_deadline := 0
 var _player_stats: Dictionary = {}
-var _victory_sequence_active := false
-var _victory_camera_target := Vector3(0.0, 3.2, 0.0)
-var _victory_camera_position := Vector3(22.0, 8.0, 28.0)
-var _victory_elapsed := 0.0
-var _victory_blob: RigidBody3D
-var _victory_stage := Vector3.ZERO
 ## Host-side authority over every connected peer: health, cooldowns, ability
 ## timers, and the last accepted position. Only populated when this instance is
 ## the server.
@@ -208,6 +164,17 @@ const STAT_INTERACTABLE_META_PREFIXES := ["map_launch_", "directional_bumper_", 
 ## The equipped ability's runtime plus the host-side ability table. Every
 ## ability lives in scripts/abilities/; game.gd only forwards events.
 var _abilities := ABILITY_CONTROLLER.new()
+## The match-end cinematic (scripts/victory_director.gd). `_victory_sequence_active`
+## is its `active` flag, read wherever the sequence must own input and camera.
+## Both coordinators type their back-reference as DuelGame, so they are reached
+## through their class names: preloading them here would be a parse cycle.
+var _victory := VictoryDirector.new()
+var _victory_sequence_active: bool:
+	get:
+		return _victory.active
+## Practice-only wiring (scripts/practice_coordinator.gd); `_practice_mode`
+## stays here because the duel paths branch on it.
+var _practice := PracticeCoordinator.new()
 var _active_bounce_mine: Node3D
 ## Blobs highlighted by the Target Scanner, exposed for the practice contract.
 var _scanned_targets: Array[Node3D]:
@@ -221,11 +188,12 @@ var _movement_cue_frame := -1
 var _rail_telegraph: MeshInstance3D
 
 
-
 func _ready() -> void:
 	_configure_scalable_canvas()
 	_ensure_input_actions()
 	_connect_session_signals()
+	_victory.setup(self)
+	_practice.setup(self)
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	# On-demand peer entries start at full health, matching the defaults the
 	# per-peer dictionaries used to supply at every read site.
@@ -267,11 +235,7 @@ func _ready() -> void:
 	hud.set_lobby_mode(true)
 	hud.set_join_status("Choose Host, Join, or Practice", false)
 	practice_hud.bind_session(practice_session)
-	practice_hud.reset_position_requested.connect(_on_practice_reset_position)
 	practice_hud.clear_projectiles_requested.connect(_clear_projectiles)
-	practice_hud.panel_visibility_changed.connect(_on_practice_panel_visibility_changed)
-	practice_session.dummy_shot_requested.connect(_on_dummy_shot_requested)
-	practice_session.config_changed.connect(_on_practice_config_changed)
 	pause_menu.resume_requested.connect(_resume_from_pause)
 	pause_menu.respawn_requested.connect(_on_pause_respawn_requested)
 	pause_menu.back_to_lobby_requested.connect(_return_to_lobby)
@@ -284,7 +248,7 @@ func _ready() -> void:
 	audio_manager.wire_ui_sounds(pause_menu)
 	_apply_settings(pause_menu.get_settings())
 	_apply_camera_mode()
-	_set_practice_world_enabled(false)
+	_practice.set_world_enabled(false)
 	_set_menu_world_parked(true)
 	audio_manager.set_music_context(&"lobby", 0.0)
 
@@ -350,11 +314,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
-	if _victory_sequence_active:
-		_victory_elapsed += delta
+	if _victory.active:
 		_update_player_audio()
-		_update_victory_pose()
-		_update_victory_camera(delta)
+		_victory.process(delta)
 		return
 	_apply_gamepad_look(delta)
 	player.aim_yaw = camera_yaw
@@ -444,24 +406,13 @@ func _apply_local_cosmetics() -> void:
 	player.set_equipped_ability(str(progression.call("get_equipped", "abilities")))
 
 
+## Practice ---------------------------------------------------------------------
+## Everything practice-only lives in PracticeCoordinator; these entry points
+## stay so the HUD signal and the practice contracts keep one name to call.
 func _start_practice_match() -> void:
-	_apply_lobby_identity()
-	network_session.close_session()
-	_end_bot_match()
-	local_peer_id = 1
-	_clear_remote_players()
-	player.configure_local(local_peer_id)
-	_practice_mode = true
-	_peer_spawn_slots = {1: 0}
-	_activate_practice_map()
-	_begin_practice_session()
-	_start_arena_for_peer(local_peer_id)
+	_practice.start_match()
 
 
-## Practice session ------------------------------------------------------------
-## The session owns dummy configuration and shooting statistics; the practice
-## HUD reads it. Both are torn down on the way out so a duel never inherits
-## training settings.
 ## Bot duel ---------------------------------------------------------------------
 ## An offline duel against BotOpponent. The bot is registered as peer
 ## BOT_PEER_ID with its own authoritative state, so every round, hit and death
@@ -474,7 +425,7 @@ func _start_bot_match(difficulty: int = BOT_TUNING.DEFAULT_DIFFICULTY) -> void:
 	_clear_remote_players()
 	player.configure_local(local_peer_id)
 	_practice_mode = false
-	_end_practice_session()
+	_practice.end_session()
 	hud.set_practice_mode(false)
 	_selected_map_id = _validated_map_id(hud.get_selected_map_id())
 	_peer_spawn_slots = {1: 0}
@@ -563,79 +514,12 @@ func _on_bot_collision_requested(target_peer_id: int, impulse: Vector3, damage: 
 	player.receive_collision_impact(clampi(damage, 0, 60), impulse.limit_length(230.0))
 
 
-func _begin_practice_session() -> void:
-	var dummies: Array[DummyBlob] = []
-	for node in get_tree().get_nodes_in_group("training_dummy"):
-		var dummy := node as DummyBlob
-		if dummy != null:
-			dummies.append(dummy)
-	practice_session.begin(player, dummies)
-	practice_hud.set_practice_active(true)
-	practice_hud.set_weapon_label(_practice_weapon_label())
-	_apply_practice_player_switches()
-
-
-func _end_practice_session() -> void:
-	practice_session.end()
-	practice_hud.set_practice_active(false)
-	player.practice_unlimited_shots = false
-	player.practice_skip_cooldowns = false
-	# The panel's own visibility handler is already disarmed by this point
-	# (_practice_mode is false), so the aim lock it set is cleared here rather
-	# than left to whichever exit path happens to reset ability state.
-	player.set_shooting_locked(false)
-
-
-func _practice_weapon_label() -> String:
-	var ability := player.get_equipped_ability()
-	return "Blaster" if ability.is_empty() else "Blaster + %s" % ability.capitalize()
-
-
-func _apply_practice_player_switches() -> void:
-	player.practice_unlimited_shots = practice_session.infinite_ammo
-	player.practice_skip_cooldowns = not practice_session.cooldowns_enabled
-
-
-func _on_practice_config_changed() -> void:
-	if _practice_mode:
-		_apply_practice_player_switches()
-
-
-func _on_practice_reset_position() -> void:
-	_respawn_player(false)
-
-
-## Opening the panel needs the cursor back; closing it returns to mouse-look.
-func _on_practice_panel_visibility_changed(panel_visible: bool) -> void:
-	if not _practice_mode:
-		return
-	if panel_visible:
-		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
-	elif arena_started and not pause_menu.visible:
-		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
-	player.set_shooting_locked(panel_visible)
-
-
-## Combat-mode return fire. The dummy asks, the game spawns - so whether the
-## shot can hurt the player stays one decision in one place.
-func _on_dummy_shot_requested(dummy: Node3D, origin: Vector3, direction: Vector3) -> void:
-	if not _practice_mode or not arena_started:
-		return
-	var can_damage := practice_session.dummy_damage_enabled and not practice_session.player_invincible
-	var projectile = PROJECTILE_SCENE.instantiate()
-	projectile.name = "DummyShot_%s_%d" % [dummy.name, Time.get_ticks_usec()]
-	projectiles.add_child(projectile)
-	projectile.configure(origin, direction.normalized(), dummy, can_damage)
-	projectile.hit_confirmed.connect(_on_visual_projectile_hit)
-	audio_manager.play_sfx_limited(&"projectile_fire", 0.06, -14.0, 1.06, &"dummy_projectile_fire")
-
-
 func _on_network_session_ready(is_host: bool) -> void:
 	local_peer_id = multiplayer.get_unique_id()
 	_clear_remote_players()
 	player.configure_local(local_peer_id)
 	_practice_mode = false
-	_end_practice_session()
+	_practice.end_session()
 	if is_host:
 		_peer_spawn_slots = {1: 0}
 		_reset_duel_match_state()
@@ -713,7 +597,7 @@ func _receive_match_setup(map_id: String, spawn_slots: Dictionary, red_score: in
 	_blue_score = clampi(blue_score, 0, _score_to_win)
 	local_peer_id = multiplayer.get_unique_id()
 	_practice_mode = false
-	_end_practice_session()
+	_practice.end_session()
 	hud.set_practice_mode(false)
 	_activate_competitive_map(_selected_map_id)
 	if not arena_started:
@@ -2067,8 +1951,7 @@ func _reset_duel_match_state() -> void:
 	_server_peers.reset_for_match()
 	_ensure_player_stats(1)
 	_server_peers.state_for(1).health = player.max_health
-	_victory_sequence_active = false
-	_end_victory_pose()
+	_victory.cancel()
 	_match_reward_awarded = false
 	_reset_ability_state()
 	hud.hide_victory()
@@ -2142,50 +2025,10 @@ func _ensure_player_stats(peer_id: int) -> void:
 		_player_stats[peer_id] = {"eliminations": 0, "deaths": 0, "damage": 0, "trick_shots": 0}
 
 
+## Match end: VictoryDirector owns the cinematic; this keeps the deferred
+## hand-off from _resolve_duel_round (and the HUD contracts) on one name.
 func _start_victory_sequence(winning_team: int) -> void:
-	if _victory_sequence_active or not arena_started:
-		return
-	_victory_sequence_active = true
-	_match_timer_running = false
-	player.set_input_enabled(false)
-	player.set_shooting_enabled(false)
-	player.freeze = true
-	for remote in remote_players.get_children():
-		(remote as RigidBody3D).freeze = true
-	pause_menu.close_pause()
-	get_tree().paused = false
-	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
-	_set_player_mesh_visible(true)
-	var local_team := _team_for_peer(local_peer_id)
-	var winner_body: RigidBody3D = _body_for_team(winning_team)
-	var winner_name := str(winner_body.get("display_name")) if winner_body != null else ""
-	hud.begin_victory_cinematic(winner_name, RED_TEAM_COLOR if winning_team == TEAM_RED else BLUE_TEAM_COLOR, local_team == winning_team)
-	audio_manager.stop_all_loops(0.18, true)
-	audio_manager.set_music_context(&"victory" if local_team == winning_team else &"defeat", 0.75)
-	var stage := _victory_stage_position(winning_team, winner_body)
-	_victory_camera_target = stage + Vector3.UP * VICTORY_TARGET_LIFT
-	_victory_camera_position = _victory_camera_spot(winning_team, _victory_camera_target, winner_body)
-	_victory_elapsed = 0.0
-	# Cut straight to the shot: easing in from the duel camera could sweep
-	# through walls on the way. The push-in only ever moves closer along the
-	# cleared line, so it cannot clip either.
-	_update_victory_camera(0.0)
-	camera.position = Vector3.ZERO
-	if winner_body != null:
-		_begin_victory_pose(winner_body, stage)
-	audio_manager.play_sfx(&"round_start", -5.0, 0.84)
-	_schedule_victory_landing_effects(winning_team)
-	await get_tree().create_timer(VICTORY_RESULTS_DELAY).timeout
-	if not _victory_sequence_active:
-		return
-	var is_winner := local_team == winning_team
-	hud.show_victory(is_winner, winning_team, _build_match_roster())
-	_award_local_match_rewards(winning_team)
-	var result_sound: StringName = &"victory_reveal" if is_winner else &"defeat_reveal"
-	audio_manager.play_sfx(result_sound, -1.0, 1.0 if is_winner else 0.82)
-	await get_tree().create_timer(1.35).timeout
-	if _victory_sequence_active:
-		audio_manager.play_sfx(&"roster_reveal", -7.0, 1.08)
+	_victory.start(winning_team)
 
 
 func _award_local_match_rewards(winning_team: int) -> void:
@@ -2213,26 +2056,6 @@ func _award_local_match_rewards(winning_team: int) -> void:
 	hud.show_match_rewards(reward)
 
 
-## Starts high and wide on the cleared line, pushes in, and drifts slowly
-## round the winner. `_victory_camera_position` is the far end of the clear
-## line, so every point used here is at or inside it.
-func _update_victory_camera(_delta: float) -> void:
-	var push := _ease_out_cubic(clampf(_victory_elapsed / VICTORY_CAMERA_PUSH_TIME, 0.0, 1.0))
-	var offset := _victory_camera_position - _victory_camera_target
-	var orbit := sin(_victory_elapsed * VICTORY_CAMERA_ORBIT_SPEED) * deg_to_rad(VICTORY_CAMERA_ORBIT_DEGREES)
-	var distance_scale := lerpf(1.0, VICTORY_CAMERA_PUSH, push)
-	var rise := lerpf(VICTORY_CAMERA_RISE, 0.0, push)
-	camera_rig.global_position = _victory_camera_target + offset.rotated(Vector3.UP, orbit) * distance_scale + Vector3.UP * rise
-	var follow := _victory_pose_at(_victory_elapsed).x * VICTORY_CAMERA_FOLLOW if _victory_blob != null else 0.0
-	camera_rig.look_at(_victory_camera_target + Vector3.UP * follow, Vector3.UP)
-	camera.position = Vector3.ZERO
-	camera.fov = lerpf(VICTORY_CAMERA_FOV_START, VICTORY_CAMERA_FOV_END, push)
-
-
-static func _ease_out_cubic(value: float) -> float:
-	return 1.0 - pow(1.0 - value, 3.0)
-
-
 func _body_for_team(team: int) -> RigidBody3D:
 	if _team_for_peer(local_peer_id) == team:
 		return player as RigidBody3D
@@ -2240,162 +2063,6 @@ func _body_for_team(team: int) -> RigidBody3D:
 		if _team_for_peer(int(child.get("network_peer_id"))) == team:
 			return child as RigidBody3D
 	return player as RigidBody3D
-
-
-## Plants the winner on its stage facing the camera; `_update_victory_pose`
-## then plays the celebration every frame from `_victory_elapsed`.
-func _begin_victory_pose(blob: RigidBody3D, stage: Vector3) -> void:
-	_victory_blob = blob
-	_victory_stage = stage
-	blob.global_position = stage
-	blob.linear_velocity = Vector3.ZERO
-	blob.angular_velocity = Vector3.ZERO
-	var look_direction := _victory_camera_position - stage
-	look_direction.y = 0.0
-	look_direction = look_direction.normalized() if look_direction.length_squared() > 0.001 else Vector3.FORWARD
-	blob.set("aim_direction", look_direction)
-	blob.set("aim_yaw", atan2(-look_direction.x, -look_direction.z))
-	_update_victory_pose()
-
-
-func _update_victory_pose() -> void:
-	if _victory_blob == null or not is_instance_valid(_victory_blob):
-		return
-	var pose := _victory_pose_at(_victory_elapsed)
-	_victory_blob.global_position = _victory_stage + Vector3.UP * pose.x
-	var visual := _victory_blob.get_node_or_null("VisualRoot")
-	if visual != null and visual.has_method("set_celebration_pose"):
-		visual.call("set_celebration_pose", pose.y, pose.z)
-
-
-## Hands the winner's look back to physics (rematch, lobby).
-func _end_victory_pose() -> void:
-	if _victory_blob != null and is_instance_valid(_victory_blob):
-		var visual := _victory_blob.get_node_or_null("VisualRoot")
-		if visual != null and visual.has_method("set_celebration_pose"):
-			visual.call("set_celebration_pose", 0.0, 0.0)
-	_victory_blob = null
-
-
-## Height above the stage (x), squash (y, negative = stretch) and spin (z) at
-## time `t`: the scripted hops, then an endless idle bounce.
-static func _victory_pose_at(t: float) -> Vector3:
-	var hops: Array = VICTORY_HOPS.duplicate()
-	if t >= VICTORY_IDLE_START - VICTORY_ANTICIPATION_TIME:
-		var index := maxi(0, int(floor((t - VICTORY_IDLE_START) / VICTORY_IDLE_PERIOD)))
-		for extra in [index, index + 1]:
-			hops.append([VICTORY_IDLE_START + extra * VICTORY_IDLE_PERIOD, VICTORY_IDLE_AIRTIME, VICTORY_IDLE_HEIGHT, 0.0])
-	var peak := float((VICTORY_HOPS[0] as Array)[2])
-	var last_landing := -100.0
-	var last_strength := 0.0
-	for hop_value in hops:
-		var hop := hop_value as Array
-		var takeoff := float(hop[0])
-		var airtime := float(hop[1])
-		var strength := float(hop[2]) / peak
-		if t < takeoff:
-			var crouch := 0.0
-			var lead := takeoff - t
-			if lead < VICTORY_ANTICIPATION_TIME:
-				crouch = VICTORY_ANTICIPATION_SQUASH * sqrt(strength) * sin((1.0 - lead / VICTORY_ANTICIPATION_TIME) * PI * 0.5)
-			return Vector3(0.0, maxf(crouch, _victory_landing_squash(t - last_landing, last_strength)), 0.0)
-		if t < takeoff + airtime:
-			var u := (t - takeoff) / airtime
-			var height := float(hop[2]) * 4.0 * u * (1.0 - u)
-			# Stretched while moving fast (takeoff and fall), round at the apex.
-			var stretch := -VICTORY_TAKEOFF_STRETCH * sqrt(strength) * absf(1.0 - 2.0 * u)
-			var spin := TAU * float(hop[3]) * smoothstep(0.0, 1.0, u)
-			return Vector3(height, stretch, spin)
-		last_landing = takeoff + airtime
-		last_strength = strength
-	return Vector3(0.0, _victory_landing_squash(t - last_landing, last_strength), 0.0)
-
-
-## A damped jiggle after touchdown: flat first, then a small tall rebound.
-static func _victory_landing_squash(since_landing: float, strength: float) -> float:
-	if since_landing < 0.0 or since_landing > 0.9:
-		return 0.0
-	return VICTORY_LANDING_SQUASH * sqrt(strength) * exp(-6.5 * since_landing) * cos(since_landing * 17.0)
-
-
-## Dust, sound and a small camera kick on each scripted landing.
-func _schedule_victory_landing_effects(winning_team: int) -> void:
-	var accent := RED_TEAM_COLOR if winning_team == TEAM_RED else BLUE_TEAM_COLOR
-	for index in VICTORY_HOPS.size():
-		var hop := VICTORY_HOPS[index] as Array
-		var takeoff := float(hop[0])
-		var landing := takeoff + float(hop[1])
-		var strength := float(hop[2]) / float((VICTORY_HOPS[0] as Array)[2])
-		get_tree().create_timer(takeoff).timeout.connect(func() -> void:
-			if _victory_sequence_active:
-				audio_manager.play_sfx(&"jump", -6.0 + strength * 3.0, 1.0 + (1.0 - strength) * 0.25)
-		)
-		get_tree().create_timer(landing).timeout.connect(func() -> void:
-			if not _victory_sequence_active:
-				return
-			audio_manager.play_sfx(&"land", -4.0 + strength * 4.0, 0.95)
-			_spawn_impact_burst(_victory_stage, accent, 0.8 + strength * 1.1)
-			if index == 0:
-				_spawn_impact_burst(_victory_stage + Vector3.UP * 1.4, Color(1.0, 0.86, 0.35), 1.2)
-		)
-
-
-## The winner's own spawn deck, resting on whatever floor is under it.
-func _victory_stage_position(winning_team: int, winner_body: Node3D) -> Vector3:
-	var slot := _spawn_slot_for_peer(_peer_for_team(winning_team)) if _peer_for_team(winning_team) > 0 else (0 if winning_team == TEAM_RED else 1)
-	var spawn: Vector3 = spawn_manager.get_spawn_for_slot(slot)
-	var radius := float(winner_body.get("_collision_radius")) if winner_body != null and winner_body.get("_collision_radius") != null else 2.9
-	# Every solid layer: spawn decks are not all on the world layer, and missing
-	# the deck lands the stage on the ground underneath it.
-	var query := PhysicsRayQueryParameters3D.create(spawn + Vector3.UP * VICTORY_FLOOR_PROBE_UP, spawn - Vector3.UP * VICTORY_FLOOR_PROBE_DOWN)
-	var excluded: Array[RID] = []
-	for blob in [player] + remote_players.get_children():
-		if blob is CollisionObject3D:
-			excluded.append((blob as CollisionObject3D).get_rid())
-			var hurtbox := (blob as Node).get_node_or_null("Hurtbox") as CollisionObject3D
-			if hurtbox != null:
-				excluded.append(hurtbox.get_rid())
-	query.exclude = excluded
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	if hit.is_empty():
-		return spawn
-	return Vector3(spawn.x, (hit["position"] as Vector3).y + radius, spawn.z)
-
-
-## Searches around the stage, starting in front of the spawn's facing, for
-## the first camera spot with a clear view of the winner. If every direction
-## is cramped, it takes the one with the most room.
-func _victory_camera_spot(winning_team: int, target: Vector3, winner_body: Node3D) -> Vector3:
-	var slot := _spawn_slot_for_peer(_peer_for_team(winning_team)) if _peer_for_team(winning_team) > 0 else (0 if winning_team == TEAM_RED else 1)
-	var yaw: float = spawn_manager.get_spawn_yaw_for_slot(slot)
-	var forward := Vector3(-sin(yaw), 0.0, -cos(yaw))
-	var space := get_world_3d().direct_space_state
-	var sphere := SphereShape3D.new()
-	sphere.radius = VICTORY_CAMERA_CLEARANCE
-	var excluded: Array[RID] = []
-	for blob in [player] + remote_players.get_children():
-		if blob is CollisionObject3D:
-			excluded.append((blob as CollisionObject3D).get_rid())
-	var best := target + forward * VICTORY_CAMERA_MIN_DISTANCE + Vector3.UP * VICTORY_CAMERA_HEIGHT
-	var best_room := -1.0
-	for angle in VICTORY_CAMERA_ANGLES_DEGREES:
-		var direction := forward.rotated(Vector3.UP, deg_to_rad(float(angle)))
-		var desired := target + direction * VICTORY_CAMERA_DISTANCE + Vector3.UP * VICTORY_CAMERA_HEIGHT
-		var cast := PhysicsShapeQueryParameters3D.new()
-		cast.shape = sphere
-		cast.transform = Transform3D(Basis.IDENTITY, target)
-		cast.motion = desired - target
-		cast.collision_mask = VICTORY_CAMERA_MASK
-		cast.exclude = excluded
-		var fractions := space.cast_motion(cast)
-		var safe_fraction := float(fractions[0]) if fractions.size() > 0 else 1.0
-		var room := safe_fraction * VICTORY_CAMERA_DISTANCE
-		if safe_fraction >= 0.999:
-			return desired
-		if room > best_room:
-			best_room = room
-			best = target + (desired - target) * safe_fraction
-	return best
 
 
 func _build_match_roster() -> Array:
@@ -2475,7 +2142,7 @@ func _receive_rematch() -> void:
 
 
 func _apply_rematch_reset() -> void:
-	_victory_sequence_active = false
+	_victory.cancel()
 	_clear_projectiles()
 	_reset_duel_match_state()
 	for peer_key in _peer_spawn_slots:
@@ -2507,11 +2174,11 @@ func _return_to_lobby() -> void:
 	local_peer_id = 1
 	_peer_spawn_slots = {1: 0}
 	_practice_mode = false
-	_end_practice_session()
-	_victory_sequence_active = false
+	_practice.end_session()
+	_victory.cancel()
 	_reset_duel_match_state()
 	_activate_practice_map()
-	_set_practice_world_enabled(false)
+	_practice.set_world_enabled(false)
 	player.configure_local(local_peer_id)
 	_apply_lobby_identity()
 	player.set_shooting_enabled(false)
@@ -2540,12 +2207,7 @@ func _set_menu_world_parked(parked: bool) -> void:
 
 
 func _activate_practice_map() -> void:
-	_clear_competitive_map()
-	audio_manager.call("set_map_music_theme", &"", 0.0, false)
-	_set_practice_world_enabled(true)
-	spawn_manager.use_practice_map()
-	# The map owns its look, same as every competitive arena.
-	_apply_lighting_profile(practice_arena.get_lighting_profile())
+	_practice.activate_map()
 
 
 func _activate_competitive_map(map_id: String) -> void:
@@ -2555,7 +2217,7 @@ func _activate_competitive_map(map_id: String) -> void:
 		spawn_manager.use_competitive_map(_current_competitive_map)
 		return
 	_clear_competitive_map()
-	_set_practice_world_enabled(false)
+	_practice.set_world_enabled(false)
 	var packed_scene := COMPETITIVE_MAP_SCENES[safe_map_id] as PackedScene
 	_current_competitive_map = packed_scene.instantiate() as Node3D
 	_current_competitive_map.set_meta("map_id", safe_map_id)
@@ -2572,29 +2234,6 @@ func _clear_competitive_map() -> void:
 		_current_competitive_map.get_parent().remove_child(_current_competitive_map)
 	_current_competitive_map.queue_free()
 	_current_competitive_map = null
-
-
-func _set_practice_world_enabled(enabled: bool) -> void:
-	practice_arena.visible = enabled
-	var practice_collision := practice_arena.get_node_or_null("PracticeCollision") as StaticBody3D
-	if practice_collision != null:
-		practice_collision.collision_layer = 1 if enabled else 0
-	for node in get_tree().get_nodes_in_group("training_dummy"):
-		var dummy := node as RigidBody3D
-		if dummy == null:
-			continue
-		dummy.visible = enabled
-		dummy.freeze = not enabled
-		dummy.collision_layer = 2 if enabled else 0
-		var hurtbox := dummy.get_node_or_null("Hurtbox") as Area3D
-		if hurtbox != null:
-			hurtbox.collision_layer = 8 if enabled else 0
-		var contact_area := dummy.get_node_or_null("ContactArea") as Area3D
-		if contact_area != null:
-			contact_area.collision_layer = 16 if enabled else 0
-			contact_area.collision_mask = 16 if enabled else 0
-		if enabled and dummy.has_method("respawn"):
-			dummy.call("respawn")
 
 
 func _validated_map_id(map_id: String) -> String:

@@ -32,10 +32,10 @@ func _run() -> void:
 	var items := progression.call("get_items", "skins") as Array
 	(hud.find_child("ShopCategories", true, false).get_child(1) as Button).button_pressed = true
 	await create_timer(0.3).timeout
-	hud.call("_select_shop_item", items[3])
+	hud.drawer.call("_select_shop_item", items[3])
 	await create_timer(1.0).timeout
 	await _save("drawer_shop_skins.png")
-	hud.call("_show_purchase_confirm", "skins", items[3])
+	hud.drawer.call("_show_purchase_confirm", "skins", items[3])
 	await create_timer(0.6).timeout
 	await _save("drawer_purchase.png")
 	var modal := hud.find_child("PurchaseModal", true, false)
@@ -49,7 +49,7 @@ func _run() -> void:
 			quest["progress"] = int(quest.get("target", 1))
 			quest["completed"] = true
 			break
-	hud.call("_switch_progression_page", "quests")
+	hud.drawer.call("_switch_progression_page", "quests")
 	await create_timer(1.4).timeout
 	await _save("drawer_quests.png")
 	(hud.find_child("QuestTabs", true, false).get_child(1) as Button).button_pressed = true

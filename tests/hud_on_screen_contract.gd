@@ -31,11 +31,11 @@ func _run() -> void:
 		_check_on_screen(hud.get("main_menu"), "Main menu (must cover the screen)", tag, true)
 		for control_name in ["BotCard", "PracticeCard", "OnlineCard", "BlobStage", "NameInput", "ShopButton", "LoadoutCard", "QuitButton"]:
 			_check_on_screen(hud.find_child(control_name, true, false), "Main menu %s" % control_name, tag)
-		_check_on_screen(hud.get("_coin_chip"), "Coin balance chip", tag)
-		_check_on_screen(hud.get("_quest_panel"), "Menu quest card", tag)
+		_check_on_screen(hud.drawer.get("_coin_chip"), "Coin balance chip", tag)
+		_check_on_screen(hud.drawer.get("_quest_panel"), "Menu quest card", tag)
 		hud.call("_show_progression_toast", "Quest complete", "Play 3 Matches")
 		await _frames(2)
-		_check_on_screen(hud.get("_toast_stack"), "Quest toast stack", tag)
+		_check_on_screen(hud.drawer.get("_toast_stack"), "Quest toast stack", tag)
 		for drawer in ["shop", "quests"]:
 			hud.call("_set_progression_open", drawer)
 			await _frames(4)
@@ -54,7 +54,7 @@ func _run() -> void:
 	hud.call("_set_progression_open", "shop")
 	await _frames(4)
 	var first_item := (root.get_node("Progression").call("get_items", "abilities") as Array)[0] as Dictionary
-	hud.call("_show_purchase_confirm", "abilities", first_item)
+	hud.drawer.call("_show_purchase_confirm", "abilities", first_item)
 	await create_timer(0.35).timeout
 	for window_size in WINDOW_SIZES:
 		root.size = window_size

@@ -76,8 +76,8 @@ func _test_category_tabs(hud: Node, progression: Node) -> void:
 		return
 	(categories.get_child(1) as Button).button_pressed = true
 	await process_frame
-	_check(str(hud.get("_active_shop_category")) == "skins", "Pressing the Skins tab must show skins")
-	var selected := hud.get("_selected_shop_item") as Dictionary
+	_check(str(hud.drawer.get("_active_shop_category")) == "skins", "Pressing the Skins tab must show skins")
+	var selected := hud.drawer.get("_selected_shop_item") as Dictionary
 	_check(str(selected.get("id", "")) == str(progression.call("get_equipped", "skins")), "A category must open on the item the blob is wearing")
 	var overlay := hud.find_child("ShopOverlay", true, false) as Control
 	_check(overlay.find_children("*", "SubViewport", true, false).size() == 1, "Switching category must keep exactly one model viewport")
@@ -97,7 +97,7 @@ func _test_page_tabs(hud: Node) -> void:
 	if pages != null:
 		(pages.get_child(1) as Button).button_pressed = true
 		await process_frame
-		_check(str(hud.get("_active_progression_page")) == "quests", "The Quests tab must open the quest board")
+		_check(str(hud.drawer.get("_active_progression_page")) == "quests", "The Quests tab must open the quest board")
 		_check(hud.find_child("QuestTabs", true, false) != null, "The quest board must offer Daily and Weekly")
 		_check(hud.find_children("ShopItem_*", "PanelContainer", true, false).is_empty(), "Leaving the shop must remove its item grid")
 	hud.call("close_progression")

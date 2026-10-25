@@ -137,7 +137,7 @@ func _test_shop_card_tap_selects_preview() -> void:
 		_check(card.find_child("ItemPreview_%s" % expected_id, true, false) != null, "Shop item cards must render item thumbnails")
 		second_hit.pressed.emit()
 		await process_frame
-		var selected := hud.get("_selected_shop_item") as Dictionary
+		var selected := hud.drawer.get("_selected_shop_item") as Dictionary
 		_check(str(selected.get("id", "")) == expected_id, "Tapping a shop card must update the live preview selection")
 	hud.queue_free()
 	progression.set("stock_full_catalog", was_full_catalog)

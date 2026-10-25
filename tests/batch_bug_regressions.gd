@@ -102,7 +102,7 @@ func _test_progression_hud_contracts() -> void:
 		"BUG 5: coin and quest constructors are never invoked, leaving both progression HUD pieces absent"
 	)
 
-	hud.call("_on_coin_balance_changed", 125, 25)
+	hud.drawer.call("_on_coin_balance_changed", 125, 25)
 	await process_frame
 	_check(
 		_has_visible_label_text(hud, "+25 COINS"),

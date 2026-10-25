@@ -121,10 +121,16 @@ if [[ -z "$GODOT_BIN" ]]; then
 fi
 
 # A fresh checkout has no .godot/, so resources are unimported and every
-# preload() in the suite would fail. Importing once up front is cheap when the
-# cache already exists.
+# preload() in the suite would fail. The global class cache also goes stale
+# when a script gains a `class_name` after the editor last scanned, and a
+# headless run never rescans on its own: every reference to the new class is
+# then a parse error. Re-import whenever a script is newer than that cache.
+CLASS_CACHE="$ROOT/.godot/global_script_class_cache.cfg"
 if [[ ! -d "$ROOT/.godot/imported" ]]; then
 	echo "Importing project resources (first run)..."
+	"$GODOT_BIN" --headless --path "$ROOT" --import >/dev/null 2>&1 || true
+elif [[ ! -f "$CLASS_CACHE" ]] || [[ -n "$(find "$ROOT/scripts" "$ROOT/tests" -name '*.gd' -newer "$CLASS_CACHE" -print -quit)" ]]; then
+	echo "Refreshing the script class cache..."
 	"$GODOT_BIN" --headless --path "$ROOT" --import >/dev/null 2>&1 || true
 fi
 

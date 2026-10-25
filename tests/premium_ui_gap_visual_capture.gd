@@ -43,7 +43,7 @@ func _capture_ui_at_size(viewport_size: Vector2i, suffix: String) -> void:
 
 	hud.call("set_lobby_mode", true)
 	hud.call("_set_progression_open", "shop")
-	hud.call("_show_purchase_confirm", "abilities", {
+	hud.drawer.call("_show_purchase_confirm", "abilities", {
 		"id": "gravity_pulse",
 		"name": "Gravity Pulse",
 		"price": 450,
