@@ -138,6 +138,8 @@ const SLAM_BRAKE_HOLD_SECONDS := 0.3
 ## Power slide only when the gap is long enough to be worth it.
 const SLIDE_MIN_DISTANCE := 22.0
 const SLIDE_HOLD_SECONDS := 1.0
+## Seconds between Blob punches when the target is in fist reach.
+const PUNCH_INTERVAL := 0.4
 ## Minimum seconds between deliberate hops, so the bot never pogo-sticks.
 const HOP_COOLDOWN_SECONDS := 0.5
 ## An airborne Blob bot whose heading points this far off the target (dot of

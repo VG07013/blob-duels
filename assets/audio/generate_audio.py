@@ -642,6 +642,12 @@ def make_combat_pack() -> None:
     save_mono("hit_confirm.wav", samples, 0.8)
 
 
+def make_held_item_pack() -> None:
+    """Blob fists: an airy whoosh for a swing and a wet rubber thump for a hit."""
+    make_noise_impact("punch_swing.wav", 0.16, 38.0, 0.55, rubber=0.0, seed=6)
+    make_noise_impact("punch_hit.wav", 0.22, 70.0, 0.12, rubber=0.85, seed=7)
+
+
 def main() -> None:
     make_tone("ui_hover.wav", 0.075, 720.0, 940.0, (1.0, 0.2), release=0.3)
     make_tone("ui_click.wav", 0.11, 540.0, 390.0, (1.0, 0.28), release=0.25)
@@ -680,6 +686,7 @@ def main() -> None:
     make_movement_pack()
     make_power_slide_pack()
     make_combat_pack()
+    make_held_item_pack()
 
 
 if __name__ == "__main__":
@@ -692,5 +699,6 @@ if __name__ == "__main__":
         make_movement_pack()
         make_power_slide_pack()
         make_combat_pack()
+        make_held_item_pack()
     else:
         main()

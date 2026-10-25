@@ -166,6 +166,16 @@ target within 1s add into a single running damage number. Blobs carry no
 floating name tag or health bar (the `Nameplate` node stays hidden). F is
 **quick blob**: the Blob slot for `CombatTuning.QUICK_BLOB_SECONDS`, then back
 to the Blaster (`hotbar_combat_contract`).
+Held items: `HeldItemRig` (`scripts/held_item_rig.gd`, built by game.gd under
+`$CameraRig/Camera3D`) shows the Blaster pistol on slot 1 and the two Blob
+fists on slot 2, first person only, during a match; both are primitives in
+the game's style, drawn with `no_depth_test` so walls never cut them. The
+pistol kicks on every local shot, the fists punch. A click in the Blob slot
+is `BlobPlayer._throw_punch`: `CombatTuning.PUNCH_*`, a sphere at
+`PUNCH_REACH` along the aim, damage + shove through the same paths a body
+ram uses (`network_collision_requested` for remote blobs, so the host still
+clamps it), alternating hands, `punched` signal for feedback (never
+`shoot_requested`). `held_items_contract` guards it.
 Fling: a quick ~1s press must launch past rolling speed (front-loaded charge
 curve, `fling_regression_contract`); the HUD fling rail is `ui/fling_meter.gd`
 above the health pill (ready / charging / cooldown in one widget). Shots have

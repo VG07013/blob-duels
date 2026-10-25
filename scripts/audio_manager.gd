@@ -77,11 +77,13 @@ const STREAMS := {
 	&"knockout": [preload("res://assets/audio/kenney/explosionCrunch_000.ogg"), preload("res://assets/audio/kenney/explosionCrunch_001.ogg")],
 	&"equip_swap": preload("res://assets/audio/kenney/switch_002.ogg"),
 	&"explosion": preload("res://assets/audio/kenney/explosion_low.wav"),
+	&"punch_swing": preload("res://assets/audio/punch_swing.wav"),
+	&"punch_hit": preload("res://assets/audio/punch_hit.wav"),
 }
 
 ## One-shot movement / combat cues grouped for the audio contract.
 const MOVEMENT_SFX_KEYS: Array[StringName] = [&"jump", &"air_jump", &"land", &"slam_dive", &"slam_impact", &"wall_kick", &"slide_start", &"slide_hop"]
-const COMBAT_SFX_KEYS: Array[StringName] = [&"blaster_fire", &"hit_confirm", &"elimination", &"hurt", &"knockout", &"equip_swap", &"explosion"]
+const COMBAT_SFX_KEYS: Array[StringName] = [&"blaster_fire", &"hit_confirm", &"elimination", &"hurt", &"knockout", &"equip_swap", &"explosion", &"punch_swing", &"punch_hit"]
 
 ## Positional cues (the opponent's jumps, shots...) fade out past this range.
 const POSITIONAL_SFX_MAX_DISTANCE := 140.0

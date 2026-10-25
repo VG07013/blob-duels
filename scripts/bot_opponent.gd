@@ -59,6 +59,7 @@ var _fling_charge_left := 0.0
 var _slide_hold_left := 0.0
 var _brake_hold_left := 0.0
 var _hop_cooldown := 0.0
+var _punch_timer := 0.0
 var _threat_id := 0
 
 
@@ -143,6 +144,7 @@ func _physics_process(delta: float) -> void:
 	_update_fling(distance, has_sight, delta)
 	_update_slide(distance, has_sight, heading)
 	_maybe_air_jump(flat_to_target, delta)
+	_maybe_punch(distance)
 	_maybe_shoot(to_target, has_sight, distance)
 	controls.set_held("brake", _brake_hold_left > 0.0)
 
@@ -159,6 +161,7 @@ func _tick_timers(delta: float) -> void:
 	_slide_hold_left = maxf(_slide_hold_left - delta, 0.0)
 	_brake_hold_left = maxf(_brake_hold_left - delta, 0.0)
 	_hop_cooldown = maxf(_hop_cooldown - delta, 0.0)
+	_punch_timer = maxf(_punch_timer - delta, 0.0)
 
 
 ## Swings the facing onto the target at the preset's turn speed; movement is
@@ -401,6 +404,14 @@ func _maybe_air_jump(flat_to_target: Vector3, delta: float) -> void:
 	_air_jump_considered = true
 	if _rng.randf() <= float(_preset.get("air_jump_skill", 0.5)):
 		body.blob_air_jump_toward(flat_to_target.normalized())
+
+
+## In the Blob, a target inside fist reach gets punched like a player would click.
+func _maybe_punch(distance: float) -> void:
+	if not is_blob_mode() or _punch_timer > 0.0 or distance > COMBAT_TUNING.PUNCH_REACH + 1.0:
+		return
+	_punch_timer = TUNING.PUNCH_INTERVAL
+	controls.tap("shoot")
 
 
 func _maybe_shoot(to_target: Vector3, has_sight: bool, distance: float) -> void:

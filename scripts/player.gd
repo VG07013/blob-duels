@@ -22,6 +22,9 @@ signal fling_maximum_reached
 signal fling_released(charge_ratio: float)
 signal fling_cooldown_updated(remaining_seconds: float, duration_seconds: float)
 signal shoot_requested(origin: Vector3, direction: Vector3)
+## A Blob-slot punch was thrown: which fist (0 left, 1 right), whether it
+## landed, and where (the target's position on a hit, the fist's reach on a miss).
+signal punched(hand: int, hit: bool, world_position: Vector3)
 signal bounce_triggered(strength: float)
 signal bounce_counted(strength: float)
 ## `strength` is the raw contact speed and drives presentation - impact bursts
@@ -327,6 +330,8 @@ var _collision_ready_at: Dictionary = {}
 ## simulation faster than real time, so a wall-clock window counted differently
 ## on every machine (physics_integration).
 var _bounce_count_ready_at: Dictionary = {}
+var _punch_cooldown_timer := 0.0
+var _next_punch_hand := 0
 ## Seconds of simulated physics since spawn; the clock every debounce reads.
 var _physics_clock := 0.0
 const BOUNCE_COUNT_DEBOUNCE_SECONDS := 0.1
@@ -972,6 +977,7 @@ func cancel_active_charge() -> void:
 
 func _tick_timers(delta: float) -> void:
 	_physics_clock += delta
+	_punch_cooldown_timer = maxf(_punch_cooldown_timer - delta, 0.0)
 	_tick_quick_blob(delta)
 	_hit_chain_timer = maxf(_hit_chain_timer - delta, 0.0)
 	_bounce_buffer_timer = maxf(_bounce_buffer_timer - delta, 0.0)
@@ -1500,9 +1506,76 @@ func _end_fling_thrust() -> void:
 
 func _update_shooting() -> void:
 	if is_blob_mode():
+		if _action_just_pressed("shoot"):
+			_throw_punch()
 		return
 	if _action_just_pressed("shoot") and _shot_cooldown_timer <= 0.0:
 		_emit_shot_request()
+
+
+## The Blob slot's click: a short-range punch with the next fist. Returns
+## whether it landed. A bot (virtual input) may punch without shooting_enabled,
+## since its shots never go through this body anyway.
+func _throw_punch() -> bool:
+	if not is_blob_mode() or _punch_cooldown_timer > 0.0 or not local_controlled or not _accepts_input() or _shooting_locked:
+		return false
+	if not shooting_enabled and virtual_input == null:
+		return false
+	_punch_cooldown_timer = COMBAT_TUNING.PUNCH_COOLDOWN
+	var hand := _next_punch_hand
+	_next_punch_hand = 1 - _next_punch_hand
+	var direction := aim_direction.normalized()
+	if direction.length_squared() <= 0.001:
+		direction = _forward_flat()
+	var reach_point := global_position + direction * COMBAT_TUNING.PUNCH_REACH
+	var target := _find_punch_target(reach_point)
+	sleeping = false
+	apply_central_impulse(direction * COMBAT_TUNING.PUNCH_LUNGE * mass)
+	_launch_visual(0.2)
+	if target == null:
+		punched.emit(hand, false, reach_point)
+		return false
+	var impulse := (direction + Vector3.UP * COMBAT_TUNING.PUNCH_LIFT).normalized() * COMBAT_TUNING.PUNCH_IMPULSE
+	if target.has_method("play_hit_flex"):
+		target.call("play_hit_flex", impulse, impulse.length())
+	if target.is_in_group("network_blob"):
+		network_collision_requested.emit(int(target.get("network_peer_id")), impulse, COMBAT_TUNING.PUNCH_DAMAGE)
+	elif target.has_method("receive_collision_impact"):
+		target.call("receive_collision_impact", COMBAT_TUNING.PUNCH_DAMAGE, impulse)
+	else:
+		target.sleeping = false
+		target.apply_central_impulse(impulse)
+	punched.emit(hand, true, target.global_position)
+	return true
+
+
+## The nearest other blob whose body or hurtbox sits inside the punch sphere.
+func _find_punch_target(reach_point: Vector3) -> RigidBody3D:
+	if not is_inside_tree():
+		return null
+	var sphere := SphereShape3D.new()
+	sphere.radius = COMBAT_TUNING.PUNCH_RADIUS
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = sphere
+	query.transform = Transform3D(Basis.IDENTITY, reach_point)
+	query.collision_mask = 2 | 8
+	query.collide_with_areas = true
+	query.collide_with_bodies = true
+	query.exclude = [get_rid()]
+	var best: RigidBody3D = null
+	var best_distance := INF
+	for hit in get_world_3d().direct_space_state.intersect_shape(query, 8):
+		var collider := hit.get("collider") as Node
+		var body := collider as RigidBody3D
+		if body == null and collider != null:
+			body = collider.get_parent() as RigidBody3D
+		if body == null or body == self:
+			continue
+		var distance := body.global_position.distance_to(global_position)
+		if distance < best_distance:
+			best_distance = distance
+			best = body
+	return best
 
 
 func _emit_shot_request() -> void:

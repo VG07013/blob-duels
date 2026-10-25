@@ -186,6 +186,8 @@ var _last_fling_charge_tier := 0
 ## kick, slam), so the generic bounce boing does not double it.
 var _movement_cue_frame := -1
 var _rail_telegraph: MeshInstance3D
+## The first-person pistol and fists under the camera (scripts/held_item_rig.gd).
+var _held_items: HeldItemRig
 
 
 func _ready() -> void:
@@ -194,6 +196,8 @@ func _ready() -> void:
 	_connect_session_signals()
 	_victory.setup(self)
 	_practice.setup(self)
+	_held_items = HeldItemRig.new()
+	camera.add_child(_held_items)
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	# On-demand peer entries start at full health, matching the defaults the
 	# per-peer dictionaries used to supply at every read site.
@@ -213,6 +217,7 @@ func _ready() -> void:
 	player.knocked_out.connect(_on_player_knocked_out)
 	player.network_collision_requested.connect(_on_network_collision_requested)
 	player.hotbar_slot_changed.connect(_on_local_hotbar_slot_changed)
+	player.punched.connect(_on_player_punched)
 	player.jumped.connect(_on_player_jumped)
 	player.air_jumped.connect(_on_player_air_jumped)
 	player.landed.connect(_on_player_landed)
@@ -315,9 +320,12 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	if _victory.active:
+		_held_items.set_active(false)
 		_update_player_audio()
 		_victory.process(delta)
 		return
+	_held_items.set_active(arena_started and player.input_enabled)
+	_held_items.update_sway(delta, player.linear_velocity, player.is_grounded())
 	_apply_gamepad_look(delta)
 	player.aim_yaw = camera_yaw
 	player.aim_direction = -camera_rig.global_transform.basis.z.normalized()
@@ -404,6 +412,7 @@ func _apply_local_cosmetics() -> void:
 	)
 	player.set_cosmetic_quality(_graphics_quality)
 	player.set_equipped_ability(str(progression.call("get_equipped", "abilities")))
+	_held_items.set_blob_color(player.blob_color)
 
 
 ## Practice ---------------------------------------------------------------------
@@ -907,6 +916,7 @@ func _on_network_collision_requested(target_peer_id: int, impulse: Vector3, dama
 
 
 func _on_local_hotbar_slot_changed(slot: int) -> void:
+	_held_items.set_slot(slot)
 	if arena_started:
 		audio_manager.play_sfx(&"equip_swap", -9.0, 1.0 if slot == 0 else 0.86)
 	if network_session.is_online() and not multiplayer.is_server() and multiplayer.multiplayer_peer != null:
@@ -946,6 +956,7 @@ func _handle_local_shot(origin: Vector3, direction: Vector3) -> void:
 		practice_session.note_shot_fired()
 	audio_manager.play_sfx(&"blaster_fire", -4.0, 0.95 + randf() * 0.1)
 	_add_camera_shake(0.12)
+	_held_items.play_shot()
 	_spawn_impact_burst(origin - safe_direction * 0.35, Color(1.0, 0.68, 0.18), 0.26)
 	var now := Time.get_ticks_msec()
 	if _abilities.locks_shooting(now):
@@ -1145,6 +1156,18 @@ func _apply_server_peer_impact(peer_id: int, damage: int, impulse: Vector3, proj
 @rpc("authority", "call_remote", "reliable")
 func _confirm_shot_hit() -> void:
 	hud.show_hit_marker()
+
+
+## Fist feedback: the swing on the rig, a whoosh or a thump, and on a hit the
+## same marker, shake and burst a landed shot earns.
+func _on_player_punched(hand: int, hit: bool, world_position: Vector3) -> void:
+	_held_items.play_punch(hand, hit)
+	audio_manager.play_sfx(&"punch_hit" if hit else &"punch_swing", -5.0 if hit else -11.0, randf_range(0.92, 1.08))
+	if not hit:
+		return
+	_add_camera_shake(0.18)
+	hud.show_hit_marker("hit")
+	_spawn_impact_burst(world_position, player.blob_color, 0.7)
 
 
 func _on_player_fling_released(charge_ratio: float) -> void:
@@ -2302,6 +2325,7 @@ func _apply_settings(settings: Dictionary) -> void:
 	_base_fov = INPUT_BINDINGS.clamp_fov(float(settings.get("fov", INPUT_BINDINGS.FOV_DEFAULT)))
 	set_camera_shake_scale(clampf(float(settings.get("camera_shake", 0.72)), 0.0, 1.0))
 	hud.apply_crosshair_settings(settings)
+	_held_items.set_reduced_motion(bool(settings.get("reduced_motion", false)))
 	hud.apply_ui_settings(settings)
 	get_viewport().scaling_3d_scale = clampf(float(settings.get("render_scale", 1.0)), 0.75, 1.25)
 
@@ -2475,6 +2499,7 @@ func _apply_camera_mode() -> void:
 		camera.fov = _camera_base_fov()
 		_set_player_mesh_visible(false)
 	camera.position = _camera_base_position
+	_held_items.set_first_person(not third_person_enabled)
 
 
 func _update_speed_fov(delta: float) -> void:

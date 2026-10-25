@@ -13,6 +13,17 @@ const SLOT_NAMES := ["Blaster", "Blob"]
 ## Quick blob (F): the Blob slot is equipped for this long, then the hotbar
 ## snaps back to the Blaster.
 const QUICK_BLOB_SECONDS := 0.5
+## Blob fists: a click in the Blob slot punches with alternating hands. A
+## sphere of PUNCH_RADIUS at PUNCH_REACH along the aim is the hit volume; a
+## landed punch hurts, shoves along the aim (with a little lift) and lunges
+## the puncher forward a touch so swings feel committed.
+const PUNCH_COOLDOWN := 0.3
+const PUNCH_REACH := 4.8
+const PUNCH_RADIUS := 2.2
+const PUNCH_DAMAGE := 16
+const PUNCH_IMPULSE := 150.0
+const PUNCH_LIFT := 0.18
+const PUNCH_LUNGE := 6.0
 
 ## Juggle protection for hits (shots and body slams). Hits within
 ## HIT_CHAIN_WINDOW of the last one form a chain; each link scales knockback by
