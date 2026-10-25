@@ -74,8 +74,8 @@ const BLOB_RADIUS_FALLBACK := 2.8875
 @export var ground_counter_acceleration := 74.0
 @export var idle_ground_drag := 2.0
 @export var movement_roll_torque := 128.0
-@export var movement_build_up_time := 0.42
-@export_range(0.1, 1.0, 0.05) var movement_initial_acceleration_factor := 0.78
+@export var movement_build_up_time := 0.52
+@export_range(0.1, 1.0, 0.05) var movement_initial_acceleration_factor := 0.68
 ## Shape of the push-force falloff as ground speed nears ground_control_speed.
 ## 1 is linear (force fades the whole way up - mushy top end); higher holds
 ## full force until close to top speed, then tapers so it never overshoots.
