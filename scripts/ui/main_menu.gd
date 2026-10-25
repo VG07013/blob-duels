@@ -1,11 +1,12 @@
 class_name MainMenu
 extends Control
 
-## The pre-game screen: everything a player needs before a duel on one page.
-## Left: how to play (match setup, bot duel, practice, host / join). Centre:
-## the player's own blob hopping on a pedestal with name, colour and loadout.
-## Right: today's quests and a rotating controls tip. Top: logo, coins,
-## settings and quit.
+## The pre-game screen: everything a player needs before a duel on one page,
+## and nothing else. Left: arena + format, then three ways to play (bot,
+## practice, a friend). Centre: the player's own blob hopping on a pedestal
+## with name, colour and the shop. Right: today's quests and the equipped
+## power-up. Top: logo, coins, settings, quit. No headers, taglines, tips or
+## footers - the cards carry the page (main_menu_contract keeps it one page).
 ##
 ## MainMenu owns layout and motion only. DuelHud owns what the controls mean:
 ## it reads the public fields below, wires their signals, mounts its coin
@@ -28,17 +29,6 @@ const MINT := Color(0.36, 0.95, 0.7)
 const SIDE_COLUMN_WIDTH := 404.0
 const QUEST_COLUMN_WIDTH := 318.0
 const INTRO_STAGGER := 0.07
-const TIP_SECONDS := 6.0
-## Each tip names its bound action so the text follows the player's rebinds.
-const TIPS := [
-	["charge_fling", "Hold %s to charge a fling. Even a quick tap launches you past rolling speed."],
-	["bounce", "Press %s to bounce. Walls on every map throw you back harder."],
-	["quick_blob", "Press %s for a quick blob, then you snap back to the Blaster."],
-	["use_ability", "Press %s to fire your equipped power-up. Swap it in the Loadout."],
-	["toggle_camera", "Press %s to swap between first and third person."],
-	["brake", "Hold %s to brake. Ramps grip, roofs are ice."],
-	["slide", "Hold %s to power slide for a burst of speed. Let go to hop out of it."],
-]
 
 var name_input: LineEdit
 var code_input: LineEdit
@@ -67,14 +57,11 @@ var _difficulty_segments: MenuSegmented
 var _cards: Array[MenuCard] = []
 var _fade_items: Array[Control] = []
 var _display_labels: Array[Label] = []
-var _tip_label: Label
 var _loadout_icon: TextureRect
 var _loadout_name: Label
 var _unlock_name: Label
 var _unlock_detail: Label
 var _unlock_bar: ProgressBar
-var _tip_index := 0
-var _tip_clock := 0.0
 var _intro_tween: Tween
 var _reduced_motion := false
 
@@ -184,7 +171,6 @@ func set_connection_status(message: String, color: Color, shown: bool) -> void:
 func play_intro() -> void:
 	if _intro_tween != null and _intro_tween.is_valid():
 		_intro_tween.kill()
-	_tip_clock = 0.0
 	if _reduced_motion:
 		_set_reveal(1.0)
 		_wordmark.play_intro(0.0)
@@ -212,15 +198,6 @@ func play_intro() -> void:
 	_intro_tween.tween_property(stage, "scale", Vector2.ONE, 0.8).set_delay(0.3).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 
 
-func _process(delta: float) -> void:
-	if not is_visible_in_tree():
-		return
-	_tip_clock += delta
-	if _tip_clock >= TIP_SECONDS:
-		_tip_clock = 0.0
-		_advance_tip()
-
-
 func _set_reveal(value: float) -> void:
 	_backdrop_material.set_shader_parameter("reveal", value)
 
@@ -241,25 +218,24 @@ func _build_layout() -> void:
 	frame.name = "Frame"
 	frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	for side in [["margin_left", 40], ["margin_right", 40], ["margin_top", 22], ["margin_bottom", 18]]:
+	for side in [["margin_left", 48], ["margin_right", 48], ["margin_top", 28], ["margin_bottom", 28]]:
 		frame.add_theme_constant_override(str(side[0]), int(side[1]))
 	add_child(frame)
 	var layout := VBoxContainer.new()
 	layout.name = "Layout"
 	layout.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layout.add_theme_constant_override("separation", 14)
+	layout.add_theme_constant_override("separation", 22)
 	frame.add_child(layout)
 	layout.add_child(_build_top_bar())
 	var body := HBoxContainer.new()
 	body.name = "Body"
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	body.add_theme_constant_override("separation", 26)
+	body.add_theme_constant_override("separation", 34)
 	layout.add_child(body)
 	body.add_child(_build_play_column())
 	body.add_child(_build_hero_column())
 	body.add_child(_build_quest_column())
-	layout.add_child(_build_footer())
 
 
 func _build_top_bar() -> Control:
@@ -270,15 +246,10 @@ func _build_top_bar() -> Control:
 	var brand := VBoxContainer.new()
 	brand.name = "Brand"
 	brand.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	brand.add_theme_constant_override("separation", -6)
 	bar.add_child(brand)
 	_wordmark = MENU_WORDMARK.new()
 	_wordmark.name = "Wordmark"
 	brand.add_child(_wordmark)
-	var tagline := _label("PHYSICS-FIRST 1V1 ARENA  ·  ALPHA", 12, UI_TOKENS.COLOR_MUTED)
-	tagline.name = "Tagline"
-	brand.add_child(tagline)
-	_fade_items.append(tagline)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -307,10 +278,10 @@ func _build_play_column() -> Control:
 	column.name = "PlayColumn"
 	column.custom_minimum_size = Vector2(SIDE_COLUMN_WIDTH, 0)
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	column.add_theme_constant_override("separation", 12)
-	column.add_child(_section_header("PLAY", CYAN))
+	column.add_theme_constant_override("separation", 14)
 
-	var setup := _card("MatchSetup", Color(0.55, 0.62, 1.0), false, Vector4(12, 10, 12, 10), 0.12)
+	# Arena and format sit in a quiet strip above the three ways to play.
+	var setup := _card("MatchSetup", CYAN, false, Vector4(10, 8, 10, 8), 0.0)
 	var setup_row := HBoxContainer.new()
 	setup_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	setup_row.add_theme_constant_override("separation", 10)
@@ -320,7 +291,7 @@ func _build_play_column() -> Control:
 	_map_segments.tooltip_text = "Arena for bot duels and hosted rooms"
 	_map_segments.selection_changed.connect(func(index: int) -> void: map_selected.emit(index))
 	setup_row.add_child(_map_segments)
-	format_button = _pill_button("FormatButton", "FIRST TO 5", Color(0.55, 0.62, 1.0), false)
+	format_button = _pill_button("FormatButton", "FIRST TO 5", CYAN, false)
 	format_button.custom_minimum_size = Vector2(118, 38)
 	setup_row.add_child(format_button)
 	column.add_child(setup)
@@ -328,7 +299,7 @@ func _build_play_column() -> Control:
 	var bot := _card("BotCard", ORANGE, true, Vector4(20, 14, 18, 14), 0.4)
 	bot.set_action_name("BotChoice", "Duel the AI offline on the selected arena")
 	bot_button = bot.hit_button
-	bot.content.add_child(_card_heading("DUEL A BOT", "Offline 1v1 against the AI  ·  full match rules", ORANGE))
+	bot.content.add_child(_card_heading("DUEL A BOT", "", ORANGE))
 	_difficulty_segments = MENU_SEGMENTED.new("BotDifficulty", ORANGE)
 	_difficulty_segments.selection_changed.connect(func(index: int) -> void: difficulty_selected.emit(index))
 	bot.content.add_child(_difficulty_segments)
@@ -337,7 +308,7 @@ func _build_play_column() -> Control:
 	var practice := _card("PracticeCard", MINT, true, Vector4(20, 14, 18, 14), 0.32)
 	practice.set_action_name("PracticeChoice", "Train on the holo training grounds")
 	practice_button = practice.hit_button
-	practice.content.add_child(_card_heading("PRACTICE", "Holo training grounds  ·  8 dummy stations", MINT))
+	practice.content.add_child(_card_heading("PRACTICE", "", MINT))
 	column.add_child(practice)
 
 	column.add_child(_build_online_card())
@@ -346,7 +317,7 @@ func _build_play_column() -> Control:
 
 func _build_online_card() -> MenuCard:
 	var online := _card("OnlineCard", CYAN, false, Vector4(18, 14, 18, 14), 0.2)
-	online.content.add_child(_card_heading("PLAY A FRIEND", "Direct connection  ·  share your code", CYAN, false))
+	online.content.add_child(_card_heading("PLAY A FRIEND", "", CYAN, false))
 	var host_row := HBoxContainer.new()
 	host_row.name = "HostRow"
 	host_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -393,11 +364,11 @@ func _build_hero_column() -> Control:
 	column.name = "HeroColumn"
 	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	column.add_theme_constant_override("separation", 10)
+	column.add_theme_constant_override("separation", 14)
 	stage = MENU_BLOB_STAGE.new()
 	stage.name = "BlobStage"
 	stage.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	stage.custom_minimum_size = Vector2(260, 220)
+	stage.custom_minimum_size = Vector2(300, 240)
 	stage.tooltip_text = "Drag to spin your blob"
 	column.add_child(stage)
 	name_input = LineEdit.new()
@@ -431,8 +402,7 @@ func _build_quest_column() -> Control:
 	column.name = "QuestColumn"
 	column.custom_minimum_size = Vector2(QUEST_COLUMN_WIDTH, 0)
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	column.add_theme_constant_override("separation", 12)
-	column.add_child(_section_header("TODAY", UI_TOKENS.COLOR_GOLD))
+	column.add_theme_constant_override("separation", 14)
 	quest_card = _card("QuestPanel", UI_TOKENS.COLOR_GOLD, false, Vector4(16, 14, 16, 14), 0.16)
 	column.add_child(quest_card)
 	quests_button = _pill_button("DockQuestsButton", "ALL QUESTS  &  REWARDS", MINT, false)
@@ -440,15 +410,6 @@ func _build_quest_column() -> Control:
 	quests_button.tooltip_text = "Track daily and weekly rewards"
 	column.add_child(quests_button)
 	_fade_items.append(quests_button)
-	var tip_card := _card("TipCard", Color(0.6, 0.5, 1.0), false, Vector4(16, 12, 16, 14), 0.18)
-	tip_card.content.add_child(_label("HOW TO PLAY", 11, Color(0.74, 0.68, 1.0)))
-	_tip_label = _label("", 14, UI_TOKENS.COLOR_TEXT)
-	_tip_label.name = "TipText"
-	_tip_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_tip_label.custom_minimum_size = Vector2(0, 58)
-	_tip_label.text = _tip_text(0)
-	tip_card.content.add_child(_tip_label)
-	column.add_child(tip_card)
 	column.add_child(_build_loadout_card())
 	return column
 
@@ -502,18 +463,6 @@ func _build_loadout_card() -> MenuCard:
 	return loadout_card
 
 
-func _build_footer() -> Control:
-	var footer := HBoxContainer.new()
-	footer.name = "Footer"
-	footer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var left := _label("DIRECT P2P  ·  UDP 7359  ·  TRUSTED FRIENDS ALPHA", 11, Color(0.45, 0.52, 0.64))
-	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	footer.add_child(left)
-	footer.add_child(_label("ESC  SETTINGS", 11, Color(0.45, 0.52, 0.64)))
-	_fade_items.append(footer)
-	return footer
-
-
 ## Building blocks -------------------------------------------------------------
 func _card(card_name: String, accent: Color, clickable: bool, padding: Vector4, accent_strength: float) -> MenuCard:
 	var card: MenuCard = MENU_CARD.new(card_name, accent, clickable, padding, accent_strength)
@@ -534,33 +483,16 @@ func _card_heading(title_text: String, detail_text: String, accent: Color, with_
 	title.name = "Title"
 	_display_labels.append(title)
 	stack.add_child(title)
-	var detail := _label(detail_text, 12, accent.lerp(UI_TOKENS.COLOR_MUTED, 0.45))
-	detail.name = "Detail"
-	stack.add_child(detail)
+	if not detail_text.is_empty():
+		var detail := _label(detail_text, 12, accent.lerp(UI_TOKENS.COLOR_MUTED, 0.45))
+		detail.name = "Detail"
+		stack.add_child(detail)
 	if with_arrow:
 		var arrow := _label("›", 34, accent)
 		arrow.name = "Arrow"
 		arrow.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		_display_labels.append(arrow)
 		row.add_child(arrow)
-	return row
-
-
-func _section_header(text: String, accent: Color) -> Control:
-	var row := HBoxContainer.new()
-	row.name = "%sHeader" % text.capitalize().replace(" ", "")
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_theme_constant_override("separation", 8)
-	var bar := ColorRect.new()
-	bar.color = accent
-	bar.custom_minimum_size = Vector2(4, 14)
-	bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(bar)
-	var label := _label(text, 13, accent.lightened(0.25))
-	_display_labels.append(label)
-	row.add_child(label)
-	_fade_items.append(row)
 	return row
 
 
@@ -652,29 +584,3 @@ func _swatch_style(color: Color, selected: bool) -> StyleBoxFlat:
 	style.shadow_color = Color(color.r, color.g, color.b, 0.55) if selected else Color.TRANSPARENT
 	style.shadow_size = 10 if selected else 0
 	return style
-
-
-## Tips ------------------------------------------------------------------------
-func _advance_tip() -> void:
-	_tip_index = (_tip_index + 1) % TIPS.size()
-	if _reduced_motion:
-		_tip_label.text = _tip_text(_tip_index)
-		return
-	var tween := create_tween()
-	tween.tween_property(_tip_label, "modulate:a", 0.0, 0.25)
-	tween.tween_callback(func() -> void: _tip_label.text = _tip_text(_tip_index))
-	tween.tween_property(_tip_label, "modulate:a", 1.0, 0.35)
-
-
-func _tip_text(index: int) -> String:
-	var tip: Array = TIPS[index]
-	return str(tip[1]) % _binding_name(str(tip[0]))
-
-
-func _binding_name(action: String) -> String:
-	if not InputMap.has_action(action):
-		return "?"
-	for event in InputMap.action_get_events(action):
-		if event is InputEventKey or event is InputEventMouseButton:
-			return event.as_text().replace(" (Physical)", "").replace(" - Physical", "").to_upper()
-	return "?"
