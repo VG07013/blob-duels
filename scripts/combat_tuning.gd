@@ -46,7 +46,7 @@ const SHOT_FALLOFF_MIN_RATIO := 0.45
 ## Aim-in (right click / left trigger): tighter view and slower look.
 const AIM_FOV_MULTIPLIER := 0.72
 const AIM_SENSITIVITY_MULTIPLIER := 0.62
-const AIM_BLEND_SPEED := 14.0
+const AIM_BLEND_SPEED := 18.0
 
 ## Hit flex: a damped spring on the blob's visual (body and face together)
 ## that dents it along the hit direction, bulges it sideways and leans it with

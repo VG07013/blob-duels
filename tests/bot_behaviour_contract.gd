@@ -78,16 +78,20 @@ func _test_bot_closes_and_faces() -> void:
 	var start_distance := bot_body.global_position.distance_to(target.global_position)
 	var peak_speed := 0.0
 	var closest := start_distance
+	var facing_dot := -1.0
 	for frame in int(2.5 * 60.0):
 		await physics_frame
+		if frame == 30:
+			# Half a second in, still well short of the target: it must be looking at it.
+			var toward := target.global_position - bot_body.global_position
+			var facing := -Basis(Vector3.UP, bot_body.aim_yaw).z
+			facing_dot = facing.dot(Vector3(toward.x, 0.0, toward.z).normalized())
 		peak_speed = maxf(peak_speed, Vector3(bot_body.linear_velocity.x, 0.0, bot_body.linear_velocity.z).length())
 		closest = minf(closest, bot_body.global_position.distance_to(target.global_position))
 	_expect(peak_speed > 8.0, "The bot must actually roll (peak planar speed %.1f)" % peak_speed)
 	# It rams straight through and may fly past, so judge the closest approach.
 	_expect(closest < start_distance - 20.0, "A bot out of its engage band must close on the target (start %.1f, closest %.1f)" % [start_distance, closest])
-	var toward := target.global_position - bot_body.global_position
-	var facing := -Basis(Vector3.UP, bot_body.aim_yaw).z
-	_expect(facing.dot(Vector3(toward.x, 0.0, toward.z).normalized()) > 0.9, "The bot must turn to face its target")
+	_expect(facing_dot > 0.9, "The bot must turn to face its target (dot %.2f)" % facing_dot)
 	_cleanup([bot, bot_body, target])
 	await process_frame
 

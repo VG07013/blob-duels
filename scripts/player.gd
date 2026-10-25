@@ -68,11 +68,11 @@ const BLOB_RADIUS_FALLBACK := 2.8875
 @export var ground_acceleration := 92.0
 @export var ground_start_impulse := 6.5
 @export var ground_control_speed := 42.0
-@export var ground_counter_acceleration := 58.0
-@export var idle_ground_drag := 1.8
+@export var ground_counter_acceleration := 74.0
+@export var idle_ground_drag := 2.0
 @export var movement_roll_torque := 128.0
-@export var movement_build_up_time := 0.55
-@export_range(0.1, 1.0, 0.05) var movement_initial_acceleration_factor := 0.68
+@export var movement_build_up_time := 0.42
+@export_range(0.1, 1.0, 0.05) var movement_initial_acceleration_factor := 0.78
 ## Shape of the push-force falloff as ground speed nears ground_control_speed.
 ## 1 is linear (force fades the whole way up - mushy top end); higher holds
 ## full force until close to top speed, then tapers so it never overshoots.
@@ -80,7 +80,7 @@ const BLOB_RADIUS_FALLBACK := 2.8875
 @export_range(0.0, 12.0, 0.1) var brake_drag := 3.6
 
 @export_category("Air Movement")
-@export var air_steering_strength := 0.52
+@export var air_steering_strength := 0.58
 @export var air_control_speed := 20.0
 @export var air_momentum_decay := 0.04
 @export var post_fling_drag := 0.25
@@ -93,7 +93,7 @@ const BLOB_RADIUS_FALLBACK := 2.8875
 @export var bounce_boost_impulse := 56.0
 @export var bounce_boost_cooldown := 0.18
 @export var coyote_time := 0.18
-@export var input_buffer_time := 0.10
+@export var input_buffer_time := 0.12
 @export var surface_bounce_min_speed := 2.5
 @export var max_bounce_upward_speed := 52.0
 @export_range(0.0, 89.0, 1.0) var ground_max_angle := 56.0
@@ -114,7 +114,7 @@ const BLOB_RADIUS_FALLBACK := 2.8875
 ## solver contacts). Hops land roughly once a second, so a post-fling skitter
 ## settles to controllable speed instead of coasting; a body that never touches
 ## the floor is untouched.
-@export var ground_settle_window := 1.2
+@export var ground_settle_window := 0.7
 
 @export_category("Wall Kick")
 ## Gap between the blob's surface and a wall within which Space becomes a wall
@@ -1081,7 +1081,7 @@ func _apply_movement(delta: float) -> void:
 	# When direction changes sharply, preserve some build-up so turns feel responsive
 	# instead of resetting to zero and suffering the full ramp-up delay again.
 	if _movement_build_direction.length_squared() > 0.001 and _movement_build_direction.dot(desired_direction) < 0.72:
-		_movement_build_up *= 0.4
+		_movement_build_up *= 0.6
 	var control_multiplier := _charge_control_multiplier() * _post_fling_control_multiplier()
 	if _sliding:
 		# A slide keeps its heading; input only nudges it.
