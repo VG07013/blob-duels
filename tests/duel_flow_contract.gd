@@ -1,11 +1,8 @@
 extends SceneTree
 
 const MAPS := {
-	"Neon Arcade": preload("res://scenes/world/maps/neon_arcade.tscn"),
-	"Backyard": preload("res://scenes/world/maps/backyard.tscn"),
-	"Arena": preload("res://scenes/world/maps/arena.tscn"),
-	"Sky Temple": preload("res://scenes/world/maps/sky_temple.tscn"),
-	"Toybox": preload("res://scenes/world/maps/toybox.tscn"),
+	"Bounceground": preload("res://scenes/world/maps/bounceground.tscn"),
+	"Training Yard": preload("res://scenes/world/maps/training_yard.tscn"),
 }
 
 var _failures: Array[String] = []
@@ -33,11 +30,6 @@ func _run() -> void:
 
 
 func _validate_map_flow(map_name: String, arena: Node3D) -> void:
-	if map_name == "Neon Arcade":
-		var blueprint := arena.call("get_neon_arcade_blueprint") as Dictionary
-		_expect(blueprint.get("footprint_gu", Vector2.ZERO) == Vector2(18, 18), "Neon Arcade must use its square 18 x 18 GU blueprint")
-		_expect(_group_descendants(arena, &"map_interactable").size() >= 25, "Neon Arcade needs its authored bumper, boost, and gate movement systems")
-		return
 	var anchors := _group_descendants(arena, &"duel_flow_anchor")
 	var covers := _group_descendants(arena, &"duel_cover")
 	var interactables := _group_descendants(arena, &"intentional_interactable")
@@ -51,8 +43,7 @@ func _validate_map_flow(map_name: String, arena: Node3D) -> void:
 	_expect(int(roles.get("spawn_exit", 0)) >= 2, "%s needs two authored spawn exits" % map_name)
 	_expect(int(roles.get("center_contest", 0)) >= 1, "%s needs a defined center contest" % map_name)
 	_expect(int(roles.get("flank_route", 0)) >= 4, "%s needs readable protected flank routes" % map_name)
-	var minimum_attack_routes := 2 if map_name == "Arena" else 4
-	_expect(int(roles.get("attack_route", 0)) >= minimum_attack_routes, "%s needs deliberate attack-route anchors" % map_name)
+	_expect(int(roles.get("attack_route", 0)) >= 4, "%s needs deliberate attack-route anchors" % map_name)
 	_expect(lanes.has("center") and lanes.has("left") and lanes.has("right"), "%s needs center, left, and right route language" % map_name)
 	for anchor in anchors:
 		var role := String(anchor.get_meta("flow_role", ""))
@@ -107,10 +98,6 @@ func _physically_feeds_center(interactable: Node3D) -> bool:
 		var configured := interactable.get("local_direction") as Vector3
 		var flat_direction := Vector3(configured.x, 0.0, configured.z).normalized()
 		return flat_direction.dot(toward_center) >= 0.35
-	if kind == &"wall_launch_strip":
-		var inward := interactable.get("inward") as Vector3
-		var flat_inward := Vector3(inward.x, 0.0, inward.z).normalized()
-		return flat_inward.dot(toward_center) >= 0.35
 	if kind == &"moving_platform":
 		var offset := interactable.get("travel_offset") as Vector3
 		var flat_offset := Vector3(offset.x, 0.0, offset.z).normalized()

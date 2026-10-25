@@ -1,11 +1,8 @@
 extends SceneTree
 
 const MAPS := {
-	"neon_arcade": "res://scenes/world/maps/neon_arcade.tscn",
-	"backyard": "res://scenes/world/maps/backyard.tscn",
-	"arena": "res://scenes/world/maps/arena.tscn",
-	"sky_temple": "res://scenes/world/maps/sky_temple.tscn",
-	"toybox": "res://scenes/world/maps/toybox.tscn",
+	"bounceground": "res://scenes/world/maps/bounceground.tscn",
+	"training_yard": "res://scenes/world/maps/training_yard.tscn",
 }
 
 const MAX_ENVIRONMENT_MODELS := 26

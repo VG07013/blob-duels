@@ -2,6 +2,8 @@ shader_type spatial;
 render_mode diffuse_burley, specular_schlick_ggx;
 
 uniform sampler2D detail_texture : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D detail_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform float normal_strength : hint_range(0.0, 2.0) = 0.0;
 uniform vec4 color_a : source_color = vec4(0.1, 0.2, 0.5, 1.0);
 uniform vec4 color_b : source_color = vec4(0.1, 0.7, 0.8, 1.0);
 uniform vec2 gradient_axis = vec2(0.35, 1.0);
@@ -22,6 +24,8 @@ void fragment() {
 	ALBEDO = base * mix(0.72, 1.16, detail_light);
 	ROUGHNESS = roughness_value;
 	METALLIC = metallic_value;
+	NORMAL_MAP = texture(detail_normal, UV * tile_scale).rgb;
+	NORMAL_MAP_DEPTH = normal_strength;
 	float pulse = pulse_speed > 0.0 ? 0.86 + sin(TIME * pulse_speed + UV.x * 4.0) * 0.14 : 1.0;
 	EMISSION = base * emission_strength * pulse;
 }

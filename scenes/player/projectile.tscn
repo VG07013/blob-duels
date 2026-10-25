@@ -1,19 +1,13 @@
 [gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/projectile.gd" id="1_projectile"]
+[ext_resource type="Mesh" path="res://assets/models/projectile/bullet.obj" id="2_bullet"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_projectile"]
-albedo_color = Color(1, 0.36, 0.05, 1)
+albedo_color = Color(1, 0.45, 0, 1)
 emission_enabled = true
-emission = Color(1, 0.28, 0.02, 1)
-emission_energy_multiplier = 1.7
-
-[sub_resource type="SphereMesh" id="SphereMesh_projectile"]
-material = SubResource("StandardMaterial3D_projectile")
-radius = 0.4
-height = 0.8
-radial_segments = 16
-rings = 8
+emission = Color(1, 0.35, 0, 1)
+emission_energy_multiplier = 1.9
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_projectile"]
 radius = 0.7
@@ -45,7 +39,8 @@ monitoring = true
 script = ExtResource("1_projectile")
 
 [node name="Mesh" type="MeshInstance3D" parent="."]
-mesh = SubResource("SphereMesh_projectile")
+mesh = ExtResource("2_bullet")
+material_override = SubResource("StandardMaterial3D_projectile")
 
 [node name="Collision" type="CollisionShape3D" parent="."]
 shape = SubResource("SphereShape3D_projectile")

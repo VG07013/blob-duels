@@ -44,12 +44,14 @@ func _run() -> void:
 		var high := float(player.call("calculate_fling_strength", 0.75))
 		var full := float(player.call("calculate_fling_strength", 1.0))
 		_check(tap < quarter and quarter < middle and middle < high and high < full, "Fling strength is not continuous")
-		_check(full >= 300.0, "Full fling is not a dramatic blast for the blob mass")
+		_check(full >= 250.0 and full <= 290.0, "Full fling must stay dramatic without exceeding its bounded launch envelope")
+		_check(float(player.get("maximum_movement_speed")) <= 100.0, "Player movement lacks a safe hard speed ceiling")
+		_check(player.has_method("is_fling_ready") and player.has_method("get_fling_cooldown_remaining"), "Fling cooldown state is not exposed to gameplay and HUD")
 
 	var physics_material := player.physics_material_override
 	_check(physics_material != null, "Blob physics material is missing")
 	if physics_material != null:
-		_check(physics_material.bounce >= 0.92, "Blob bounce is too low")
+		_check(physics_material.bounce >= 0.7 and physics_material.bounce <= 0.82, "Blob restitution must feel bouncy while dissipating chained momentum")
 		_check(physics_material.friction <= 0.18, "Blob friction is too high")
 	_check(not player.has_node("VisualRoot/AimMarker"), "Player blob still has the protruding aim marker")
 

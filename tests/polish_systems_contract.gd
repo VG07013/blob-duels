@@ -29,7 +29,8 @@ func _run() -> void:
 	_check(projectile.speed == ABILITY_TUNING.RAIL_SHOT_SPEED, "rail shots must use their tuned travel speed")
 	projectile.configure(Vector3.ZERO, Vector3.FORWARD, null, false, false, false)
 	_check(projectile.damage == 30, "reconfigured projectile damage must reset to its base value")
-	_check(projectile.speed == 150.0, "reconfigured projectiles must reset their base speed")
+	_check(projectile.speed == projectile.BASE_SPEED, "reconfigured projectiles must reset their base speed")
+	_check(projectile.BASE_SPEED < ABILITY_TUNING.RAIL_SHOT_SPEED, "rail shots must stay faster than standard shots")
 	projectile.queue_free()
 
 	var hud := HUD_SCENE.instantiate()

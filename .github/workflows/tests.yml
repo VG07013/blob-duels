@@ -1,0 +1,84 @@
+name: Contract tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/**"
+      - "tests/**"
+      - "scenes/**"
+      - "assets/**"
+      - "project.godot"
+      - ".github/workflows/tests.yml"
+  pull_request:
+    paths:
+      - "scripts/**"
+      - "tests/**"
+      - "scenes/**"
+      - "assets/**"
+      - "project.godot"
+      - ".github/workflows/tests.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Keep in step with config/features in project.godot.
+  GODOT_VERSION: "4.7"
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      # Runs without Godot, so a stale test reference fails in seconds rather
+      # than after the whole suite has been installed and imported.
+      - name: Check test introspection
+        run: python3 scripts/check_test_introspection.py
+
+      - name: Cache Godot binary
+        id: godot-cache
+        # TODO: pin to a SHA to match pages.yml once you can verify the digest.
+        uses: actions/cache@v4
+        with:
+          path: ~/godot-bin
+          key: godot-${{ env.GODOT_VERSION }}-linux
+
+      - name: Install Godot ${{ env.GODOT_VERSION }}
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p ~/godot-bin
+          archive="Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          url="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/${archive}.zip"
+          curl -fsSL --retry 3 -o /tmp/godot.zip "$url"
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          mv "/tmp/godot/${archive}" ~/godot-bin/godot
+          chmod +x ~/godot-bin/godot
+
+      - name: Add Godot to PATH
+        run: echo "$HOME/godot-bin" >> "$GITHUB_PATH"
+
+      - name: Report Godot version
+        run: godot --headless --version
+
+      # Importing populates .godot/, without which every preload() in the suite
+      # fails on a fresh checkout. The first pass can report import errors that
+      # resolve on the second, so run it twice before asserting anything.
+      - name: Import project resources
+        run: |
+          godot --headless --import || true
+          godot --headless --import
+
+      # The runner prints the full Godot output for any contract that fails, so
+      # the job log is the diagnostic; no artifact upload needed.
+      - name: Run contract tests
+        run: ./scripts/run_tests.sh

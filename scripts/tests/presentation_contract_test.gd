@@ -41,11 +41,15 @@ func _check_blob_scene(blob: RigidBody3D, is_player: bool) -> void:
 		_expect(sphere != null and is_equal_approx(sphere.radius, 2.45), "%s GroundCast needs a 2.45 radius sphere" % label)
 
 	var material := blob.physics_material_override
-	_expect(material != null and is_equal_approx(material.friction, 0.12), "%s friction must be 0.12" % label)
-	_expect(material != null and is_equal_approx(material.bounce, 0.94), "%s bounce must be 0.94" % label)
 	if is_player:
-		_expect(is_equal_approx(blob.linear_damp, 0.06), "player linear damp must be 0.06")
+		_expect(material != null and is_zero_approx(material.friction), "player friction must not drain rolling momentum")
+		_expect(material != null and is_equal_approx(material.bounce, 1.0), "player bounce must preserve wall momentum")
+		_expect(blob.linear_damp_mode == RigidBody3D.DAMP_MODE_REPLACE, "player linear damp must replace world damping")
+		_expect(is_zero_approx(blob.linear_damp), "player linear damp must preserve air momentum")
 		_expect(is_equal_approx(blob.angular_damp, 0.28), "player angular damp must be 0.28")
+	else:
+		_expect(material != null and is_equal_approx(material.friction, 0.12), "%s friction must be 0.12" % label)
+		_expect(material != null and is_equal_approx(material.bounce, 0.94), "%s bounce must be 0.94" % label)
 
 	var visual_root := blob.get_node("VisualRoot") as Node3D
 	_expect(visual_root.scale.is_equal_approx(Vector3.ONE), "%s visual must start undeformed" % label)

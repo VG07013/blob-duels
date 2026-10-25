@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/competitive_arena.gd" id="1_arena"]
+
+[node name="Toybox" type="Node3D"]
+script = ExtResource("1_arena")
+theme_id = 4
+map_name = "Toybox"
+arena_half_width = 46.208
+arena_aspect_ratio = 2.0

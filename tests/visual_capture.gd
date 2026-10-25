@@ -2,20 +2,14 @@ extends SceneTree
 
 const OUTPUT_DIR := "res://artifacts/screenshots"
 const MAPS := {
-	"neon_arcade": preload("res://scenes/world/maps/neon_arcade.tscn"),
-	"backyard": preload("res://scenes/world/maps/backyard.tscn"),
-	"arena": preload("res://scenes/world/maps/arena.tscn"),
-	"sky_temple": preload("res://scenes/world/maps/sky_temple.tscn"),
-	"toybox": preload("res://scenes/world/maps/toybox.tscn"),
+	"bounceground": preload("res://scenes/world/maps/bounceground.tscn"),
+	"training_yard": preload("res://scenes/world/maps/training_yard.tscn"),
 }
-const PRACTICE_SCENE := preload("res://scenes/world/city_arena.tscn")
+const PRACTICE_SCENE := preload("res://scenes/world/practice_arena.tscn")
 const MAIN_SCENE := preload("res://scenes/main.tscn")
 const DETAIL_MODEL_IDS := {
-	"neon_arcade": "arcade_claw",
-	"backyard": "suburban_house_f",
-	"arena": "factory_robot_a",
-	"sky_temple": "temple_gate",
-	"toybox": "toy_monster_truck",
+	"bounceground": "",
+	"training_yard": "",
 }
 
 var _capture_failures := 0
@@ -123,17 +117,23 @@ func _capture_practice_map() -> void:
 	world.add_child(practice)
 	await process_frame
 	await process_frame
+	_apply_profile(world, practice.call("get_lighting_profile") as Dictionary)
 	var camera := world.get_node("Camera") as Camera3D
-	camera.position = Vector3(650.0, 720.0, 790.0)
-	camera.look_at(Vector3(0.0, 22.0, 0.0), Vector3.UP)
-	camera.fov = 58.0
-	await _settle_render()
-	_save_viewport("practice_city_wide.png")
-	camera.position = Vector3(155.0, 95.0, 165.0)
-	camera.look_at(Vector3(0.0, 12.0, -38.0), Vector3.UP)
-	camera.fov = 59.0
-	await _settle_render()
-	_save_viewport("practice_city_landmark.png")
+	# Blueprint-comparison angles: the straight-down overhead mirrors the
+	# reference sheet, the rest walk the training stations.
+	var shots := [
+		{"file": "practice_facility_wide.png", "from": Vector3(52.0, 40.0, 58.0), "at": Vector3(0.0, 2.0, 0.0), "fov": 55.0},
+		{"file": "practice_overhead.png", "from": Vector3(0.0, 108.0, 0.1), "at": Vector3(0.0, 0.0, 0.0), "fov": 50.0},
+		{"file": "practice_center_platform.png", "from": Vector3(14.0, 8.0, 16.0), "at": Vector3(0.0, 1.7, 0.0), "fov": 60.0},
+		{"file": "practice_wall_panels.png", "from": Vector3(-22.0, 5.0, 0.0), "at": Vector3(-39.0, 4.3, 0.0), "fov": 60.0},
+		{"file": "practice_dummy_lanes.png", "from": Vector3(0.0, 8.0, 4.0), "at": Vector3(0.0, 3.0, -15.9), "fov": 62.0},
+	]
+	for shot in shots:
+		camera.position = shot["from"] as Vector3
+		camera.look_at(shot["at"] as Vector3, Vector3.UP)
+		camera.fov = float(shot["fov"])
+		await _settle_render()
+		_save_viewport(str(shot["file"]))
 	world.queue_free()
 	await process_frame
 
@@ -185,8 +185,8 @@ func _capture_game_ui() -> void:
 
 	pause_menu.call("close_pause")
 	root.size = Vector2i(1280, 720)
-	game.get_node("Lobby").visible = false
-	game.get_node("CityArena").visible = true
+	game.get_viewport().disable_3d = false
+	game.get_node("PracticeArena").visible = true
 	game.get_node("HUD").call("set_lobby_mode", false)
 	game.get_node("HUD").call("set_duel_mode", false)
 	player.global_position = Vector3(0.0, 5.0, 56.0)
@@ -225,12 +225,12 @@ func _capture_gameplay_moments() -> void:
 	game.call("_start_practice_match")
 	await _physics_frames(3)
 	var player := game.get_node("Player") as RigidBody3D
-	var dummy := game.get_node("DummyRose") as RigidBody3D
+	var dummy := game.get_node("DummyStationA") as RigidBody3D
 	player.gravity_scale = 0.0
 	dummy.gravity_scale = 0.0
-	player.global_position = Vector3(0.0, 14.0, 24.0)
+	player.global_position = Vector3(0.0, 8.0, 14.0)
 	player.linear_velocity = Vector3.ZERO
-	dummy.global_position = Vector3(0.0, 14.0, 0.0)
+	dummy.global_position = Vector3(0.0, 8.0, 0.0)
 	dummy.linear_velocity = Vector3.ZERO
 	game.set("camera_yaw", 0.0)
 	game.set("camera_pitch", 0.0)
@@ -240,9 +240,9 @@ func _capture_gameplay_moments() -> void:
 	await _settle_render()
 	_save_viewport("projectile_hit.png")
 
-	player.respawn(Vector3(0.0, 14.0, 11.0))
+	player.respawn(Vector3(0.0, 8.0, 11.0))
 	dummy.call("respawn")
-	dummy.global_position = Vector3(0.0, 14.0, 0.0)
+	dummy.global_position = Vector3(0.0, 8.0, 0.0)
 	dummy.linear_velocity = Vector3.ZERO
 	player.linear_velocity = Vector3(0.0, 0.0, -68.0)
 	await _physics_frames(6)
@@ -251,16 +251,16 @@ func _capture_gameplay_moments() -> void:
 	var camera_rig := game.get_node("CameraRig") as Node3D
 	var camera := game.get_node("CameraRig/Camera3D") as Camera3D
 	camera.position = Vector3.ZERO
-	camera_rig.global_position = Vector3(18.0, 24.0, 29.0)
-	camera_rig.look_at(Vector3(0.0, 14.0, 4.0), Vector3.UP)
+	camera_rig.global_position = Vector3(14.0, 15.0, 21.0)
+	camera_rig.look_at(Vector3(0.0, 8.0, 4.0), Vector3.UP)
 	camera.fov = 68.0
 	game.get_node("HUD/Announcement").visible = false
 	await _settle_render()
 	_save_viewport("blob_collision.png")
 	game.set_process(true)
 
-	game.set("_selected_map_id", "arena")
-	game.call("_activate_competitive_map", "arena")
+	game.set("_selected_map_id", "bounceground")
+	game.call("_activate_competitive_map", "bounceground")
 	game.set("_practice_mode", true)
 	game.call("_start_arena_for_peer", 1)
 	await _physics_frames(3)
@@ -310,7 +310,16 @@ func _make_world() -> Node3D:
 	environment.sky = sky
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_energy = 0.86
-	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	# Mirror the shipped environment in scenes/main.tscn - captures that render
+	# through a different tonemap stop representing the game.
+	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
+	environment.tonemap_white = 6.0
+	environment.adjustment_enabled = true
+	environment.adjustment_saturation = 1.12
+	environment.adjustment_contrast = 1.06
+	environment.glow_enabled = true
+	environment.glow_intensity = 0.5
+	environment.glow_strength = 0.9
 	environment.fog_enabled = true
 	environment.fog_density = 0.00045
 	world_environment.environment = environment
@@ -347,6 +356,17 @@ func _apply_profile(world: Node3D, profile: Dictionary) -> void:
 	sun.rotation_degrees = profile.get("sun_rotation", Vector3(-52.0, -34.0, 0.0))
 	sky_material.sun_angle_max = float(profile.get("sun_size", 18.0))
 	sky_material.sun_curve = float(profile.get("sun_curve", 0.08))
+	# Same glow handling as game.gd _apply_lighting_profile, so a map's authored
+	# bloom (or its deliberate absence - Toybox) shows in its captures.
+	environment.glow_enabled = bool(profile.get("glow_enabled", true))
+	environment.glow_intensity = float(profile.get("glow_intensity", 0.5))
+	environment.glow_strength = float(profile.get("glow_strength", 0.9))
+	environment.glow_bloom = float(profile.get("glow_bloom", 0.0))
+	# Same sky-cover handling as game.gd, so cloud decks and star fields show.
+	var game_script := load("res://scripts/game.gd") as GDScript
+	var covers: Dictionary = game_script.SKY_COVER_TEXTURES
+	sky_material.sky_cover = covers.get(str(profile.get("sky_cover", ""))) as Texture2D
+	sky_material.sky_cover_modulate = profile.get("sky_cover_modulate", Color.WHITE) as Color
 
 
 func _settle_render() -> void:
@@ -354,6 +374,11 @@ func _settle_render() -> void:
 	await process_frame
 	await process_frame
 	await create_timer(0.05).timeout
+	# Process frames advance even when the compositor skips presenting (occluded
+	# window, throttling), so a grab right after them can read a stale buffer -
+	# entire capture sections came out as byte-identical repeats of one frame.
+	# frame_post_draw blocks until a frame is genuinely drawn.
+	await RenderingServer.frame_post_draw
 
 
 func _physics_frames(count: int) -> void:

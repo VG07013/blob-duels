@@ -1,31 +1,30 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/hud.gd" id="1_hud"]
 [ext_resource type="Script" path="res://scripts/crosshair.gd" id="2_crosshair"]
-[ext_resource type="Texture2D" path="res://assets/ui/host.png" id="3_host"]
-[ext_resource type="Texture2D" path="res://assets/ui/join.png" id="4_join"]
+[ext_resource type="Script" path="res://scripts/ui/ability_hud.gd" id="5_ability"]
 
 [sub_resource type="SystemFont" id="HUDSystemFont"]
 font_names = PackedStringArray("SF Pro Display", "Avenir Next", "Helvetica Neue", "Arial")
 
 [sub_resource type="StyleBoxFlat" id="HealthPanel"]
-bg_color = Color(0.055, 0.07, 0.1, 0.94)
+bg_color = Color(0.035, 0.048, 0.072, 0.86)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.34, 0.45, 0.58, 0.72)
-corner_radius_top_left = 12
-corner_radius_top_right = 12
-corner_radius_bottom_right = 12
-corner_radius_bottom_left = 12
-shadow_color = Color(0, 0, 0, 0.36)
-shadow_size = 12
-shadow_offset = Vector2(0, 5)
-content_margin_left = 12.0
-content_margin_top = 12.0
-content_margin_right = 12.0
-content_margin_bottom = 12.0
+border_color = Color(0.38, 0.53, 0.69, 0.42)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+shadow_color = Color(0, 0, 0, 0.28)
+shadow_size = 7
+shadow_offset = Vector2(0, 3)
+content_margin_left = 10.0
+content_margin_top = 9.0
+content_margin_right = 10.0
+content_margin_bottom = 9.0
 
 [sub_resource type="StyleBoxFlat" id="HealthBackground"]
 bg_color = Color(0.018, 0.025, 0.04, 1)
@@ -49,76 +48,43 @@ shadow_color = Color(0, 0, 0, 0.38)
 shadow_size = 10
 shadow_offset = Vector2(0, 4)
 
-[sub_resource type="StyleBoxFlat" id="JoinHover"]
-bg_color = Color(0.12, 0.82, 0.68, 1)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.74, 1, 0.9, 1)
-corner_radius_top_left = 12
-corner_radius_top_right = 12
-corner_radius_bottom_right = 12
-corner_radius_bottom_left = 12
-
-[sub_resource type="StyleBoxFlat" id="JoinPressed"]
-bg_color = Color(0.05, 0.52, 0.45, 1)
-corner_radius_top_left = 12
-corner_radius_top_right = 12
-corner_radius_bottom_right = 12
-corner_radius_bottom_left = 12
-
-[sub_resource type="StyleBoxFlat" id="LobbyInput"]
-bg_color = Color(0.018, 0.025, 0.04, 0.96)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.34, 0.45, 0.58, 0.72)
-corner_radius_top_left = 8
-corner_radius_top_right = 8
-corner_radius_bottom_right = 8
-corner_radius_bottom_left = 8
-content_margin_left = 12.0
-content_margin_right = 12.0
-
 [sub_resource type="StyleBoxFlat" id="RedScoreStyle"]
-bg_color = Color(0.72, 0.08, 0.12, 0.96)
+bg_color = Color(0.22, 0.035, 0.055, 0.88)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(1, 0.34, 0.38, 0.95)
+border_color = Color(1, 0.28, 0.34, 0.72)
 corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 shadow_color = Color(0, 0, 0, 0.36)
-shadow_size = 10
-shadow_offset = Vector2(0, 4)
+shadow_size = 6
+shadow_offset = Vector2(0, 3)
 
 [sub_resource type="StyleBoxFlat" id="BlueScoreStyle"]
-bg_color = Color(0.045, 0.3, 0.78, 0.96)
+bg_color = Color(0.03, 0.12, 0.3, 0.88)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.28, 0.68, 1, 0.95)
+border_color = Color(0.28, 0.68, 1, 0.72)
 corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 shadow_color = Color(0, 0, 0, 0.36)
-shadow_size = 10
-shadow_offset = Vector2(0, 4)
+shadow_size = 6
+shadow_offset = Vector2(0, 3)
 
 [sub_resource type="StyleBoxFlat" id="ScoreCenterStyle"]
-bg_color = Color(0.035, 0.045, 0.065, 0.94)
+bg_color = Color(0.025, 0.035, 0.052, 0.88)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.36, 0.43, 0.52, 0.78)
+border_color = Color(0.36, 0.48, 0.62, 0.46)
 corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
@@ -149,8 +115,8 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -328.0
-offset_top = -96.0
+offset_left = -298.0
+offset_top = -86.0
 offset_right = -32.0
 offset_bottom = -32.0
 grow_horizontal = 0
@@ -158,7 +124,7 @@ grow_vertical = 0
 theme_override_styles/panel = SubResource("HealthPanel")
 
 [node name="HealthBar" type="ProgressBar" parent="HealthPanel"]
-custom_minimum_size = Vector2(272, 40)
+custom_minimum_size = Vector2(246, 36)
 layout_mode = 2
 theme_override_styles/background = SubResource("HealthBackground")
 show_percentage = false
@@ -177,7 +143,7 @@ theme_override_colors/font_color = Color(0.96, 0.98, 1, 1)
 theme_override_colors/font_outline_color = Color(0.01, 0.018, 0.03, 0.92)
 theme_override_constants/outline_size = 5
 theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 16
 text = "150 / 150"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -203,15 +169,15 @@ visible = false
 anchors_preset = 10
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -224.0
+offset_left = -204.0
 offset_top = 20.0
-offset_right = 224.0
-offset_bottom = 76.0
+offset_right = 204.0
+offset_bottom = 72.0
 grow_horizontal = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 6
 
 [node name="RedScore" type="PanelContainer" parent="Scoreboard"]
-custom_minimum_size = Vector2(142, 56)
+custom_minimum_size = Vector2(118, 52)
 layout_mode = 2
 theme_override_styles/panel = SubResource("RedScoreStyle")
 
@@ -221,13 +187,13 @@ theme_override_colors/font_color = Color(1, 0.96, 0.96, 1)
 theme_override_colors/font_outline_color = Color(0.18, 0.01, 0.02, 0.8)
 theme_override_constants/outline_size = 5
 theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 22
-text = "RED  0"
+theme_override_font_sizes/font_size = 19
+text = "0"
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="Target" type="PanelContainer" parent="Scoreboard"]
-custom_minimum_size = Vector2(148, 56)
+custom_minimum_size = Vector2(160, 52)
 layout_mode = 2
 theme_override_styles/panel = SubResource("ScoreCenterStyle")
 
@@ -235,13 +201,13 @@ theme_override_styles/panel = SubResource("ScoreCenterStyle")
 layout_mode = 2
 theme_override_colors/font_color = Color(0.76, 0.82, 0.9, 1)
 theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 12
 text = "FIRST TO 5"
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="BlueScore" type="PanelContainer" parent="Scoreboard"]
-custom_minimum_size = Vector2(142, 56)
+custom_minimum_size = Vector2(118, 52)
 layout_mode = 2
 theme_override_styles/panel = SubResource("BlueScoreStyle")
 
@@ -251,7 +217,7 @@ theme_override_colors/font_color = Color(0.96, 0.98, 1, 1)
 theme_override_colors/font_outline_color = Color(0.01, 0.05, 0.18, 0.82)
 theme_override_constants/outline_size = 5
 theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 19
 text = "BLUE  0"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -261,10 +227,10 @@ visible = false
 anchors_preset = 10
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -286.0
-offset_top = 126.0
-offset_right = 286.0
-offset_bottom = 198.0
+offset_left = -220.0
+offset_top = 112.0
+offset_right = 220.0
+offset_bottom = 170.0
 grow_horizontal = 2
 theme_override_styles/panel = SubResource("RoundBannerStyle")
 
@@ -274,155 +240,82 @@ theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_outline_color = Color(0.01, 0.015, 0.025, 0.9)
 theme_override_constants/outline_size = 7
 theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 28
-text = "RED TEAM WON!"
+theme_override_font_sizes/font_size = 22
+text = "ROUND WON!"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="LobbyPanel" type="PanelContainer" parent="."]
-anchors_preset = 12
-anchor_left = 0.5
+[node name="AbilityHUD" type="Control" parent="."]
+visible = false
+anchors_preset = 2
+anchor_left = 0.0
 anchor_top = 1.0
-anchor_right = 0.5
+anchor_right = 0.0
 anchor_bottom = 1.0
-offset_left = -318.0
-offset_top = -536.0
-offset_right = 318.0
-offset_bottom = -28.0
-grow_horizontal = 2
+offset_left = 36.0
+offset_top = -194.0
+offset_right = 156.0
+offset_bottom = -74.0
+grow_horizontal = 1
 grow_vertical = 0
-theme_override_styles/panel = SubResource("HealthPanel")
+mouse_filter = 2
+script = ExtResource("5_ability")
 
-[node name="LobbyStack" type="VBoxContainer" parent="LobbyPanel"]
-layout_mode = 2
-theme_override_constants/separation = 12
+[node name="Icon" type="TextureRect" parent="AbilityHUD"]
+offset_left = 31.0
+offset_top = 31.0
+offset_right = 89.0
+offset_bottom = 89.0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
 
-[node name="Title" type="Label" parent="LobbyPanel/LobbyStack"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.96, 0.98, 1, 1)
+[node name="Cooldown" type="Label" parent="AbilityHUD"]
+visible = false
+offset_left = 24.0
+offset_top = 38.0
+offset_right = 96.0
+offset_bottom = 78.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0.02, 0.025, 0.04, 0.95)
+theme_override_constants/outline_size = 6
 theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 28
-text = "BLOB DUELS"
+theme_override_font_sizes/font_size = 24
+text = "7.0"
 horizontal_alignment = 1
-
-[node name="IdentityRow" type="HBoxContainer" parent="LobbyPanel/LobbyStack"]
-layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="NameInput" type="LineEdit" parent="LobbyPanel/LobbyStack/IdentityRow"]
-custom_minimum_size = Vector2(300, 44)
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.94, 0.97, 1, 1)
-theme_override_colors/font_placeholder_color = Color(0.58, 0.66, 0.75, 1)
-theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 16
-theme_override_styles/normal = SubResource("LobbyInput")
-text = "Player"
-placeholder_text = "Player name"
-max_length = 16
-clear_button_enabled = true
-
-[node name="ColorSwatches" type="HBoxContainer" parent="LobbyPanel/LobbyStack/IdentityRow"]
-custom_minimum_size = Vector2(206, 44)
-layout_mode = 2
-alignment = 2
-theme_override_constants/separation = 6
-
-[node name="AddressInput" type="LineEdit" parent="LobbyPanel/LobbyStack"]
-custom_minimum_size = Vector2(0, 44)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.94, 0.97, 1, 1)
-theme_override_colors/font_placeholder_color = Color(0.58, 0.66, 0.75, 1)
-theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 16
-theme_override_styles/normal = SubResource("LobbyInput")
-text = "127.0.0.1"
-placeholder_text = "Host address"
-clear_button_enabled = true
-
-[node name="MapRow" type="HBoxContainer" parent="LobbyPanel/LobbyStack"]
-layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="MapLabel" type="Label" parent="LobbyPanel/LobbyStack/MapRow"]
-custom_minimum_size = Vector2(110, 44)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.7, 0.79, 0.88, 1)
-theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 15
-text = "HOST MAP"
 vertical_alignment = 1
 
-[node name="MapPicker" type="OptionButton" parent="LobbyPanel/LobbyStack/MapRow"]
-custom_minimum_size = Vector2(0, 44)
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.94, 0.97, 1, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
-theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 16
-theme_override_styles/normal = SubResource("LobbyInput")
-theme_override_styles/hover = SubResource("HealthBackground")
-theme_override_styles/pressed = SubResource("HealthBackground")
-alignment = 0
+[node name="KeyBadge" type="PanelContainer" parent="AbilityHUD"]
+offset_left = 0.0
+offset_top = 2.0
+offset_right = 36.0
+offset_bottom = 38.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("JoinNormal")
 
-[node name="SessionButtons" type="HBoxContainer" parent="LobbyPanel/LobbyStack"]
+[node name="Label" type="Label" parent="AbilityHUD/KeyBadge"]
 layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="HostButton" type="Button" parent="LobbyPanel/LobbyStack/SessionButtons"]
-custom_minimum_size = Vector2(0, 48)
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.96, 1, 0.99, 1)
+theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_fonts/font = SubResource("HUDSystemFont")
 theme_override_font_sizes/font_size = 17
-theme_override_styles/normal = SubResource("JoinNormal")
-theme_override_styles/hover = SubResource("JoinHover")
-theme_override_styles/pressed = SubResource("JoinPressed")
-icon = ExtResource("3_host")
-expand_icon = true
-theme_override_constants/icon_max_width = 22
-text = "HOST GAME"
-
-[node name="JoinButton" type="Button" parent="LobbyPanel/LobbyStack/SessionButtons"]
-custom_minimum_size = Vector2(0, 48)
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.96, 1, 0.99, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
-theme_override_colors/font_pressed_color = Color(0.9, 1, 0.97, 1)
-theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 17
-theme_override_styles/normal = SubResource("JoinNormal")
-theme_override_styles/hover = SubResource("JoinHover")
-theme_override_styles/pressed = SubResource("JoinPressed")
-icon = ExtResource("4_join")
-expand_icon = true
-theme_override_constants/icon_max_width = 22
-text = "JOIN GAME"
-
-[node name="PracticeButton" type="Button" parent="LobbyPanel/LobbyStack"]
-custom_minimum_size = Vector2(0, 44)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.82, 0.88, 0.94, 1)
-theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 16
-theme_override_styles/normal = SubResource("LobbyInput")
-theme_override_styles/hover = SubResource("HealthBackground")
-theme_override_styles/pressed = SubResource("HealthBackground")
-text = "PRACTICE OFFLINE"
-
-[node name="StatusLabel" type="Label" parent="LobbyPanel/LobbyStack"]
-custom_minimum_size = Vector2(0, 24)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.64, 0.75, 0.84, 1)
-theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 14
-text = "Choose Host, Join, or Practice"
+text = "E"
 horizontal_alignment = 1
-text_overrun_behavior = 3
+vertical_alignment = 1
+
+[node name="AbilityName" type="Label" parent="AbilityHUD"]
+offset_left = -28.0
+offset_top = 116.0
+offset_right = 148.0
+offset_bottom = 140.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.9, 0.94, 1, 1)
+theme_override_colors/font_outline_color = Color(0.01, 0.02, 0.04, 0.95)
+theme_override_constants/outline_size = 4
+theme_override_fonts/font = SubResource("HUDSystemFont")
+theme_override_font_sizes/font_size = 13
+text = "ABILITY"
+horizontal_alignment = 1
 
 [node name="HitMarker" type="Control" parent="."]
 visible = false
@@ -475,16 +368,16 @@ anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -164.0
-offset_top = -74.0
-offset_right = 164.0
-offset_bottom = -28.0
+offset_left = -144.0
+offset_top = -68.0
+offset_right = 144.0
+offset_bottom = -30.0
 grow_horizontal = 2
 grow_vertical = 0
 theme_override_styles/panel = SubResource("HealthPanel")
 
 [node name="ChargeBar" type="ProgressBar" parent="ChargePanel"]
-custom_minimum_size = Vector2(304, 22)
+custom_minimum_size = Vector2(268, 20)
 layout_mode = 2
 theme_override_styles/background = SubResource("HealthBackground")
 show_percentage = false
@@ -502,8 +395,49 @@ theme_override_colors/font_color = Color(0.92, 0.97, 1, 1)
 theme_override_colors/font_outline_color = Color(0.01, 0.018, 0.03, 0.92)
 theme_override_constants/outline_size = 4
 theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 12
 text = "FLING  0%"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="FlingCooldownPanel" type="PanelContainer" parent="."]
+visible = false
+anchors_preset = 12
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -144.0
+offset_top = -110.0
+offset_right = 144.0
+offset_bottom = -76.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("HealthPanel")
+
+[node name="FlingCooldownBar" type="ProgressBar" parent="FlingCooldownPanel"]
+custom_minimum_size = Vector2(268, 16)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/background = SubResource("HealthBackground")
+show_percentage = false
+value = 100.0
+
+[node name="FlingCooldownValue" type="Label" parent="FlingCooldownPanel/FlingCooldownBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.88, 0.48, 1)
+theme_override_colors/font_outline_color = Color(0.01, 0.018, 0.03, 0.94)
+theme_override_constants/outline_size = 4
+theme_override_fonts/font = SubResource("HUDSystemFont")
+theme_override_font_sizes/font_size = 11
+text = "FLING COOLDOWN  3.0s"
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -511,16 +445,16 @@ vertical_alignment = 1
 anchors_preset = 10
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -74.0
-offset_top = 84.0
-offset_right = 74.0
-offset_bottom = 120.0
+offset_left = -60.0
+offset_top = 78.0
+offset_right = 60.0
+offset_bottom = 116.0
 grow_horizontal = 2
 theme_override_colors/font_color = Color(0.94, 0.98, 1, 1)
 theme_override_colors/font_outline_color = Color(0.01, 0.02, 0.03, 0.9)
 theme_override_constants/outline_size = 7
 theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 22
 text = "03:00"
 horizontal_alignment = 1
 
@@ -529,15 +463,15 @@ visible = false
 anchors_preset = 10
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -260.0
-offset_top = 214.0
-offset_right = 260.0
-offset_bottom = 264.0
+offset_left = -220.0
+offset_top = 184.0
+offset_right = 220.0
+offset_bottom = 238.0
 grow_horizontal = 2
 theme_override_colors/font_outline_color = Color(0.01, 0.02, 0.03, 0.92)
 theme_override_constants/outline_size = 8
 theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 30
+theme_override_font_sizes/font_size = 22
 text = "ROUND START"
 horizontal_alignment = 1
 
@@ -557,30 +491,40 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.01, 0.015, 0.025, 0.22)
+color = Color(0.01, 0.015, 0.025, 0.38)
 
 [node name="ResultBanner" type="PanelContainer" parent="VictoryOverlay"]
-anchors_preset = 10
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -330.0
-offset_top = 118.0
-offset_right = 330.0
-offset_bottom = 210.0
-grow_horizontal = 2
+offset_left = 56.0
+offset_top = 56.0
+offset_right = 606.0
+offset_bottom = 190.0
 mouse_filter = 2
 theme_override_styles/panel = SubResource("RoundBannerStyle")
 
-[node name="Label" type="Label" parent="VictoryOverlay/ResultBanner"]
+[node name="Stack" type="VBoxContainer" parent="VictoryOverlay/ResultBanner"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="VictoryOverlay/ResultBanner/Stack"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_outline_color = Color(0.01, 0.015, 0.025, 0.9)
 theme_override_constants/outline_size = 8
 theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 42
+theme_override_font_sizes/font_size = 32
 text = "YOU WIN!"
-horizontal_alignment = 1
-vertical_alignment = 1
+horizontal_alignment = 0
+vertical_alignment = 0
+
+[node name="Detail" type="Label" parent="VictoryOverlay/ResultBanner/Stack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.76, 0.86, 1)
+theme_override_fonts/font = SubResource("HUDSystemFont")
+theme_override_font_sizes/font_size = 14
+text = "RED 5  —  2 BLUE    ·    MATCH COMPLETE"
+horizontal_alignment = 0
+vertical_alignment = 2
 
 [node name="RosterPanel" type="PanelContainer" parent="VictoryOverlay"]
 visible = false
@@ -589,10 +533,10 @@ anchor_left = 1.0
 anchor_top = 0.5
 anchor_right = 1.0
 anchor_bottom = 0.5
-offset_left = -348.0
-offset_top = -210.0
-offset_right = -28.0
-offset_bottom = 210.0
+offset_left = -400.0
+offset_top = -296.0
+offset_right = -40.0
+offset_bottom = 296.0
 grow_horizontal = 0
 grow_vertical = 2
 mouse_filter = 0
@@ -606,7 +550,7 @@ theme_override_constants/separation = 10
 layout_mode = 2
 theme_override_colors/font_color = Color(0.94, 0.97, 1, 1)
 theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 18
 text = "PLAYERS"
 
 [node name="Divider" type="ColorRect" parent="VictoryOverlay/RosterPanel/Stack"]
@@ -619,60 +563,3 @@ layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/separation = 8
 
-[node name="StatsPanel" type="PanelContainer" parent="VictoryOverlay"]
-visible = false
-anchors_preset = 6
-anchor_left = 1.0
-anchor_top = 0.5
-anchor_right = 1.0
-anchor_bottom = 0.5
-offset_left = -640.0
-offset_top = -102.0
-offset_right = -368.0
-offset_bottom = 102.0
-grow_horizontal = 0
-grow_vertical = 2
-mouse_filter = 0
-theme_override_styles/panel = SubResource("HealthPanel")
-
-[node name="Stack" type="VBoxContainer" parent="VictoryOverlay/StatsPanel"]
-layout_mode = 2
-theme_override_constants/separation = 9
-
-[node name="Top" type="HBoxContainer" parent="VictoryOverlay/StatsPanel/Stack"]
-layout_mode = 2
-
-[node name="Name" type="Label" parent="VictoryOverlay/StatsPanel/Stack/Top"]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 19
-text = "PLAYER"
-
-[node name="Close" type="Button" parent="VictoryOverlay/StatsPanel/Stack/Top"]
-custom_minimum_size = Vector2(34, 34)
-layout_mode = 2
-theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 18
-text = "X"
-
-[node name="Eliminations" type="Label" parent="VictoryOverlay/StatsPanel/Stack"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.78, 0.84, 0.91, 1)
-theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 16
-text = "Eliminations        0"
-
-[node name="Deaths" type="Label" parent="VictoryOverlay/StatsPanel/Stack"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.78, 0.84, 0.91, 1)
-theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 16
-text = "Deaths                 0"
-
-[node name="Ratio" type="Label" parent="VictoryOverlay/StatsPanel/Stack"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.78, 0.84, 0.91, 1)
-theme_override_fonts/font = SubResource("HUDSystemFont")
-theme_override_font_sizes/font_size = 16
-text = "E/D Ratio            0.00"

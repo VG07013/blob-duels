@@ -39,6 +39,15 @@ All WAV files in `assets/audio/` are original procedural audio generated locally
 math, deterministic pseudo-random noise, oscillators, envelopes, filtering, and WAV
 encoding. It does not contain, download, resample, or transform any external audio.
 
+The exception is `assets/audio/kenney/`: recorded sound effects from Kenney's
+[Impact Sounds](https://kenney.nl/assets/impact-sounds),
+[Interface Sounds](https://kenney.nl/assets/interface-sounds) and
+[Sci-fi Sounds](https://kenney.nl/assets/sci-fi-sounds) packs, licensed CC0 1.0
+(public domain, see `assets/audio/kenney/License.txt`). They voice jumps,
+landings, wall kicks, slams, shots, getting hurt, knockouts, eliminations,
+weapon swaps and mine explosions. `slime_jump.wav` and `explosion_low.wav` are
+trimmed, faded mono cuts of `slime_000.ogg` and `lowFrequency_explosion_000.ogg`.
+
 The supplied arena screenshots were used only as broad style references for the game.
 No audio or visual content was extracted from them.
 

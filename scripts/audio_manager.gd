@@ -7,6 +7,8 @@ signal managed_loop_stopped(loop_id: StringName)
 const SILENT_DB := -60.0
 const DEFAULT_MUSIC_FADE := 0.8
 
+## A value is one stream, or an Array of recorded variants picked at random
+## per play so repeated actions do not sound machine-identical.
 const STREAMS := {
 	&"ui_hover": preload("res://assets/audio/ui_hover.wav"),
 	&"ui_click": preload("res://assets/audio/ui_click.wav"),
@@ -58,21 +60,46 @@ const STREAMS := {
 	&"ability_pulse": preload("res://assets/audio/machinery_pulse.wav"),
 	&"ability_phase": preload("res://assets/audio/ambient_sparkle.wav"),
 	&"reward_tick": preload("res://assets/audio/ui_open.wav"),
+	&"jump": preload("res://assets/audio/kenney/slime_jump.wav"),
+	&"air_jump": preload("res://assets/audio/air_jump.wav"),
+	&"land": [preload("res://assets/audio/kenney/impactSoft_heavy_000.ogg"), preload("res://assets/audio/kenney/impactSoft_heavy_001.ogg"), preload("res://assets/audio/kenney/impactSoft_heavy_002.ogg"), preload("res://assets/audio/kenney/impactSoft_heavy_003.ogg")],
+	&"roll": preload("res://assets/audio/roll_loop.wav"),
+	&"slide": preload("res://assets/audio/slide_loop.wav"),
+	&"slide_start": preload("res://assets/audio/slide_start.wav"),
+	&"slide_hop": preload("res://assets/audio/slide_hop.wav"),
+	&"slam_dive": preload("res://assets/audio/slam_dive.wav"),
+	&"slam_impact": [preload("res://assets/audio/kenney/impactPunch_heavy_000.ogg"), preload("res://assets/audio/kenney/impactPunch_heavy_001.ogg"), preload("res://assets/audio/kenney/impactPunch_heavy_002.ogg")],
+	&"wall_kick": [preload("res://assets/audio/kenney/impactGeneric_light_000.ogg"), preload("res://assets/audio/kenney/impactGeneric_light_001.ogg"), preload("res://assets/audio/kenney/impactGeneric_light_002.ogg")],
+	&"blaster_fire": [preload("res://assets/audio/kenney/laserSmall_000.ogg"), preload("res://assets/audio/kenney/laserSmall_001.ogg"), preload("res://assets/audio/kenney/laserSmall_002.ogg"), preload("res://assets/audio/kenney/laserSmall_003.ogg")],
+	&"hit_confirm": preload("res://assets/audio/hit_confirm.wav"),
+	&"elimination": preload("res://assets/audio/kenney/confirmation_002.ogg"),
+	&"hurt": [preload("res://assets/audio/kenney/impactPunch_medium_000.ogg"), preload("res://assets/audio/kenney/impactPunch_medium_001.ogg"), preload("res://assets/audio/kenney/impactPunch_medium_002.ogg")],
+	&"knockout": [preload("res://assets/audio/kenney/explosionCrunch_000.ogg"), preload("res://assets/audio/kenney/explosionCrunch_001.ogg")],
+	&"equip_swap": preload("res://assets/audio/kenney/switch_002.ogg"),
+	&"explosion": preload("res://assets/audio/kenney/explosion_low.wav"),
+	&"punch_swing": preload("res://assets/audio/punch_swing.wav"),
+	&"punch_hit": preload("res://assets/audio/punch_hit.wav"),
 }
 
+## One-shot movement / combat cues grouped for the audio contract.
+const MOVEMENT_SFX_KEYS: Array[StringName] = [&"jump", &"air_jump", &"land", &"slam_dive", &"slam_impact", &"wall_kick", &"slide_start", &"slide_hop"]
+const COMBAT_SFX_KEYS: Array[StringName] = [&"blaster_fire", &"hit_confirm", &"elimination", &"hurt", &"knockout", &"equip_swap", &"explosion", &"punch_swing", &"punch_hit"]
+
+## Positional cues (the opponent's jumps, shots...) fade out past this range.
+const POSITIONAL_SFX_MAX_DISTANCE := 140.0
+const POSITIONAL_SFX_UNIT_SIZE := 14.0
+
+## Keyed by competitive map id (game.gd COMPETITIVE_MAP_SCENES).
 const MAP_MUSIC_THEMES := {
-	&"neon_arcade": preload("res://assets/audio/music_match_neon_arcade.wav"),
-	&"backyard": preload("res://assets/audio/music_match_backyard.wav"),
-	&"arena": preload("res://assets/audio/music_match_arena.wav"),
-	&"sky_temple": preload("res://assets/audio/music_match_sky_temple.wav"),
-	&"toybox": preload("res://assets/audio/music_match_toybox.wav"),
+	&"bounceground": preload("res://assets/audio/music_match_bounceground.wav"),
+	# The Training Yard shares the Bounceground track until it gets its own.
+	&"training_yard": preload("res://assets/audio/music_match_bounceground.wav"),
+	&"skyline": preload("res://assets/audio/music_match_skyline.wav"),
 }
 
-const MAP_MUSIC_ALIASES := {
-	&"arena_factory": &"arena",
-	&"factory": &"arena",
-}
-
+## Music plays only in these contexts; every other context (match, practice,
+## victory, defeat, intensity) fades the music out so gameplay is sfx-only.
+const AUDIBLE_MUSIC_CONTEXTS: Array[StringName] = [&"lobby"]
 const MUSIC_CONTEXTS := {
 	&"lobby": [
 		preload("res://assets/audio/music_lobby.wav"),
@@ -118,6 +145,26 @@ const DEFAULT_SFX_COOLDOWNS := {
 	&"ambient_sparkle": 0.08,
 	&"ability_ready": 0.16,
 	&"reward_tick": 0.08,
+	&"jump": 0.06,
+	&"air_jump": 0.06,
+	&"land": 0.12,
+	&"wall_kick": 0.08,
+	&"hit_confirm": 0.04,
+	&"hurt": 0.07,
+	&"equip_swap": 0.05,
+}
+
+const ABILITY_SFX_PROFILES := {
+	"dash": {"key": &"ability_dash", "pitch": 1.1},
+	"ricochet_shot": {"key": &"ability_ricochet", "pitch": 1.0},
+	"blink": {"key": &"ability_blink", "pitch": 1.0},
+	"target_scanner": {"key": &"ability_scan", "pitch": 1.0},
+	"overcharge": {"key": &"charge_max", "pitch": 1.08},
+	"gravity_pulse": {"key": &"ability_pulse", "pitch": 0.92},
+	"rail_shot": {"key": &"fling_charge", "pitch": 0.74},
+	"bounce_mine": {"key": &"blob_bounce", "pitch": 1.16},
+	"phase_bubble": {"key": &"ability_phase", "pitch": 0.84},
+	"shockwave": {"key": &"wall_impact", "pitch": 0.62},
 }
 
 var _music_players: Array[AudioStreamPlayer] = []
@@ -171,7 +218,7 @@ func play_sfx(key: StringName, volume_db: float = 0.0, pitch_scale: float = 1.0)
 	if DEFAULT_SFX_COOLDOWNS.has(key):
 		play_sfx_limited(key, float(DEFAULT_SFX_COOLDOWNS[key]), volume_db, pitch_scale)
 		return
-	var stream := STREAMS.get(key) as AudioStream
+	var stream := _stream_for(key)
 	if stream == null:
 		push_warning("Unknown Blob Duels SFX key: %s" % key)
 		return
@@ -185,7 +232,7 @@ func play_sfx_limited(
 	pitch_scale: float = 1.0,
 	cooldown_group: StringName = &"",
 ) -> bool:
-	var stream := STREAMS.get(key) as AudioStream
+	var stream := _stream_for(key)
 	if stream == null:
 		push_warning("Unknown Blob Duels SFX key: %s" % key)
 		return false
@@ -203,6 +250,12 @@ func set_music_context(context: StringName, fade_duration: float = DEFAULT_MUSIC
 	if not MUSIC_CONTEXTS.has(context):
 		push_warning("Unknown Blob Duels music context: %s" % context)
 		return false
+	if not AUDIBLE_MUSIC_CONTEXTS.has(context):
+		if context != _current_music_context:
+			stop_music(fade_duration)
+			_current_music_context = context
+			music_context_changed.emit(context)
+		return true
 	var current_player := _music_players[_active_music_index]
 	if context == _current_music_context and current_player.playing and not restart:
 		return true
@@ -267,6 +320,15 @@ func get_music_context() -> StringName:
 	return _current_music_context
 
 
+## True while any music player is producing sound (a fade-out still counts
+## until it finishes).
+func is_music_audible() -> bool:
+	for player in _music_players:
+		if player.playing and player.volume_db > SILENT_DB + 0.5:
+			return true
+	return false
+
+
 func get_active_music_stream_path() -> String:
 	if _music_players.is_empty():
 		return ""
@@ -281,11 +343,10 @@ func get_music_variant_count(context: StringName) -> int:
 
 
 func set_map_music_theme(theme: StringName, fade_duration: float = DEFAULT_MUSIC_FADE, restart_match: bool = true) -> bool:
-	var resolved_theme := StringName(MAP_MUSIC_ALIASES.get(theme, theme))
-	if not resolved_theme.is_empty() and not MAP_MUSIC_THEMES.has(resolved_theme):
+	if not theme.is_empty() and not MAP_MUSIC_THEMES.has(theme):
 		push_warning("Unknown Blob Duels map music theme: %s" % theme)
 		return false
-	_map_music_theme = resolved_theme
+	_map_music_theme = theme
 	if restart_match and _current_music_context == &"match":
 		set_music_context(&"match", fade_duration, true)
 	return true
@@ -300,34 +361,17 @@ func has_sfx(key: StringName) -> bool:
 
 
 func play_ability_sfx(ability_id: String) -> void:
-	var key: StringName = &"ability_pulse"
-	var pitch := 1.0
-	match ability_id:
-		"dash":
-			key = &"ability_dash"
-			pitch = 1.1
-		"ricochet_shot":
-			key = &"ability_ricochet"
-			pitch = 1.22
-		"blink":
-			key = &"ability_blink"
-			pitch = 1.1
-		"target_scanner":
-			key = &"ability_scan"
-			pitch = 1.18
-		"overcharge", "rail_shot":
-			key = &"charge_max"
-			pitch = 1.08
-		"gravity_pulse", "bounce_mine":
-			key = &"ability_pulse"
-			pitch = 0.92 if ability_id == "gravity_pulse" else 1.18
-		"phase_bubble":
-			key = &"ability_phase"
-			pitch = 0.84
-		"adrenaline":
-			key = &"charge_low"
-			pitch = 1.22
+	var profile := ABILITY_SFX_PROFILES.get(ability_id, {}) as Dictionary
+	if profile.is_empty():
+		return
+	var key := profile.get("key", &"") as StringName
+	var pitch := float(profile.get("pitch", 1.0))
 	play_sfx_limited(key, 0.08, -6.0, pitch, StringName("ability_%s" % ability_id))
+
+
+func get_ability_sfx_signature(ability_id: String) -> String:
+	var profile := ABILITY_SFX_PROFILES.get(ability_id, {}) as Dictionary
+	return str(profile.get("key", &""))
 
 
 func start_loop(
@@ -337,7 +381,7 @@ func start_loop(
 	fade_duration: float = 0.15,
 	loop_id: StringName = &"",
 ) -> AudioStreamPlayer:
-	var stream := STREAMS.get(key) as AudioStream
+	var stream := _stream_for(key)
 	if stream == null:
 		push_warning("Unknown Blob Duels loop key: %s" % key)
 		return null
@@ -453,6 +497,70 @@ func set_air_rush(amount: float) -> void:
 	set_loop_parameters(&"player_air_rush", lerpf(-24.0, -5.0, strength), lerpf(0.78, 1.42, strength), 0.0)
 
 
+## Ground contact loops for the local blob: a rumble that follows rolling
+## speed (0..1), a scrape while a brake slide is held, and a faster, louder
+## scrape while a power slide is held. All stop at zero.
+func set_movement_audio(roll_amount: float, sliding: bool, power_sliding: bool = false) -> void:
+	var roll := clampf(roll_amount, 0.0, 1.0)
+	if roll < 0.04 or sliding or power_sliding:
+		stop_loop(&"player_roll", 0.12)
+	else:
+		if not is_loop_playing(&"player_roll"):
+			start_loop(&"roll", -30.0, 0.7, 0.08, &"player_roll")
+		set_loop_parameters(&"player_roll", lerpf(-26.0, -9.0, roll), lerpf(0.7, 1.35, roll), 0.0)
+	if sliding and not power_sliding:
+		if not is_loop_playing(&"player_slide"):
+			start_loop(&"slide", -9.0, 1.0, 0.04, &"player_slide")
+		set_loop_parameters(&"player_slide", lerpf(-14.0, -6.0, roll), lerpf(0.85, 1.2, roll), 0.0)
+	else:
+		stop_loop(&"player_slide", 0.1)
+	if power_sliding:
+		if not is_loop_playing(&"player_power_slide"):
+			start_loop(&"slide", -8.0, 1.1, 0.03, &"player_power_slide")
+		set_loop_parameters(&"player_power_slide", lerpf(-11.0, -3.0, roll), lerpf(1.0, 1.45, roll), 0.0)
+	else:
+		stop_loop(&"player_power_slide", 0.1)
+
+
+## Plays a one-shot from a world position (heard relative to the active
+## camera), for sounds made by blobs other than the local player.
+func play_sfx_at(
+	key: StringName,
+	world_position: Vector3,
+	volume_db: float = 0.0,
+	pitch_scale: float = 1.0,
+	cooldown_seconds: float = 0.0,
+	cooldown_group: StringName = &"",
+) -> bool:
+	if not world_position.is_finite():
+		return false
+	var stream := _stream_for(key)
+	if stream == null:
+		push_warning("Unknown Blob Duels SFX key: %s" % key)
+		return false
+	if cooldown_seconds > 0.0:
+		var group := cooldown_group if not cooldown_group.is_empty() else StringName("at_%s" % key)
+		var now := Time.get_ticks_msec()
+		if now - int(_sfx_last_played_msec.get(group, -1000000)) < int(cooldown_seconds * 1000.0):
+			return false
+		_sfx_last_played_msec[group] = now
+	var player := AudioStreamPlayer3D.new()
+	player.name = "SFX3D_%s" % key
+	player.bus = &"SFX"
+	player.stream = stream
+	player.volume_db = clampf(volume_db, SILENT_DB, 12.0)
+	player.pitch_scale = clampf(pitch_scale, 0.1, 4.0)
+	player.unit_size = POSITIONAL_SFX_UNIT_SIZE
+	player.max_distance = POSITIONAL_SFX_MAX_DISTANCE
+	player.attenuation_filter_cutoff_hz = 9000.0
+	player.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(player)
+	player.global_position = world_position
+	player.finished.connect(player.queue_free)
+	player.play()
+	return true
+
+
 func set_world_loop(kind: StringName, amount: float, loop_id: StringName = &"") -> bool:
 	if kind not in [&"wind", &"machinery"]:
 		return false
@@ -492,6 +600,14 @@ func wire_ui_sounds(root_node: Node) -> void:
 		button.set_meta("audio_wired", true)
 		button.mouse_entered.connect(func() -> void: play_sfx_limited(&"ui_hover", 0.025, -8.0))
 		button.pressed.connect(func() -> void: play_sfx(&"ui_click", -5.0))
+
+
+func _stream_for(key: StringName) -> AudioStream:
+	var entry: Variant = STREAMS.get(key)
+	if entry is Array:
+		var variants := entry as Array
+		return null if variants.is_empty() else variants[randi() % variants.size()] as AudioStream
+	return entry as AudioStream
 
 
 func _spawn_sfx(key: StringName, stream: AudioStream, volume_db: float, pitch_scale: float) -> void:

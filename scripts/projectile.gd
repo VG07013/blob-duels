@@ -1,13 +1,20 @@
 extends Area3D
 
 const ABILITY_TUNING := preload("res://scripts/ability_tuning.gd")
+const COMBAT_TUNING := preload("res://scripts/combat_tuning.gd")
 
 signal hit_confirmed(target: Node3D, world_position: Vector3, damage_target: bool, impact_direction: Vector3, damage: int, knockback: float)
 signal ricocheted(world_position: Vector3, surface_normal: Vector3)
 signal phase_absorbed(world_position: Vector3)
 
-@export var speed := 150.0
-@export var lifetime := 2.4
+## Standard shot speed. The shot ray-casts its whole step every physics frame,
+## so raising this never lets it tunnel through a blob or wall.
+const BASE_SPEED := 240.0
+## Keeps range at ~360 units (the old 150 u/s x 2.4 s) now shots fly faster.
+const BASE_LIFETIME := 1.5
+
+@export var speed := BASE_SPEED
+@export var lifetime := BASE_LIFETIME
 @export var hit_impulse := 135.0
 @export var damage := 30
 
@@ -26,6 +33,9 @@ var _ricochet_scale := 1.0
 var _base_mesh_material: Material
 var _base_glow_color := Color.WHITE
 var _base_glow_energy := 1.0
+## Path length flown so far (ricochets included); drives damage falloff.
+var _distance_travelled := 0.0
+var _rail := false
 
 
 func _ready() -> void:
@@ -51,6 +61,8 @@ func configure(spawn_position: Vector3, direction: Vector3, shot_source: Node, d
 	speed = _base_speed
 	_visual_time = 0.0
 	_ricochet_scale = 1.0
+	_distance_travelled = 0.0
+	_rail = rail_enabled
 	global_position = spawn_position
 	velocity = direction.normalized() * speed
 	source = shot_source
@@ -82,7 +94,7 @@ func configure(spawn_position: Vector3, direction: Vector3, shot_source: Node, d
 		damage += ABILITY_TUNING.RAIL_SHOT_DAMAGE_BONUS
 		var rail_visual := get_node_or_null("Mesh") as MeshInstance3D
 		if rail_visual != null:
-			rail_visual.scale = Vector3(0.24, 0.24, 2.8)
+			rail_visual.scale = Vector3(0.24, 0.24, 1.3)
 			_active_mesh_scale = rail_visual.scale
 			var rail_material := StandardMaterial3D.new()
 			rail_material.albedo_color = Color(0.96, 0.98, 1.0, 1.0)
@@ -110,6 +122,7 @@ func _physics_process(delta: float) -> void:
 		query.exclude = excluded
 	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
 	if not hit.is_empty():
+		_distance_travelled += global_position.distance_to(hit.get("position", next_position) as Vector3)
 		var collider := hit.get("collider") as Node3D
 		var body := _resolve_target(collider)
 		if _can_ricochet(body):
@@ -119,6 +132,7 @@ func _physics_process(delta: float) -> void:
 			_on_body_entered(body)
 		return
 
+	_distance_travelled += global_position.distance_to(next_position)
 	global_position = next_position
 	lifetime -= delta
 	if lifetime <= 0.0:
@@ -135,19 +149,22 @@ func _on_body_entered(body: Node3D) -> void:
 		return
 	_has_hit = true
 
+	var falloff := get_falloff_ratio()
+	var hit_damage := maxi(1, int(round(float(damage) * falloff)))
+	var knockback := hit_impulse * falloff
 	var impact_direction := velocity.normalized()
-	var impact_vector := impact_direction * hit_impulse + Vector3.UP * (12.0 + hit_impulse * 0.18)
+	var impact_vector := impact_direction * knockback + Vector3.UP * (12.0 + knockback * 0.18)
 	var damage_target := body.has_method("take_damage")
 	if damage_target and _damage_enabled:
 		var direct_damage := not body.has_method("receives_direct_damage") or bool(body.call("receives_direct_damage"))
 		if direct_damage:
-			body.take_damage(damage, impact_direction, hit_impulse)
+			body.take_damage(hit_damage, impact_direction, knockback)
 	elif _damage_enabled:
 		var rigid_body := body as RigidBody3D
 		if rigid_body != null:
 			rigid_body.apply_central_impulse(impact_vector)
 
-	hit_confirmed.emit(body, global_position, damage_target, impact_direction, damage, hit_impulse)
+	hit_confirmed.emit(body, global_position, damage_target, impact_direction, hit_damage, knockback)
 	queue_free()
 
 
@@ -190,10 +207,20 @@ func deflect_from(center: Vector3, strength: float, delta: float) -> void:
 	var away := global_position - center
 	if away.length_squared() <= 0.001:
 		return
-	var speed_ratio := clampf(150.0 / maxf(velocity.length(), 1.0), 0.18, 1.0)
+	var speed_ratio := clampf(BASE_SPEED / maxf(velocity.length(), 1.0), 0.18, 1.0)
 	velocity += away.normalized() * strength * speed_ratio * delta
 	velocity = velocity.normalized() * speed
 	look_at(global_position + velocity.normalized(), Vector3.UP)
+
+
+## Damage/knockback share left after the distance flown. Rail shots are the
+## long-range power-up, so they hit at full strength anywhere.
+func get_falloff_ratio() -> float:
+	return 1.0 if _rail else COMBAT_TUNING.shot_falloff(_distance_travelled)
+
+
+func get_distance_travelled() -> float:
+	return _distance_travelled
 
 
 func is_ricochet_shot() -> bool:

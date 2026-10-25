@@ -1,12 +1,8 @@
 extends SceneTree
 
-const ARENA_SCENE := preload("res://scenes/world/maps/backyard.tscn")
 const MAPS := [
-	preload("res://scenes/world/maps/neon_arcade.tscn"),
-	preload("res://scenes/world/maps/backyard.tscn"),
-	preload("res://scenes/world/maps/arena.tscn"),
-	preload("res://scenes/world/maps/sky_temple.tscn"),
-	preload("res://scenes/world/maps/toybox.tscn"),
+	preload("res://scenes/world/maps/bounceground.tscn"),
+	preload("res://scenes/world/maps/training_yard.tscn"),
 ]
 
 var _failures: Array[String] = []
@@ -17,16 +13,19 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	var arena := ARENA_SCENE.instantiate() as Node3D
-	root.add_child(arena)
-	await process_frame
-	for key in [&"grass", &"carpet", &"wood_light", &"rug_blue"]:
-		_expect(arena.call("mat", key) is ShaderMaterial, "%s uses a designed procedural surface" % key)
-	for key in [&"concrete", &"stone", &"marble", &"court"]:
-		var material := arena.call("mat", key) as StandardMaterial3D
-		_expect(material != null and material.albedo_texture != null, "%s uses a tiled material texture" % key)
-	arena.queue_free()
-	await process_frame
+	for packed_map in MAPS:
+		var arena := packed_map.instantiate() as Node3D
+		root.add_child(arena)
+		await process_frame
+		var label := str(arena.get("map_name"))
+		var textured := 0
+		for node in arena.find_children("*", "MeshInstance3D", true, false):
+			var material := (node as MeshInstance3D).material_override as StandardMaterial3D
+			if material != null and material.albedo_texture != null:
+				textured += 1
+		_expect(textured >= 12, "%s walls, decks, ramps and cover need tiled material textures, not flat colour (%d)" % [label, textured])
+		arena.queue_free()
+		await process_frame
 
 	var found_surface_families: Dictionary = {}
 	for packed_map in MAPS:

@@ -38,6 +38,33 @@ func _initialize() -> void:
 	economy.daily_quests = []
 	var rewards := economy.call("award_match", {"placement": 1, "eliminations": 2, "trick_shots": 4, "survived": true, "mvp": true}) as Dictionary
 	_check(int(rewards.get("total", 0)) >= 130, "Match rewards must cap trick shots at three and include base, placement, elimination, survival, and MVP rewards before any earned quest bonus")
+
+	# Stat recording runs on gameplay hot paths, so it must never write to disk
+	# per event and must never move the balance - quest coins are paid on claim.
+	economy.coins = 0
+	# Settle the daily/weekly rotation keys first, otherwise the next stat
+	# recording rotates the fixture quest away before it can be advanced.
+	economy.call("_refresh_quests_if_needed")
+	economy.daily_quests = [{"id": "hot", "title": "Hot", "target": 2, "progress": 0, "reward": 75, "stat": "bounces", "completed": false, "claimed": false}]
+	economy.weekly_quests = []
+	economy.call("save_now")
+	economy.call("record_stat", "bounces", 1)
+	_check(int(economy.call("get_balance")) == 0, "Recording a stat must not pay out coins directly")
+	_check(bool(economy.call("has_unsaved_progress")), "Recording a stat must queue a save rather than writing immediately")
+	economy.call("record_stat", "bounces", 1)
+	var hot_quest := (economy.daily_quests[0] as Dictionary)
+	_check(bool(hot_quest.get("completed", false)), "Reaching a quest target must mark it completed")
+	_check(int(economy.call("get_balance")) == 0, "Completing a quest must not pay out until it is claimed")
+	economy.call("save_now")
+	_check(not bool(economy.call("has_unsaved_progress")), "save_now must flush the queued write")
+	economy.call("record_stat", "bounces", 0)
+	_check(not bool(economy.call("has_unsaved_progress")), "A no-op stat must not queue a write")
+
+	# A corrupt or hand-edited save must cost progress, not the ability to launch.
+	_check((economy.call("_dictionary_or_empty", "not-a-dictionary") as Dictionary).is_empty(), "A non-Dictionary save field must fall back to an empty Dictionary")
+	_check((economy.call("_quest_array_or_empty", 7) as Array).is_empty(), "A non-Array quest field must fall back to an empty Array")
+	_check((economy.call("_quest_array_or_empty", ["junk", {"id": "ok"}]) as Array).size() == 1, "Non-Dictionary quest entries must be dropped on load")
+
 	economy.queue_free()
 	if failures.is_empty():
 		print("ECONOMY CONTRACT PASS")

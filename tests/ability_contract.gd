@@ -8,13 +8,15 @@ var failures: Array[String] = []
 
 func _initialize() -> void:
 	var economy := PROGRESSION_SCRIPT.new()
+	# The live shop only stocks Dash; this contract guards the full ability data.
+	economy.set("stock_full_catalog", true)
 	var dash := economy.call("_find_item", "abilities", "dash") as Dictionary
 	var ricochet := economy.call("_find_item", "abilities", "ricochet_shot") as Dictionary
 	var quick_charge := economy.call("_find_item", "abilities", "quick_charge") as Dictionary
 	_check(int(dash.get("price", 0)) == 150, "Dash must cost 150 Coins")
 	_check(int(ricochet.get("price", 0)) == 300, "Ricochet Shot must cost 300 Coins")
 	_check(int(quick_charge.get("price", 0)) == 500, "Quick Charge must cost 500 Coins")
-	_check((economy.call("get_items", "abilities") as Array).size() == 11, "All eleven launch abilities should be available")
+	_check((economy.call("get_items", "abilities") as Array).size() == 12, "All twelve launch abilities should be available")
 	var blink := economy.call("_find_item", "abilities", "blink") as Dictionary
 	var scanner := economy.call("_find_item", "abilities", "target_scanner") as Dictionary
 	var overcharge := economy.call("_find_item", "abilities", "overcharge") as Dictionary

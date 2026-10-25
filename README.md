@@ -25,15 +25,20 @@ Blob Duels is a physics-first 1v1 arena game where movement is a weapon. Charge 
 
 [**Download the latest macOS build →**](https://github.com/vg07013/blob-duels/releases/latest/download/Blob-Duels-macOS.zip)
 
-The current public alpha is a Universal macOS build for Apple Silicon and Intel Macs. This early build is ad-hoc signed but not Developer ID signed or notarized: after unzipping it, right-click `Blob Duels.app`, choose **Open**, and confirm the first launch. You can verify the archive against the `SHA256SUMS.txt` file attached to the latest release before opening it. In the game, choose **Practice Offline**, **Host Game**, or **Join Game**.
+The current public alpha is a Universal macOS build for Apple Silicon and Intel Macs. This early build is ad-hoc signed but not Developer ID signed or notarized: after unzipping it, right-click `Blob Duels.app`, choose **Open**, and confirm the first launch. In the game, choose **Practice Offline**, **Host Game**, or **Join Game**.
 
-Current macOS ZIP SHA-256: `865eadadf5455bd67d83ae1bcd6083b8bea47546ed1626a56d21f9651309542f`
+Every release ships a `SHA256SUMS.txt`. To verify the archive before opening it, download both and run:
+
+```bash
+shasum -a 256 -c SHA256SUMS.txt
+```
 
 ### Controls
 
 | Action | Control |
 | --- | --- |
 | Move | `W` `A` `S` `D` |
+| Brake | Hold `Left Shift` |
 | Aim / shoot | Mouse / left click |
 | Charge fling | Right click |
 | Bounce | Space |
@@ -45,6 +50,22 @@ Direct online matches are an unauthenticated, trusted-friends-only alpha feature
 ## Development
 
 Blob Duels is built with Godot 4.7. Open `project.godot` in Godot and run the main scene to work on the game locally. The landing page lives in `website/` and is deployed to GitHub Pages on every push to `main`.
+
+Gameplay, UI, and arena behaviour are covered by headless contract tests in `tests/`. Each one is a `SceneTree` script that exits non-zero on failure. Run the whole suite:
+
+```bash
+./scripts/run_tests.sh
+```
+
+Filter to one area while iterating, or stop at the first failure:
+
+```bash
+./scripts/run_tests.sh shop --fail-fast
+```
+
+The runner looks for Godot on `PATH` and in `/Applications`; set `GODOT` to override. It skips the `*_visual_capture.gd` scripts, which need a real rendering device and write reference PNGs rather than asserting. Run those by hand when you want fresh screenshots. CI runs the same suite on every push and pull request that touches game code.
+
+The landing page has its own test:
 
 ```bash
 node --test website/tests/landing-page.test.mjs
