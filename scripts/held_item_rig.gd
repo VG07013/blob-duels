@@ -86,6 +86,9 @@ func set_reduced_motion(enabled: bool) -> void:
 ## The fists take the blob's own colour, with the same rubbery finish.
 func set_blob_color(color: Color) -> void:
 	for material in _fist_materials:
+		material.albedo_color = color
+		material.roughness = 0.28
+		material.metallic = 0.05
 		BLOB_MATERIAL_KIT.decorate(material, color)
 		material.no_depth_test = true
 		material.render_priority = 2
